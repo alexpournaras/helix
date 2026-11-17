@@ -34,6 +34,7 @@ function Setup({ settings, overview, ollama, link }) {
       done: Boolean(settings?.organization),
       detail: settings?.organization || "Shown on exports and reports.",
       to: "/settings",
+      action: "Open settings",
     },
     {
       title: "Start Ollama for local models",
@@ -43,6 +44,8 @@ function Setup({ settings, overview, ollama, link }) {
         : ollama.reachable
           ? `Found ${ollama.models.length} model${ollama.models.length === 1 ? "" : "s"} at ${ollama.url}`
           : `Nothing is answering at ${ollama.url}`,
+      to: "/integrations/ollama",
+      action: "Configure",
     },
     {
       title: "Add a cloud model key",
@@ -54,6 +57,7 @@ function Setup({ settings, overview, ollama, link }) {
       done: Boolean(settings?.default_model),
       detail: settings?.default_model || "Used when a run doesn’t name its own model.",
       to: "/settings",
+      action: "Open settings",
     },
   ];
   const done = steps.filter((s) => s.done).length;
@@ -73,7 +77,7 @@ function Setup({ settings, overview, ollama, link }) {
               <div className="step-title">{s.title}{s.done && <span className="sr-only"> (done)</span>}</div>
               <div className="step-detail">{s.detail}</div>
             </div>
-            {s.to && !s.done && <a className="btn btn-sm" {...link(s.to)}>Open settings</a>}
+            {s.to && !s.done && <a className="btn btn-sm" {...link(s.to)}>{s.action}</a>}
           </li>
         ))}
       </ol>
@@ -112,8 +116,8 @@ export function Dashboard({ settings, apiOnline, link, onRetry }) {
     if (!apiOnline) return;
     api.overview().then(setOverview).catch(() => {});
     api.health().then(setHealth).catch(() => {});
-    api.ollama().then(setOllama).catch(() => {});
-  }, [apiOnline, settings?.ollama_base_url]);
+    api.ollama.status().then(setOllama).catch(() => {});
+  }, [apiOnline]);
 
   return (
     <>

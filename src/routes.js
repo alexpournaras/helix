@@ -35,7 +35,16 @@ export const NAV = [
   },
 ];
 
-const ALL = NAV.flatMap((g) => g.items);
+// Pages that aren't in the sidebar; `parent` keeps that sidebar entry highlighted.
+const HIDDEN = [
+  { id: "ollama", path: "/integrations/ollama", label: "Ollama", parent: "integrations" },
+];
+
+const ALL = [...NAV.flatMap((g) => g.items), ...HIDDEN];
+
+export function routeById(id) {
+  return ALL.find((r) => r.id === id) ?? null;
+}
 
 export function findRoute(pathname) {
   const clean = pathname.replace(/\/+$/, "") || "/";

@@ -415,3 +415,105 @@ input[type="range"] { width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .progress i { transition: none; }
 }
+
+/* ---------- Integration settings ---------- */
+.crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); }
+.crumbs a { color: var(--text-2); font-size: 15px; font-weight: 500; }
+.crumbs a:hover { color: var(--text); }
+.crumbs .topbar-title { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 14px; }
+.link.inline { display: inline-flex; }
+.small { font-size: 12.5px; }
+
+.badge-bad { color: var(--bad); border-color: rgb(251 113 133 / 0.35); background: rgb(251 113 133 / 0.08); }
+.badge-cyan { color: var(--cyan); border-color: rgb(34 211 238 / 0.35); background: var(--cyan-soft); }
+.mono-name { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+.models-table td.strong { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.stack { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.presets .btn[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-soft); }
+.with-unit { display: flex; align-items: center; gap: 10px; }
+.input.narrow { max-width: 160px; }
+.select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1ad' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+.select option { background: var(--surface); color: var(--text); }
+.textarea { height: auto; min-height: 84px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+
+.card-foot {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 13px;
+}
+.card-foot p { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Try it */
+.try { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+.try-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.try-controls .select { width: auto; min-width: 220px; max-width: 100%; }
+.try-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.try-actions .muted { margin-right: auto; }
+/* The reply has a fixed-height box that scrolls on its own; the page never grows with it. */
+.output {
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  overflow: hidden;
+  scroll-margin: 16px;
+}
+.output-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 44px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.output-state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.output-state.is-running { color: var(--cyan); }
+.output-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); animation: pulse-dot 1.2s ease-in-out infinite; }
+@keyframes pulse-dot { 50% { opacity: 0.3; } }
+.output-head .btn { margin-left: auto; }
+.output-body {
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: min(440px, 55vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px;
+}
+.output-body:focus-visible { outline-offset: -2px; }
+.answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.thinking summary { cursor: pointer; color: var(--text-3); font-size: 13px; width: fit-content; }
+.thinking summary:hover { color: var(--text-2); }
+.thinking p { margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--line-2); color: var(--text-3); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.output-stats { font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.jump {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.5);
+}
+.caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--cyan); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+@media (max-width: 860px) {
+  .models-table td:nth-child(2), .models-table td:nth-child(3), .models-table td:nth-child(4), .models-table td:nth-child(5) { grid-column: auto; grid-row: auto; }
+  .models-table tr { grid-template-columns: repeat(4, auto); justify-content: start; gap: 6px 14px; }
+  .models-table td.strong { grid-column: 1 / -1; grid-row: 1; }
+  .row-actions { gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin, .caret, .output-state i { animation: none; }
+}

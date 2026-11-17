@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Settings2 } from "lucide-react";
 import { api } from "../api.js";
 import { Card, OfflineNotice, PageIntro } from "../components/ui.jsx";
 
@@ -8,26 +8,33 @@ const GROUPS = [
   { kind: "data", title: "Data sources", description: "Public databases Helix will search and import from." },
 ];
 
-function Status({ item }) {
+function Status({ item, ollama }) {
+  if (item.id === "ollama") {
+    if (!ollama) return <span className="badge">Checking…</span>;
+    if (!ollama.reachable) return <span className="badge badge-bad">Not reachable</span>;
+    const n = ollama.models.length;
+    return <span className="badge badge-ok">Connected, {n} model{n === 1 ? "" : "s"}</span>;
+  }
   if (item.status === "key_found") return <span className="badge badge-ok">Key found</span>;
   if (item.env_key) return <span className="badge">Needs <code>{item.env_key}</code></span>;
-  if (item.id === "ollama") return <span className="badge">Runs locally</span>;
   return <span className="badge">No key needed</span>;
 }
 
-export function Integrations({ apiOnline }) {
+export function Integrations({ apiOnline, link }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
+  const [ollama, setOllama] = useState(null);
 
   useEffect(() => {
     if (apiOnline === false) return;
     api.integrations().then(setItems).catch((e) => setError(e.message));
+    api.ollama.status().then(setOllama).catch(() => setOllama({ reachable: false, models: [] }));
   }, [apiOnline]);
 
   return (
     <>
       <PageIntro>
-        Services Helix is being built to work with. Nothing calls them yet. Keys you add to <code>backend/.env</code> show
+        Services Helix works with. Ollama works today; the others are coming. Keys you add to <code>backend/.env</code> show
         up here after a backend restart.
       </PageIntro>
 
@@ -40,7 +47,7 @@ export function Integrations({ apiOnline }) {
           ) : (
             <table className="table">
               <thead>
-                <tr><th>Name</th><th>What it’s for</th><th>Status</th><th><span className="sr-only">Docs</span></th></tr>
+                <tr><th>Name</th><th>What it’s for</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr>
               </thead>
               <tbody>
                 {items.filter((i) => i.kind === g.kind).map((i) => (
@@ -50,11 +57,19 @@ export function Integrations({ apiOnline }) {
                       {i.name}
                     </td>
                     <td className="muted">{i.description}</td>
-                    <td><Status item={i} /></td>
+                    <td><Status item={i} ollama={ollama} /></td>
                     <td className="right">
-                      <a className="link" href={i.docs_url} target="_blank" rel="noreferrer">
-                        Docs <ExternalLink size={12} /><span className="sr-only"> for {i.name}, opens in a new tab</span>
-                      </a>
+                      {/* Docs stays last so it lines up in every row */}
+                      <div className="row-actions">
+                        {i.configurable && (
+                          <a className="btn btn-sm" {...link(`/integrations/${i.id}`)}>
+                            <Settings2 size={13} /> Configure<span className="sr-only"> {i.name}</span>
+                          </a>
+                        )}
+                        <a className="link" href={i.docs_url} target="_blank" rel="noreferrer">
+                          Docs <ExternalLink size={12} /><span className="sr-only"> for {i.name}, opens in a new tab</span>
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

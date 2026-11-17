@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Menu, X } from "lucide-react";
 import { api } from "./api.js";
-import { NAV, findRoute } from "./routes.js";
+import { NAV, findRoute, routeById } from "./routes.js";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
 import { Integrations } from "./views/Integrations.jsx";
+import { OllamaSettings } from "./views/OllamaSettings.jsx";
 import { Settings } from "./views/Settings.jsx";
 import { Placeholder } from "./views/Placeholder.jsx";
 import { NotFound } from "./views/NotFound.jsx";
@@ -60,7 +61,8 @@ export default function App() {
   let view;
   if (!route) view = <NotFound link={link} />;
   else if (route.id === "dashboard") view = <Dashboard settings={settings} apiOnline={apiOnline} link={link} onRetry={loadSettings} />;
-  else if (route.id === "integrations") view = <Integrations apiOnline={apiOnline} />;
+  else if (route.id === "integrations") view = <Integrations apiOnline={apiOnline} link={link} />;
+  else if (route.id === "ollama") view = <OllamaSettings apiOnline={apiOnline} link={link} />;
   else if (route.id === "settings") view = <Settings settings={settings} onSaved={setSettings} apiOnline={apiOnline} onRetry={loadSettings} />;
   else view = <Placeholder route={route} link={link} />;
 
@@ -86,7 +88,7 @@ export default function App() {
             <div className="nav-group" key={gi}>
               {group.section && <div className="nav-heading">{group.section}</div>}
               {group.items.map(({ id, path: to, label, icon: Icon, soon }) => (
-                <a key={id} className="nav-item" aria-current={route?.id === id ? "page" : undefined} {...link(to)}>
+                <a key={id} className="nav-item" aria-current={route?.id === id || route?.parent === id ? "page" : undefined} {...link(to)}>
                   <Icon size={16} strokeWidth={1.75} />
                   <span>{label}</span>
                   {soon && <span className="nav-soon">Soon</span>}
@@ -112,7 +114,15 @@ export default function App() {
           <button className="icon-btn only-mobile" onClick={() => setNavOpen(true)} aria-label="Open menu">
             <Menu size={16} />
           </button>
-          <h1 className="topbar-title">{route?.label ?? "Not found"}</h1>
+          {route?.parent ? (
+            <nav className="crumbs" aria-label="Breadcrumb">
+              <a {...link(routeById(route.parent).path)}>{routeById(route.parent).label}</a>
+              <ChevronRight size={14} aria-hidden="true" />
+              <h1 className="topbar-title">{route.label}</h1>
+            </nav>
+          ) : (
+            <h1 className="topbar-title">{route?.label ?? "Not found"}</h1>
+          )}
           <span className="status" data-state={status[0]}>
             <i aria-hidden="true" />
             {status[1]}

@@ -22,8 +22,8 @@ export function Settings({ settings, onSaved, apiOnline, onRetry }) {
   useEffect(() => { setForm(settings); }, [settings]);
   useEffect(() => {
     if (!apiOnline) return;
-    api.ollama().then((o) => setModels(o.models)).catch(() => {});
-  }, [apiOnline, settings?.ollama_base_url]);
+    api.ollama.status().then((o) => setModels(o.models.map((m) => m.name))).catch(() => {});
+  }, [apiOnline]);
 
   if (!form) {
     return apiOnline === false ? <OfflineNotice onRetry={onRetry} /> : <p className="muted">Loading settings…</p>;
@@ -63,10 +63,7 @@ export function Settings({ settings, onSaved, apiOnline, onRetry }) {
         </Row>
       </Card>
 
-      <Card title="Models" description="Defaults for AI runs. API keys belong in backend/.env, never here." className="mb" flush>
-        <Row id="ollama-url" label="Ollama address" hint="Where your local Ollama server listens. Default port is 11434.">
-          <input id="ollama-url" className="input mono" value={form.ollama_base_url} onChange={update("ollama_base_url")} aria-describedby="ollama-url-hint" />
-        </Row>
+      <Card title="Models" description="Defaults for AI runs. Provider settings live under Integrations; API keys belong in backend/.env." className="mb" flush>
         <Row
           id="model"
           label="Default model"

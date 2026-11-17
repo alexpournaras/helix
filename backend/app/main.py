@@ -1,17 +1,16 @@
 import json
 import platform
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import ProviderKeys, settings
 from .integrations import Integration, catalog_with_status
+from .providers import ollama
 from .store import WorkspaceSettings, store
 
 STARTED_AT = time.time()
@@ -56,17 +55,42 @@ def list_integrations():
     return catalog_with_status()
 
 
-@app.get("/api/ollama")
-def ollama_status():
-    """Ping the configured Ollama server and list its installed models."""
-    base = store.load().ollama_base_url.rstrip("/")
-    try:
-        with urllib.request.urlopen(f"{base}/api/tags", timeout=1.5) as res:
-            data = json.load(res)
-        models = sorted(m.get("name", "") for m in data.get("models", []))
-        return {"url": base, "reachable": True, "models": models}
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
-        return {"url": base, "reachable": False, "models": [], "error": str(getattr(exc, "reason", exc))}
+# ---------- Ollama ----------
+
+@app.get("/api/integrations/ollama/config", response_model=ollama.OllamaConfig)
+def get_ollama_config():
+    return ollama.load_config()
+
+
+@app.put("/api/integrations/ollama/config", response_model=ollama.OllamaConfig)
+def put_ollama_config(body: ollama.OllamaConfig):
+    return ollama.save_config(body)
+
+
+@app.get("/api/integrations/ollama/status")
+async def get_ollama_status(base_url: str | None = None):
+    """Contact the configured server: reachability, version, installed and loaded models.
+    Pass `base_url` to test a different address without saving it."""
+    config = ollama.load_config()
+    if base_url is not None:
+        try:
+            config = ollama.OllamaConfig(**{**config.model_dump(), "base_url": base_url})
+        except ValueError as exc:
+            message = exc.errors()[0]["msg"].removeprefix("Value error, ") if hasattr(exc, "errors") else str(exc)
+            raise HTTPException(status_code=422, detail=message)
+    return await ollama.status(config)
+
+
+@app.post("/api/integrations/ollama/chat")
+async def ollama_chat(body: ollama.ChatRequest):
+    """Stream a chat reply as NDJSON events: start, thinking, content, done or error."""
+    config = ollama.load_config()
+
+    async def events():
+        async for event in ollama.chat_stream(config, body):
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/settings", response_model=WorkspaceSettings)

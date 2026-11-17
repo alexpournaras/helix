@@ -26,7 +26,7 @@ function Stat({ icon: Icon, label, value, note }) {
   );
 }
 
-function Setup({ settings, overview, ollama, link }) {
+function Setup({ settings, overview, ollama, ollamaConfig, link }) {
   const keys = overview?.ai_keys ?? [];
   const steps = [
     {
@@ -53,11 +53,11 @@ function Setup({ settings, overview, ollama, link }) {
       detail: keys.length ? `Found ${keys.join(", ")}` : <>Add <code>OPENAI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> to <code>backend/.env</code></>,
     },
     {
-      title: "Choose a default model",
-      done: Boolean(settings?.default_model),
-      detail: settings?.default_model || "Used when a run doesn’t name its own model.",
-      to: "/settings",
-      action: "Open settings",
+      title: "Choose a default Ollama model",
+      done: Boolean(ollamaConfig?.default_model),
+      detail: ollamaConfig?.default_model || "Used when a request doesn’t name its own model.",
+      to: "/integrations/ollama",
+      action: "Configure",
     },
   ];
   const done = steps.filter((s) => s.done).length;
@@ -111,12 +111,14 @@ export function Dashboard({ settings, apiOnline, link, onRetry }) {
   const [overview, setOverview] = useState(null);
   const [health, setHealth] = useState(null);
   const [ollama, setOllama] = useState(null);
+  const [ollamaConfig, setOllamaConfig] = useState(null);
 
   useEffect(() => {
     if (!apiOnline) return;
     api.overview().then(setOverview).catch(() => {});
     api.health().then(setHealth).catch(() => {});
     api.ollama.status().then(setOllama).catch(() => {});
+    api.ollama.getConfig().then(setOllamaConfig).catch(() => {});
   }, [apiOnline]);
 
   return (
@@ -148,7 +150,7 @@ export function Dashboard({ settings, apiOnline, link, onRetry }) {
       </section>
 
       <div className="split">
-        <Setup settings={settings} overview={overview} ollama={ollama} link={link} />
+        <Setup settings={settings} overview={overview} ollama={ollama} ollamaConfig={ollamaConfig} link={link} />
         <System apiOnline={apiOnline} health={health} overview={overview} />
       </div>
     </>

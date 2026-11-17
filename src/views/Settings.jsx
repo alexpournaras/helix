@@ -17,13 +17,8 @@ function Row({ id, label, hint, children }) {
 export function Settings({ settings, onSaved, apiOnline, onRetry }) {
   const [form, setForm] = useState(settings);
   const [status, setStatus] = useState({ saving: false, saved: false, error: null });
-  const [models, setModels] = useState([]);
 
   useEffect(() => { setForm(settings); }, [settings]);
-  useEffect(() => {
-    if (!apiOnline) return;
-    api.ollama.status().then((o) => setModels(o.models.map((m) => m.name))).catch(() => {});
-  }, [apiOnline]);
 
   if (!form) {
     return apiOnline === false ? <OfflineNotice onRetry={onRetry} /> : <p className="muted">Loading settings…</p>;
@@ -60,17 +55,6 @@ export function Settings({ settings, onSaved, apiOnline, onRetry }) {
         </Row>
         <Row id="ws-email" label="Contact email">
           <input id="ws-email" className="input" type="email" value={form.contact_email} onChange={update("contact_email")} placeholder="lab@example.org" />
-        </Row>
-      </Card>
-
-      <Card title="Models" description="Defaults for AI runs. Provider settings live under Integrations; API keys belong in backend/.env." className="mb" flush>
-        <Row
-          id="model"
-          label="Default model"
-          hint={models.length ? `Suggestions come from your ${models.length} installed Ollama models.` : "For example llama3.1, gpt-5 or claude-opus-5-5."}
-        >
-          <input id="model" className="input mono" list="model-list" value={form.default_model} onChange={update("default_model")} aria-describedby="model-hint" />
-          <datalist id="model-list">{models.map((m) => <option key={m} value={m} />)}</datalist>
         </Row>
       </Card>
 

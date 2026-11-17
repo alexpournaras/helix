@@ -32,7 +32,6 @@ class WorkspaceSettings(BaseModel):
     workspace_name: str = "Helix Research"
     organization: str = ""
     contact_email: str = ""
-    default_model: str = ""
     reduce_motion: bool = False
 
 

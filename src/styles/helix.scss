@@ -1,0 +1,134 @@
+// Animated DNA double helix — CSS 3D rungs + SVG "goo" filter + flying base letters.
+// Ported from biomedical-research, scoped to .dna-field so it never leaks into the shell.
+
+$count: 55;
+
+@property --rotate-y {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+@keyframes dna {
+  from { --rotate-y: 0deg; }
+  to   { --rotate-y: 360deg; }
+}
+
+@keyframes base-throw {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) rotate(0deg) scale(0.45); }
+  9%   { opacity: 0.95; }
+  42%  { opacity: 0.78; }
+  100% { opacity: 0; transform: translate3d(var(--fly-x), var(--fly-y), 0) rotate(var(--spin)) scale(var(--scale)); }
+}
+
+.dna-field {
+  --color-primary: #5ff067;
+  --color-secondary: #00aa11;
+  --color-tertiary: #ff9527;
+
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  contain: layout style;
+
+  .base-stream {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    overflow: hidden;
+  }
+
+  .base-particle {
+    position: absolute;
+    left: var(--start-x);
+    top: var(--start-y);
+    color: color-mix(in oklch, var(--color-primary), white 18%);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 0;
+    text-shadow:
+      0 0 10px color-mix(in oklch, var(--color-primary), transparent 22%),
+      0 0 24px color-mix(in oklch, var(--color-secondary), transparent 40%);
+    animation: base-throw var(--duration) cubic-bezier(0.17, 0.67, 0.2, 1) var(--delay) infinite;
+    will-change: transform, opacity;
+
+    &:nth-child(3n) { color: color-mix(in oklch, var(--color-tertiary), white 10%); }
+    &:nth-child(4n) { font-size: 0.78rem; }
+  }
+
+  .helix-container {
+    filter: url(#helixBlurFilter) contrast(1.5) brightness(1.5) saturate(0.6);
+    position: absolute;
+    transform: scale(0.8);
+    margin-top: -200px;
+    right: 20%;
+    z-index: 1;
+    will-change: transform;
+  }
+
+  .dna {
+    --width: 11rem;
+    --count: #{$count};
+    display: flex;
+    flex-direction: column;
+    perspective: 50rem;
+    animation: dna 4s linear infinite;
+    transform-style: preserve-3d;
+    rotate: 45deg;
+    transform: rotateY(var(--rotate-y, 0deg));
+
+    .item {
+      display: flex;
+      align-items: center;
+      transform-style: preserve-3d;
+      transform: rotateY(calc(360deg / var(--count) * var(--i)));
+
+      > div {
+        width: var(--width);
+        height: 0.381rem;
+        background: conic-gradient(var(--color-primary), var(--color-secondary));
+        transform-style: preserve-3d;
+
+        &:first-of-type,
+        &:last-of-type {
+          --thickness: 0.9rem;
+          width: var(--thickness);
+          height: var(--thickness);
+          background: var(--color-secondary);
+          border-radius: 50%;
+          transform: rotateY(calc(360deg / var(--count) * -1 * var(--i) - var(--rotate-y)));
+        }
+
+        &:last-of-type { background: var(--color-primary); }
+      }
+
+      &.is-mut > div {
+        background: conic-gradient(var(--color-tertiary), var(--color-primary));
+
+        &:first-of-type,
+        &:last-of-type { background: var(--color-tertiary); }
+      }
+    }
+  }
+
+  .helix-filter {
+    position: absolute;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+  }
+
+  &.is-still {
+    .dna { animation: none; --rotate-y: 30deg; }
+    .base-particle { animation: none; opacity: 0.16; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dna-field .base-particle { animation: none; opacity: 0.16; }
+  .dna-field .dna { animation-duration: 12s; }
+}

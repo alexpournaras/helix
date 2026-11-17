@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1a21"/>
+      <stop offset="1" stop-color="#0b0b0e"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="8" fill="url(#tile)" stroke="#2c2c35"/>
+  <g stroke-linecap="round" fill="none">
+    <!-- base pairs -->
+    <g stroke="#ececf1" stroke-opacity="0.45" stroke-width="1.6">
+      <path d="M11.2 6.5h9.6M10.4 16h11.2M11.2 25.5h9.6"/>
+    </g>
+    <!-- back strand -->
+    <path d="M22 3.5c0 6-12 6.5-12 12.5s12 6.5 12 12.5" stroke="#e040fb" stroke-width="2.6"/>
+    <!-- front strand, with a dark halo so it reads as passing over -->
+    <path d="M10 3.5c0 6 12 6.5 12 12.5s-12 6.5-12 12.5" stroke="#0e0e11" stroke-width="5"/>
+    <path d="M10 3.5c0 6 12 6.5 12 12.5s-12 6.5-12 12.5" stroke="#22d3ee" stroke-width="2.6"/>
+  </g>
+</svg>

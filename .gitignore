@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+backend/.venv/
+
+# build output
+dist/
+
+# runtime data (workspace settings, may contain personal details)
+backend/data/
+
+# secrets: keep .env.example, ignore every real env file
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+
+# logs
+*.log
+npm-debug.log*
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -452,16 +452,16 @@ export function OllamaSettings({ apiOnline }) {
             </select>
           </Row>
           <Row id="ol-temp" label="Temperature" hint="Lower is more focused and repeatable, higher is more varied. Leave empty for the model’s default.">
-            <input id="ol-temp" className="input narrow" type="number" min="0" max="2" step="0.1" placeholder="Model default"
+            <input id="ol-temp" className="input" type="number" min="0" max="2" step="0.1" placeholder="Model default"
               value={form.temperature ?? ""} onChange={(e) => set("temperature", numberOrNull(e.target.value))} aria-describedby="ol-temp-hint" />
           </Row>
           <Row id="ol-ctx" label="Context length" hint="How many tokens the model can see at once. Larger values use more memory. Leave empty for the model’s default.">
-            <input id="ol-ctx" className="input narrow" type="number" min="256" step="256" placeholder="Model default"
+            <input id="ol-ctx" className="input" type="number" min="256" step="256" placeholder="Model default"
               value={form.num_ctx ?? ""} onChange={(e) => set("num_ctx", numberOrNull(e.target.value))} aria-describedby="ol-ctx-hint" />
           </Row>
           <Row id="ol-timeout" label="Timeout" hint="Give up if Ollama sends nothing for this many seconds. Large models on slow hardware may need more.">
             <div className="with-unit">
-              <input id="ol-timeout" className="input narrow" type="number" min="5" max="3600" step="5"
+              <input id="ol-timeout" className="input" type="number" min="5" max="3600" step="5"
                 value={form.timeout_seconds} onChange={(e) => set("timeout_seconds", Number(e.target.value) || 120)} aria-describedby="ol-timeout-hint" />
               <span className="muted">seconds</span>
             </div>

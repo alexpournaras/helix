@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Menu, X } from "lucide-react";
 import { api } from "./api.js";
-import { NAV, findRoute, routeById } from "./routes.js";
+import { NAV, ancestors, findRoute } from "./routes.js";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
 import { Integrations } from "./views/Integrations.jsx";
+import { Literature } from "./views/Literature.jsx";
+import { LiteratureFetch } from "./views/LiteratureFetch.jsx";
+import { LiteratureSource } from "./views/LiteratureSource.jsx";
 import { OllamaSettings } from "./views/OllamaSettings.jsx";
 import { Settings } from "./views/Settings.jsx";
 import { Placeholder } from "./views/Placeholder.jsx";
@@ -44,6 +47,7 @@ export default function App() {
   useEffect(loadSettings, [loadSettings]);
 
   const route = findRoute(path);
+  const trail = useMemo(() => ancestors(route), [route]);
   useEffect(() => {
     document.title = route && route.id !== "dashboard" ? `${route.label} – Helix` : "Helix";
     setNavOpen(false);
@@ -63,6 +67,9 @@ export default function App() {
   else if (route.id === "dashboard") view = <Dashboard settings={settings} apiOnline={apiOnline} link={link} onRetry={loadSettings} />;
   else if (route.id === "integrations") view = <Integrations apiOnline={apiOnline} link={link} />;
   else if (route.id === "ollama") view = <OllamaSettings apiOnline={apiOnline} link={link} />;
+  else if (route.source) view = <LiteratureSource key={route.source} source={route.source} apiOnline={apiOnline} link={link} />;
+  else if (route.id === "literature") view = <Literature apiOnline={apiOnline} link={link} />;
+  else if (route.id === "literature-fetch") view = <LiteratureFetch apiOnline={apiOnline} link={link} />;
   else if (route.id === "settings") view = <Settings settings={settings} onSaved={setSettings} apiOnline={apiOnline} onRetry={loadSettings} />;
   else view = <Placeholder route={route} link={link} />;
 
@@ -88,7 +95,7 @@ export default function App() {
             <div className="nav-group" key={gi}>
               {group.section && <div className="nav-heading">{group.section}</div>}
               {group.items.map(({ id, path: to, label, icon: Icon, soon }) => (
-                <a key={id} className="nav-item" aria-current={route?.id === id || route?.parent === id ? "page" : undefined} {...link(to)}>
+                <a key={id} className="nav-item" aria-current={route?.id === id || trail.some((r) => r.id === id) ? "page" : undefined} {...link(to)}>
                   <Icon size={16} strokeWidth={1.75} />
                   <span>{label}</span>
                   {soon && <span className="nav-soon">Soon</span>}
@@ -116,8 +123,12 @@ export default function App() {
           </button>
           {route?.parent ? (
             <nav className="crumbs" aria-label="Breadcrumb">
-              <a {...link(routeById(route.parent).path)}>{routeById(route.parent).label}</a>
-              <ChevronRight size={14} aria-hidden="true" />
+              {trail.map((r) => (
+                <Fragment key={r.id}>
+                  <a {...link(r.path)}>{r.label}</a>
+                  <ChevronRight size={14} aria-hidden="true" />
+                </Fragment>
+              ))}
               <h1 className="topbar-title">{route.label}</h1>
             </nav>
           ) : (

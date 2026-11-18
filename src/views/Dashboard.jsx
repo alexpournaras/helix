@@ -145,7 +145,7 @@ export function Dashboard({ settings, apiOnline, link, onRetry }) {
       <section className="stats" aria-label="Workspace contents">
         <Stat icon={FolderKanban} label="Projects" value={overview?.projects} note="None created yet" />
         <Stat icon={Database} label="Datasets" value={overview?.datasets} note="Nothing imported yet" />
-        <Stat icon={BookOpen} label="Papers" value={overview?.literature} note="Library is empty" />
+        <Stat icon={BookOpen} label="Papers" value={overview?.literature} note={overview?.literature ? "In the literature library" : "Library is empty"} />
         <Stat icon={Bot} label="AI runs" value={overview?.ai_runs} note="No analyses yet" />
       </section>
 

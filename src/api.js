@@ -21,8 +21,16 @@ async function request(path, options = {}) {
     }
     throw new Error(describeDetail(detail));
   }
-  return res.json();
+  return res.status === 204 ? null : res.json();
 }
+
+// Arrays become repeated keys (?tag=a&tag=b); empty values are left out.
+const qs = (params) => {
+  const entries = Object.entries(params)
+    .flatMap(([k, v]) => (Array.isArray(v) ? v.map((x) => [k, x]) : [[k, v]]))
+    .filter(([, v]) => v !== undefined && v !== null && v !== "");
+  return entries.length ? `?${new URLSearchParams(entries)}` : "";
+};
 
 /**
  * POST and read an NDJSON stream, calling onEvent for each parsed line.
@@ -75,5 +83,23 @@ export const api = {
     getConfig: () => request("/integrations/ollama/config"),
     saveConfig: (body) => request("/integrations/ollama/config", { method: "PUT", body: JSON.stringify(body) }),
     chat: (body, onEvent, signal) => stream("/integrations/ollama/chat", body, onEvent, signal),
+  },
+
+  literature: {
+    // source: "pubmed" | "pmc" | "europepmc"; body: { term, max_results, sort }
+    peek: (source, id) => request(`/integrations/${source}/peek${qs({ id })}`),
+    preview: (source, body) => request(`/integrations/${source}/preview`, { method: "POST", body: JSON.stringify(body) }),
+    startFetch: (source, body) => request(`/integrations/${source}/fetch`, { method: "POST", body: JSON.stringify(body) }),
+    runs: (params = {}) => request(`/literature/runs${qs(params)}`),
+    run: (id) => request(`/literature/runs/${id}`),
+    cancelRun: (id) => request(`/literature/runs/${id}/cancel`, { method: "POST" }),
+    list: (params = {}) => request(`/literature${qs(params)}`),
+    facets: () => request("/literature/facets"),
+    get: (id) => request(`/literature/${id}`),
+    remove: (id) => request(`/literature/${id}`, { method: "DELETE" }),
+    refresh: (id) => request(`/literature/${id}/refresh`, { method: "POST" }),
+    removeAll: () => request("/literature", { method: "DELETE" }),
+    addTag: (id, name) => request(`/literature/${id}/tags`, { method: "POST", body: JSON.stringify({ name }) }),
+    removeTag: (id, name) => request(`/literature/${id}/tags/${encodeURIComponent(name)}`, { method: "DELETE" }),
   },
 };

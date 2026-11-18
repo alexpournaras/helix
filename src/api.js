@@ -70,6 +70,14 @@ async function stream(path, body, onEvent, signal) {
 }
 
 export const api = {
+  chat: {
+    providers: () => request("/chat/providers"),
+    list: () => request("/chat/conversations"),
+    create: () => request("/chat/conversations", { method: "POST" }),
+    get: (id) => request(`/chat/conversations/${id}`),
+    remove: (id) => request(`/chat/conversations/${id}`, { method: "DELETE" }),
+    send: (id, body, onEvent, signal) => stream(`/chat/conversations/${id}/messages`, body, onEvent, signal),
+  },
   health: () => request("/health"),
   overview: () => request("/overview"),
   integrations: () => request("/integrations"),
@@ -83,6 +91,13 @@ export const api = {
     getConfig: () => request("/integrations/ollama/config"),
     saveConfig: (body) => request("/integrations/ollama/config", { method: "PUT", body: JSON.stringify(body) }),
     chat: (body, onEvent, signal) => stream("/integrations/ollama/chat", body, onEvent, signal),
+  },
+
+  openai: {
+    status: () => request("/integrations/openai/status"),
+    getConfig: () => request("/integrations/openai/config"),
+    saveConfig: (body) => request("/integrations/openai/config", { method: "PUT", body: JSON.stringify(body) }),
+    chat: (body, onEvent, signal) => stream("/integrations/openai/chat", body, onEvent, signal),
   },
 
   literature: {

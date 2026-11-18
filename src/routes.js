@@ -1,4 +1,4 @@
-import { Bot, BookOpen, Database, FolderKanban, LayoutDashboard, Plug, Settings } from "lucide-react";
+import { Bot, BookOpen, Database, FolderKanban, LayoutDashboard, MessageSquare, Plug, Settings } from "lucide-react";
 
 // `blurb` explains a not-yet-built section in plain terms.
 export const NAV = [
@@ -8,6 +8,7 @@ export const NAV = [
   {
     section: "Research",
     items: [
+      { id: "chat", path: "/chat", label: "Chat", icon: MessageSquare },
       { id: "literature", path: "/literature", label: "Literature", icon: BookOpen },
       {
         id: "projects", path: "/projects", label: "Projects", icon: FolderKanban, soon: true,
@@ -36,6 +37,7 @@ export const NAV = [
 // it descends from highlighted.
 const HIDDEN = [
   { id: "ollama", path: "/integrations/ollama", label: "Ollama", parent: "integrations" },
+  { id: "openai", path: "/integrations/openai", label: "OpenAI", parent: "integrations" },
   { id: "literature-fetch", path: "/literature/fetch", label: "Mass import", parent: "literature" },
   { id: "pubmed", path: "/literature/fetch/pubmed", label: "Fetch from PubMed", parent: "literature", source: "pubmed" },
   { id: "pmc", path: "/literature/fetch/pmc", label: "Fetch from PubMed Central", parent: "literature", source: "pmc" },

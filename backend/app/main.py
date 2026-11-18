@@ -10,13 +10,14 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import ProviderKeys, settings
+from .chat import router as chat_router
 from .integrations import Integration, catalog_with_status
 from .literature import runner
 from .literature.db import db as literature_db
 from .literature.models import (
     SOURCES, FetchRequest, FetchRun, Literature, LiteratureFull, LiteraturePage, Peek, PreviewPage, SourceId, TagRequest,
 )
-from .providers import ollama
+from .providers import ollama, openai
 from .store import WorkspaceSettings, store
 
 STARTED_AT = time.time()
@@ -30,6 +31,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=f"{settings.app_name} API", version=settings.version, lifespan=lifespan)
+app.include_router(chat_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -102,6 +104,38 @@ async def ollama_chat(body: ollama.ChatRequest):
 
     async def events():
         async for event in ollama.chat_stream(config, body):
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
+
+
+# ---------- OpenAI ----------
+
+@app.get("/api/integrations/openai/config", response_model=openai.OpenAIConfig)
+def get_openai_config():
+    return openai.load_config()
+
+
+@app.put("/api/integrations/openai/config", response_model=openai.OpenAIConfig)
+def put_openai_config(body: openai.OpenAIConfig):
+    try:
+        return openai.save_config(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/integrations/openai/status")
+async def get_openai_status():
+    return await openai.status(openai.load_config())
+
+
+@app.post("/api/integrations/openai/chat")
+async def openai_chat(body: openai.ChatRequest):
+    """Stream an OpenAI playground reply as normalized NDJSON events."""
+    config = openai.load_config()
+
+    async def events():
+        async for event in openai.chat_stream(config, body):
             yield json.dumps(event) + "\n"
 
     return StreamingResponse(events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})

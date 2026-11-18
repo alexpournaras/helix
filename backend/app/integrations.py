@@ -34,7 +34,7 @@ class Integration(BaseModel):
 
 CATALOG: list[Integration] = [
     Integration(id="ollama", name="Ollama", kind="ai", description="Open-weight models on your own hardware, or Ollama cloud models.", docs_url="https://docs.ollama.com", configurable=True, implemented=True),
-    Integration(id="openai", name="OpenAI", kind="ai", description="GPT models through the OpenAI API.", docs_url="https://platform.openai.com/docs", env_key="OPENAI_API_KEY"),
+    Integration(id="openai", name="OpenAI", kind="ai", description="GPT models through the OpenAI API.", docs_url="https://developers.openai.com/api/docs", env_key="OPENAI_API_KEY", configurable=True, implemented=True),
     Integration(id="anthropic", name="Claude", kind="ai", description="Anthropic's Claude models through the Claude API.", docs_url="https://docs.claude.com", env_key="ANTHROPIC_API_KEY"),
     Integration(id="gemini", name="Gemini", kind="ai", description="Google's Gemini models.", docs_url="https://ai.google.dev", env_key="GEMINI_API_KEY"),
     Integration(id="pubmed", name="PubMed", kind="data", description="Biomedical abstracts and citations from NCBI. Free; a key raises the rate limit.", docs_url="https://www.ncbi.nlm.nih.gov/books/NBK25501/", env_key="NCBI_API_KEY", key_optional=True, configurable=True, implemented=True, category="literature"),

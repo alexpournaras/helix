@@ -9,12 +9,18 @@ const GROUPS = [
 ];
 
 // Every row is one short badge; the detail is a tooltip, so the column reads the same everywhere.
-function statusOf(item, ollama) {
+function statusOf(item, ollama, openai) {
   if (item.id === "ollama") {
     if (!ollama) return { label: "Checking…" };
     if (!ollama.reachable) return { label: "Not reachable", tone: "badge-bad", note: "Is Ollama running?" };
     const n = ollama.models.length;
     return { label: "Connected", tone: "badge-ok", note: `${n} model${n === 1 ? "" : "s"} available` };
+  }
+  if (item.id === "openai") {
+    if (!openai) return { label: "Checking…" };
+    if (!openai.api_key_present) return { label: "Needs key", note: "Add OPENAI_API_KEY to backend/.env" };
+    if (!openai.reachable) return { label: "Connection failed", tone: "badge-bad", note: openai.error };
+    return { label: "Connected", tone: "badge-ok", note: `${openai.models.length} supported models available` };
   }
   const key = item.env_key;
   if (!item.implemented) {
@@ -25,8 +31,8 @@ function statusOf(item, ollama) {
   return { label: "Needs key", note: key && `Add ${key} to backend/.env` };
 }
 
-function Status({ item, ollama }) {
-  const { label, tone = "", note } = statusOf(item, ollama);
+function Status({ item, ollama, openai }) {
+  const { label, tone = "", note } = statusOf(item, ollama, openai);
   return <span className={`badge ${tone}`} title={note || undefined}>{label}</span>;
 }
 
@@ -34,17 +40,19 @@ export function Integrations({ apiOnline, link }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
   const [ollama, setOllama] = useState(null);
+  const [openai, setOpenai] = useState(null);
 
   useEffect(() => {
     if (apiOnline === false) return;
     api.integrations().then(setItems).catch((e) => setError(e.message));
     api.ollama.status().then(setOllama).catch(() => setOllama({ reachable: false, models: [] }));
+    api.openai.status().then(setOpenai).catch(() => setOpenai({ reachable: false, api_key_present: false, models: [] }));
   }, [apiOnline]);
 
   return (
     <>
       <PageIntro>
-        Services Helix works with. Ollama, PubMed, PubMed Central and Europe PMC work today; the others are coming. Keys you add to <code>backend/.env</code> show
+        Services Helix works with. OpenAI, Ollama, PubMed, PubMed Central and Europe PMC work today; the others are coming. Keys you add to <code>backend/.env</code> show
         up here after a backend restart.
       </PageIntro>
 
@@ -57,7 +65,7 @@ export function Integrations({ apiOnline, link }) {
           ) : (
             <table className="table">
               <thead>
-                <tr><th>Name</th><th>What it’s for</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr>
+                <tr><th>Name</th><th>What it’s for</th><th className="center">Status</th><th><span className="sr-only">Actions</span></th></tr>
               </thead>
               <tbody>
                 {items.filter((i) => i.kind === g.kind).map((i) => (
@@ -67,7 +75,7 @@ export function Integrations({ apiOnline, link }) {
                       {i.name}
                     </td>
                     <td className="muted">{i.description}</td>
-                    <td><Status item={i} ollama={ollama} /></td>
+                    <td className="center"><Status item={i} ollama={ollama} openai={openai} /></td>
                     <td className="right">
                       {/* Docs stays last so it lines up in every row */}
                       <div className="row-actions">

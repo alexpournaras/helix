@@ -20,6 +20,15 @@ Open http://127.0.0.1:5173.
 
 API keys go in `backend/.env`; see `backend/.env.example`.
 
+### OpenAI usage note
+
+Eligible accounts can receive free daily usage for API traffic shared with OpenAI:
+
+- Up to 250,000 tokens per day across GPT-5.4, GPT-5.2, GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o1, and o3.
+- Up to 2.5 million tokens per day across GPT-5.4 mini, GPT-5.4 nano, GPT-5 mini, GPT-5 nano, GPT-4.1 mini, GPT-4.1 nano, GPT-4o mini, o3-mini, and o4-mini.
+
+Usage beyond these limits, and usage of other models, is billed at standard rates. Additional limitations may apply. Eligibility and limits are controlled by OpenAI and may change; check the OpenAI platform for current terms.
+
 ## Scripts
 
 | Command           | What it does                               |

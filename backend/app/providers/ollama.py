@@ -194,5 +194,11 @@ async def chat_stream(config: OllamaConfig, request: ChatRequest) -> AsyncIterat
                             },
                         }
                         return
+    except httpx.ReadTimeout:
+        yield {"type": "error", "message": (
+            f"Ollama sent no response for {config.timeout_seconds} seconds. "
+            "The model may still be loading or processing your message. "
+            "Open Configure and increase the timeout, or try a smaller model."
+        )}
     except (httpx.HTTPError, ValueError) as exc:
         yield {"type": "error", "message": _describe(exc, config.base_url)}

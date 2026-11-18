@@ -322,6 +322,7 @@ code { font-family: var(--mono); font-size: 0.85em; color: var(--cyan); }
 .table tbody tr:hover { background: rgb(255 255 255 / 0.015); }
 .table .strong { font-weight: 600; white-space: nowrap; }
 .table .right { text-align: right; }
+.table .center { text-align: center; }
 .chip-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 10px; vertical-align: 1px; }
 .chip-dot.cyan { background: var(--cyan); }
 .chip-dot.magenta { background: var(--magenta); }

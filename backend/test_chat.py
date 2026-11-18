@@ -28,7 +28,7 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
     async def test_history_stream_and_delete(self):
         seen = []
 
-        async def stream(config, request):
+        async def stream(config, request, **kwargs):
             self.assertFalse(request.think)
             seen.append([m.model_dump() for m in request.messages])
             yield {"type": "content", "text": "Hello!"}
@@ -55,7 +55,7 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.get(url)).status_code, 404)
 
     async def test_failed_reply_and_validation(self):
-        async def stream(config, request):
+        async def stream(config, request, **kwargs):
             yield {"type": "content", "text": "Partial"}
 
         item = (await self.client.post("/api/chat/conversations")).json()
@@ -115,7 +115,7 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(payloads[1]["stream"])
 
     async def test_cancel_preserves_partial_reply(self):
-        async def stream(config, request):
+        async def stream(config, request, **kwargs):
             yield {"type": "content", "text": "Partial reply"}
             raise asyncio.CancelledError()
 
@@ -129,6 +129,33 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply["content"], "Partial reply")
         self.assertEqual(reply["status"], "interrupted")
         self.assertNotIn(item["id"], chat.active)
+
+    async def test_tool_scope_is_saved_and_replayed_as_verified_audit(self):
+        seen = []
+
+        async def stream(config, request, **kwargs):
+            seen.append([message.model_dump() for message in request.messages])
+            if len(seen) == 1:
+                yield {"type": "tool", "name": "get_literature_full_text", "scope": "full_text", "error": None,
+                       "audit": {"scope": "full_text", "complete": True, "sections": 12},
+                       "sources": [{"id": 17, "title": "A paper"}]}
+                yield {"type": "content", "text": "I read the full text."}
+            else:
+                yield {"type": "content", "text": "The audit confirms it."}
+            yield {"type": "done"}
+
+        item = (await self.client.post("/api/chat/conversations")).json()
+        url = f"/api/chat/conversations/{item['id']}/messages"
+        with patch.object(chat.ollama, "chat_stream", stream):
+            await self.client.post(url, json={"model": "test", "content": "Read the full text"})
+            await self.client.post(url, json={"model": "test", "content": "Did you really read it?"})
+
+        audit_message = next(message["content"] for message in seen[1] if message["role"] == "system" and "TOOL AUDIT" in message["content"])
+        self.assertIn("AUTHORITATIVE HELIX BACKEND TOOL AUDIT", audit_message)
+        self.assertIn("VERIFIED SUCCESS: get_literature_full_text [full_text] on Literature #17", audit_message)
+        saved = (await self.client.get(url.removesuffix("/messages"))).json()["messages"][1]
+        self.assertEqual(saved["tool_activity"][0]["scope"], "full_text")
+        self.assertTrue(saved["tool_activity"][0]["audit"]["complete"])
 
 
 if __name__ == "__main__":

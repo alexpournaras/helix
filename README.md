@@ -29,6 +29,10 @@ Eligible accounts can receive free daily usage for API traffic shared with OpenA
 
 Usage beyond these limits, and usage of other models, is billed at standard rates. Additional limitations may apply. Eligibility and limits are controlled by OpenAI and may change; check the OpenAI platform for current terms.
 
+### AI literature access
+
+Chat models have read-only tools for the literature saved in Helix. They can search the local library and list recently imported papers. Abstracts are the default reading scope; full text, figures/tables, and references/citations are accessed only when the user explicitly requests them. Figure access currently provides stored captions, image URLs, and table data rather than visual pixel inspection. Answers show the literature records used and models are instructed to cite them as `[Literature #ID]`. Tool calls cannot add, edit, refresh, or delete literature.
+
 ## Scripts
 
 | Command           | What it does                               |

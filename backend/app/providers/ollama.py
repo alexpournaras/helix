@@ -12,7 +12,7 @@ The same API is served by ollama.com for cloud models, authenticated with
 
 import asyncio
 import json
-from typing import Any, AsyncIterator, Literal
+from typing import Any, AsyncIterator, Callable, Literal
 
 import httpx
 from pydantic import BaseModel, Field, field_validator
@@ -144,7 +144,13 @@ async def status(config: OllamaConfig) -> dict[str, Any]:
     return result
 
 
-async def chat_stream(config: OllamaConfig, request: ChatRequest) -> AsyncIterator[dict[str, Any]]:
+async def chat_stream(
+    config: OllamaConfig,
+    request: ChatRequest,
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    execute_tool: Callable[[str, str | dict | None], dict[str, Any]] | None = None,
+) -> AsyncIterator[dict[str, Any]]:
     """Yield normalised events: thinking / content / done / error."""
     model = request.model or config.default_model
     if not model:
@@ -162,38 +168,69 @@ async def chat_stream(config: OllamaConfig, request: ChatRequest) -> AsyncIterat
         body["options"] = options
     if request.think is not None:
         body["think"] = request.think
+    if tools and execute_tool:
+        body["tools"] = tools
 
     timeout = httpx.Timeout(connect=5, read=config.timeout_seconds, write=30, pool=5)
     try:
         async with httpx.AsyncClient(base_url=config.base_url, headers=_headers(), timeout=timeout) as client:
-            async with client.stream("POST", "/api/chat", json=body) as response:
-                if response.status_code >= 400:
-                    text = (await response.aread()).decode("utf-8", "replace")
-                    yield {"type": "error", "message": f"Ollama: {_error_text(text)} ({response.status_code})"}
+            yield {"type": "start", "model": model}
+            for _round in range(6):
+                calls: list[dict[str, Any]] = []
+                assistant_content = ""
+                assistant_thinking = ""
+                final_chunk: dict[str, Any] = {}
+                async with client.stream("POST", "/api/chat", json=body) as response:
+                    if response.status_code >= 400:
+                        text = (await response.aread()).decode("utf-8", "replace")
+                        yield {"type": "error", "message": f"Ollama: {_error_text(text)} ({response.status_code})"}
+                        return
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        chunk = json.loads(line)
+                        if chunk.get("error"):
+                            yield {"type": "error", "message": f"Ollama: {chunk['error']}"}
+                            return
+                        message = chunk.get("message") or {}
+                        if message.get("thinking"):
+                            assistant_thinking += message["thinking"]
+                            yield {"type": "thinking", "text": message["thinking"]}
+                        if message.get("content"):
+                            assistant_content += message["content"]
+                            yield {"type": "content", "text": message["content"]}
+                        if message.get("tool_calls"):
+                            calls.extend(message["tool_calls"])
+                        if chunk.get("done"):
+                            final_chunk = chunk
+                            break
+
+                if not calls:
+                    yield {
+                        "type": "done",
+                        "done_reason": final_chunk.get("done_reason"),
+                        "stats": {k: final_chunk.get(k) for k in
+                                  ("total_duration", "load_duration", "prompt_eval_count", "eval_count", "eval_duration")},
+                    }
                     return
-                yield {"type": "start", "model": model}
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    chunk = json.loads(line)
-                    if chunk.get("error"):
-                        yield {"type": "error", "message": f"Ollama: {chunk['error']}"}
-                        return
-                    message = chunk.get("message") or {}
-                    if message.get("thinking"):
-                        yield {"type": "thinking", "text": message["thinking"]}
-                    if message.get("content"):
-                        yield {"type": "content", "text": message["content"]}
-                    if chunk.get("done"):
-                        yield {
-                            "type": "done",
-                            "done_reason": chunk.get("done_reason"),
-                            "stats": {
-                                k: chunk.get(k)
-                                for k in ("total_duration", "load_duration", "prompt_eval_count", "eval_count", "eval_duration")
-                            },
-                        }
-                        return
+                if not execute_tool:
+                    yield {"type": "error", "message": "Ollama requested a tool that Helix cannot execute."}
+                    return
+
+                assistant_message = {"role": "assistant", "content": assistant_content, "tool_calls": calls}
+                if assistant_thinking:
+                    assistant_message["thinking"] = assistant_thinking
+                body["messages"].append(assistant_message)
+                for call in calls:
+                    function = call.get("function") or {}
+                    name = function.get("name", "")
+                    result = execute_tool(name, function.get("arguments"))
+                    yield {"type": "tool", "name": name, "scope": result.get("scope"),
+                           "error": result.get("error"), "audit": result.get("audit"), "sources": result.get("sources", [])}
+                    body["messages"].append({
+                        "role": "tool", "tool_name": name, "content": json.dumps(result, ensure_ascii=False)
+                    })
+            yield {"type": "error", "message": "The model used too many consecutive literature tools. Try a more specific request."}
     except httpx.ReadTimeout:
         yield {"type": "error", "message": (
             f"Ollama sent no response for {config.timeout_seconds} seconds. "

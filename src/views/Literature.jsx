@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, Download, ExternalLink, Layers, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { BookOpen, Bot, Check, ChevronDown, Copy, Download, ExternalLink, Layers, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
 import { Card, Empty, OfflineNotice } from "../components/ui.jsx";
 import { MultiSelect } from "../components/MultiSelect.jsx";
@@ -42,19 +42,48 @@ function SourceBadge({ source }) {
   );
 }
 
+function CopyButton({ value, label }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value);
+      else {
+        const input = document.createElement("textarea");
+        input.value = value;
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return <button type="button" className="btn btn-sm copy-button" onClick={copy} aria-label={`Copy ${label}`} title={copied ? "Copied" : `Copy ${label}`}>
+    {copied ? <Check size={12} /> : <Copy size={12} />}<span className="sr-only">{copied ? "Copied" : `Copy ${label}`}</span>
+  </button>;
+}
+
 function Identifiers({ item }) {
   const links = [
     item.pmid && ["PMID", item.pmid, `https://pubmed.ncbi.nlm.nih.gov/${item.pmid}/`],
     item.pmcid && ["", item.pmcid, `https://pmc.ncbi.nlm.nih.gov/articles/${item.pmcid}/`],
-    item.doi && ["DOI", item.doi, `https://doi.org/${item.doi}`],
+    item.doi && ["DOI", item.doi, `https://doi.org/${item.doi}`, true],
   ].filter(Boolean);
   if (!links.length) return null;
   return (
     <span className="ids">
-      {links.map(([label, value, href]) => (
-        <a key={value} className="link mono" href={href} target="_blank" rel="noreferrer">
-          {label && `${label} `}{value}<span className="sr-only"> (opens in a new tab)</span>
-        </a>
+      {links.map(([label, value, href, copyable]) => (
+        <span key={value} className="identifier">
+          <a className="link mono" href={href} target="_blank" rel="noreferrer">
+            {label && `${label} `}{value}<span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          {copyable && <CopyButton value={value} label="DOI" />}
+        </span>
       ))}
     </span>
   );
@@ -128,7 +157,7 @@ function Tags({ item, onChange }) {
   );
 }
 
-function Article({ item, onChange, onDelete, deleting }) {
+function Article({ item, onChange, onDelete, deleting, link }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const meta = [item.journal, item.pub_date || item.year, item.volume && `${item.volume}${item.issue ? `(${item.issue})` : ""}`, item.pages]
@@ -142,6 +171,7 @@ function Article({ item, onChange, onDelete, deleting }) {
           <ChevronDown size={15} className="article-chevron" aria-hidden="true" />
           <span>{item.title || <span className="muted">Untitled</span>}</span>
         </button>
+        {item.title && <div className="article-quick-actions"><CopyButton value={item.title} label="title" /></div>}
         <div className="article-delete">
           {confirming ? (
             <>
@@ -173,6 +203,9 @@ function Article({ item, onChange, onDelete, deleting }) {
           <ArticleDetails item={item} onChange={({ details, ...rest }) => onChange(rest)} />
           <div className="article-actions">
             <Identifiers item={item} />
+            <a className="btn btn-sm" {...link(`/chat?literature=${item.id}`)} title={`Chat with AI about “${item.title || "this paper"}”`}>
+              <Bot size={13} /> Chat with AI
+            </a>
             <a className="btn btn-sm" href={item.url} target="_blank" rel="noreferrer">
               Open on {LIT_SOURCES[item.source]?.short ?? item.source} <ExternalLink size={12} />
             </a>
@@ -431,7 +464,7 @@ export function Literature({ apiOnline, link }) {
           <>
             <ul className={`articles${loading ? " is-loading" : ""}`}>
               {page.items.map((item) => (
-                <Article key={item.id} item={item} onChange={replaceItem} onDelete={remove} deleting={deletingId === item.id} />
+                <Article key={item.id} item={item} onChange={replaceItem} onDelete={remove} deleting={deletingId === item.id} link={link} />
               ))}
             </ul>
             {deleteError && <p className="card-foot bad" role="alert">{deleteError}</p>}

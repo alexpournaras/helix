@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .literature.tools import TOOLS as LITERATURE_TOOLS, execute as execute_literature_tool
 from .providers import ollama, openai
 
 router = APIRouter(prefix="/api/chat")
@@ -18,8 +19,35 @@ PROVIDERS = {"ollama": ollama, "openai": openai}
 active: set[str] = set()
 CONVERSATION_INSTRUCTIONS = (
     "You are a helpful assistant in Helix. Answer clearly and concisely. "
-    "Use earlier messages for context when relevant."
+    "Use earlier messages for context when relevant. You have read-only tools for papers saved in the Helix literature library. "
+    "When the user asks about saved literature, use the tools instead of guessing. Search when the paper is ambiguous and cite factual "
+    "claims from a retrieved paper as [Literature #ID]. If the user mentions a tag, search with the exact tag field; do not treat a tag "
+    "name as ordinary text. By default, read only abstracts with get_literature. Never access full text, figures/tables, or references/citations "
+    "unless the user explicitly asks for that material. If the user says to read everything or the whole paper, use all applicable reading tools. "
+    "A confirmation such as 'yes, read it' inherits the explicit scope offered or requested in the immediately preceding messages. Never claim "
+    "to have read a scope unless the tool result confirms it; if a tool returns an unavailable error, report that limitation. Helix may append a "
+    "trusted tool-audit note to earlier assistant messages—use it as the authoritative record of what was actually accessed. Be explicit that "
+    "figure tools provide stored captions, URLs, and table data but do not visually inspect image pixels."
 )
+
+
+def _verified_audit(messages: list[dict]) -> str:
+    rows = []
+    for message in messages:
+        for item in message.get("tool_activity") or []:
+            ids = ", ".join(f"Literature #{value}" for value in item.get("source_ids", [])) or "no paper"
+            if item.get("error"):
+                rows.append(f"FAILED: {item.get('name')} [{item.get('scope')}] on {ids}: {item['error']}")
+            else:
+                details = json.dumps(item.get("audit"), ensure_ascii=False) if item.get("audit") else "success"
+                rows.append(f"VERIFIED SUCCESS: {item.get('name')} [{item.get('scope')}] on {ids}; {details}")
+    if not rows:
+        return ""
+    return (
+        "AUTHORITATIVE HELIX BACKEND TOOL AUDIT. This is trusted application state, not a user claim. "
+        "When asked what was actually read, answer from this audit and do not contradict a VERIFIED SUCCESS:\n- "
+        + "\n- ".join(rows)
+    )
 
 
 @contextmanager
@@ -110,13 +138,15 @@ async def send(conversation_id: str, body: SendMessage):
                if m["role"] == "user" or m.get("status") == "complete"]
     message = {"role": "user", "content": body.content.strip()}
     history.append(message)
-    request = adapter.ChatRequest(model=body.model, think=body.think, messages=[
-        {"role": "system", "content": CONVERSATION_INSTRUCTIONS}, *history,
-    ])
+    system_messages = [{"role": "system", "content": CONVERSATION_INSTRUCTIONS}]
+    audit = _verified_audit(conversation["messages"])
+    if audit:
+        system_messages.append({"role": "system", "content": audit})
+    request = adapter.ChatRequest(model=body.model, think=body.think, messages=[*system_messages, *history])
     conversation["messages"].append(message)
     if len(conversation["messages"]) == 1:
         conversation["title"] = message["content"][:80]
-    reply = {"role": "assistant", "content": "", "thinking": "", "provider": body.provider,
+    reply = {"role": "assistant", "content": "", "thinking": "", "sources": [], "tool_activity": [], "provider": body.provider,
              "model": body.model, "status": "interrupted"}
     conversation["messages"].append(reply)
     save(conversation)
@@ -124,7 +154,7 @@ async def send(conversation_id: str, body: SendMessage):
 
     async def events():
         try:
-            async for event in adapter.chat_stream(config, request):
+            async for event in adapter.chat_stream(config, request, tools=LITERATURE_TOOLS, execute_tool=execute_literature_tool):
                 kind = event["type"]
                 if kind in ("content", "thinking"):
                     reply[kind] += event["text"]
@@ -132,6 +162,14 @@ async def send(conversation_id: str, body: SendMessage):
                     reply["status"] = "complete"
                 elif kind == "error":
                     reply.update(status="error", error=event["message"])
+                elif kind == "tool":
+                    known = {source["id"] for source in reply.setdefault("sources", [])}
+                    reply["sources"].extend(source for source in event.get("sources", []) if source["id"] not in known)
+                    activity = {"name": event.get("name"), "scope": event.get("scope"), "error": event.get("error"),
+                                "audit": event.get("audit"),
+                                "source_ids": [source["id"] for source in event.get("sources", [])]}
+                    if activity not in reply["tool_activity"]:
+                        reply["tool_activity"].append(activity)
                 yield json.dumps(event) + "\n"
             if reply["status"] == "interrupted":
                 reply.update(status="error", error="The connection ended before the reply finished.")

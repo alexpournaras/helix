@@ -70,6 +70,41 @@ class OpenAITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[0]["type"], "error")
         self.assertIn("supported", events[0]["message"])
 
+    async def test_literature_tool_call_continues_to_final_answer(self):
+        bodies = []
+
+        def sse(events):
+            return "".join(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events)
+
+        def handle(request):
+            body = json.loads(request.content)
+            bodies.append(body)
+            if len(bodies) == 1:
+                call = {"type": "function_call", "name": "get_literature", "arguments": "{\"id\": 7}", "call_id": "call_1"}
+                events = [
+                    {"type": "response.output_item.done", "item": call},
+                    {"type": "response.completed", "response": {"usage": {"total_tokens": 4}}},
+                ]
+            else:
+                events = [
+                    {"type": "response.output_text.delta", "delta": "Paper summary [Literature #7]."},
+                    {"type": "response.completed", "response": {"usage": {"total_tokens": 20}}},
+                ]
+            return httpx.Response(200, text=sse(events), headers={"content-type": "text/event-stream"})
+
+        tools = [{"type": "function", "function": {"name": "get_literature", "description": "Read it", "parameters": {"type": "object"}}}]
+        execute = lambda name, args: {"paper": {"id": 7, "title": "Test"}, "sources": [{"id": 7, "title": "Test"}]}
+        request = openai.ChatRequest(model="gpt-5.4-mini", messages=[{"role": "user", "content": "Read paper 7"}])
+        with patch.object(openai, "_key", return_value="test-key"), self.mock_client(handle):
+            events = [event async for event in openai.chat_stream(
+                openai.OpenAIConfig(), request, tools=tools, execute_tool=execute
+            )]
+
+        self.assertEqual([event["type"] for event in events], ["start", "tool", "content", "done"])
+        self.assertEqual(bodies[0]["tools"][0]["name"], "get_literature")
+        self.assertEqual(bodies[1]["input"][-1]["type"], "function_call_output")
+        self.assertIn('"id": 7', bodies[1]["input"][-1]["output"])
+
 
 if __name__ == "__main__":
     unittest.main()

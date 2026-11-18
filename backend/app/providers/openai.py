@@ -5,7 +5,7 @@ The API key is read from ``OPENAI_API_KEY`` in the process environment or
 """
 
 import json
-from typing import Any, AsyncIterator, Literal
+from typing import Any, AsyncIterator, Callable, Literal
 
 import httpx
 from pydantic import BaseModel, Field
@@ -119,7 +119,13 @@ async def status(config: OpenAIConfig) -> dict[str, Any]:
     return result
 
 
-async def chat_stream(config: OpenAIConfig, request: ChatRequest) -> AsyncIterator[dict[str, Any]]:
+async def chat_stream(
+    config: OpenAIConfig,
+    request: ChatRequest,
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    execute_tool: Callable[[str, str | dict | None], dict[str, Any]] | None = None,
+) -> AsyncIterator[dict[str, Any]]:
     """Yield Helix's normalized start/content/done/error events."""
     model = request.model or config.default_model
     if model not in SUPPORTED_MODELS:
@@ -134,41 +140,71 @@ async def chat_stream(config: OpenAIConfig, request: ChatRequest) -> AsyncIterat
     body: dict[str, Any] = {"model": model, "input": input_messages, "stream": True, "store": False}
     if system:
         body["instructions"] = system
+    if tools and execute_tool:
+        # The Responses API uses the function fields at the top level, while
+        # Ollama uses the Chat Completions-style nested `function` object.
+        body["tools"] = [{"type": "function", **tool["function"]} for tool in tools]
 
     timeout = httpx.Timeout(connect=10, read=config.timeout_seconds, write=30, pool=10)
     try:
         async with httpx.AsyncClient(base_url=DEFAULT_URL, headers=_headers(), timeout=timeout) as client:
-            async with client.stream("POST", "/responses", json=body) as response:
-                if response.status_code >= 400:
-                    text = (await response.aread()).decode("utf-8", "replace")
-                    yield {"type": "error", "message": _http_error(response.status_code, text)}
+            yield {"type": "start", "model": model}
+            for _round in range(6):
+                output_items: list[dict[str, Any]] = []
+                completed: dict[str, Any] | None = None
+                async with client.stream("POST", "/responses", json=body) as response:
+                    if response.status_code >= 400:
+                        text = (await response.aread()).decode("utf-8", "replace")
+                        yield {"type": "error", "message": _http_error(response.status_code, text)}
+                        return
+                    data_lines: list[str] = []
+                    async for line in response.aiter_lines():
+                        if line.startswith("data:"):
+                            data_lines.append(line[5:].lstrip())
+                            continue
+                        if line.strip() or not data_lines:
+                            continue
+                        raw = "\n".join(data_lines)
+                        data_lines.clear()
+                        if raw == "[DONE]":
+                            continue
+                        event = json.loads(raw)
+                        kind = event.get("type")
+                        if kind == "response.output_text.delta":
+                            yield {"type": "content", "text": event.get("delta", "")}
+                        elif kind == "response.output_item.done" and isinstance(event.get("item"), dict):
+                            output_items.append(event["item"])
+                        elif kind == "response.completed":
+                            completed = event.get("response") or {}
+                        elif kind in ("error", "response.failed", "response.incomplete"):
+                            error = event.get("error") or (event.get("response") or {}).get("error") or event
+                            message = error.get("message") if isinstance(error, dict) else str(error)
+                            yield {"type": "error", "message": f"OpenAI: {message or 'The response failed.'}"}
+                            return
+
+                if completed is None:
+                    yield {"type": "error", "message": "The OpenAI stream ended before the response completed."}
                     return
-                yield {"type": "start", "model": model}
-                data_lines: list[str] = []
-                async for line in response.aiter_lines():
-                    if line.startswith("data:"):
-                        data_lines.append(line[5:].lstrip())
-                        continue
-                    if line.strip() or not data_lines:
-                        continue
-                    raw = "\n".join(data_lines)
-                    data_lines.clear()
-                    if raw == "[DONE]":
-                        continue
-                    event = json.loads(raw)
-                    kind = event.get("type")
-                    if kind == "response.output_text.delta":
-                        yield {"type": "content", "text": event.get("delta", "")}
-                    elif kind == "response.completed":
-                        response_data = event.get("response") or {}
-                        yield {"type": "done", "stats": response_data.get("usage")}
-                        return
-                    elif kind in ("error", "response.failed", "response.incomplete"):
-                        error = event.get("error") or (event.get("response") or {}).get("error") or event
-                        message = error.get("message") if isinstance(error, dict) else str(error)
-                        yield {"type": "error", "message": f"OpenAI: {message or 'The response failed.'}"}
-                        return
-                yield {"type": "error", "message": "The OpenAI stream ended before the response completed."}
+                calls = [item for item in output_items if item.get("type") == "function_call"]
+                if not calls:
+                    yield {"type": "done", "stats": completed.get("usage")}
+                    return
+                if not execute_tool:
+                    yield {"type": "error", "message": "OpenAI requested a tool that Helix cannot execute."}
+                    return
+
+                body["input"].extend(output_items)
+                for call in calls:
+                    name = call.get("name", "")
+                    result = execute_tool(name, call.get("arguments"))
+                    yield {"type": "tool", "name": name, "scope": result.get("scope"),
+                           "error": result.get("error"), "audit": result.get("audit"), "sources": result.get("sources", [])}
+                    body["input"].append({
+                        "type": "function_call_output",
+                        "call_id": call.get("call_id"),
+                        "output": json.dumps(result, ensure_ascii=False),
+                    })
+            yield {"type": "error", "message": "The model used too many consecutive literature tools. Try a more specific request."}
     except httpx.ReadTimeout:
         yield {"type": "error", "message": f"OpenAI sent no response for {config.timeout_seconds} seconds."}
     except (httpx.HTTPError, ValueError) as exc:

@@ -1,7 +1,26 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { MessageSquare, Plus, RefreshCw, Send, Square, Trash2 } from "lucide-react";
+import { BookOpen, MessageSquare, Plus, RefreshCw, Send, Square, Trash2 } from "lucide-react";
 import { api } from "../api.js";
 import { Empty, PageIntro } from "../components/ui.jsx";
+
+const CHAT_SELECTION_KEY = "helix.chat.provider-model";
+const SCOPE_LABELS = {
+  search: "Search result", abstract: "Abstract", full_text: "Full text", figures: "Figures/tables", references: "References",
+  abstract_unavailable: "Abstract unavailable", full_text_unavailable: "Full text unavailable",
+  figures_unavailable: "Figures unavailable", references_unavailable: "References unavailable",
+};
+
+function savedSelection() {
+  try {
+    const value = JSON.parse(localStorage.getItem(CHAT_SELECTION_KEY));
+    return {
+      provider: typeof value?.provider === "string" ? value.provider : "ollama",
+      model: typeof value?.model === "string" ? value.model : "",
+    };
+  } catch {
+    return { provider: "ollama", model: "" };
+  }
+}
 
 function Thinking({ text }) {
   const [open, setOpen] = useState(false);
@@ -15,11 +34,12 @@ function Thinking({ text }) {
 }
 
 export function Chat({ link }) {
+  const initialSelection = useRef(savedSelection()).current;
   const [conversations, setConversations] = useState([]);
   const [conversation, setConversation] = useState(null);
   const [providers, setProviders] = useState([]);
-  const [provider, setProvider] = useState("ollama");
-  const [model, setModel] = useState("");
+  const [provider, setProvider] = useState(initialSelection.provider);
+  const [model, setModel] = useState(initialSelection.model);
   const [think, setThink] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
@@ -47,6 +67,14 @@ export function Chat({ link }) {
   useEffect(() => {
     mounted.current = true;
     refresh();
+    const requested = new URLSearchParams(window.location.search).get("literature");
+    if (/^[1-9]\d*$/.test(requested || "")) {
+      api.literature.get(requested).then((item) => {
+        if (mounted.current) setPrompt((current) => current || `Read the abstract of [Literature #${item.id}] “${item.title || "Untitled"}” and summarize it.`);
+      }).catch(() => {
+        if (mounted.current) setPrompt((current) => current || `Read the abstract of [Literature #${requested}] and summarize it.`);
+      });
+    }
     return () => { mounted.current = false; abort.current?.abort(); };
   }, []);
   useEffect(() => {
@@ -54,6 +82,10 @@ export function Chat({ link }) {
     setModel((old) => models.some((m) => m.name === old) ? old :
       models.find((m) => m.name === selected.default_model)?.name || models[0]?.name || "");
   }, [selected]);
+  useEffect(() => {
+    if (!selected?.models.some((item) => item.name === model)) return;
+    localStorage.setItem(CHAT_SELECTION_KEY, JSON.stringify({ provider, model }));
+  }, [provider, model, selected]);
   useEffect(() => {
     if (following.current && thread.current) thread.current.scrollTop = thread.current.scrollHeight;
   }, [conversation]);
@@ -98,7 +130,7 @@ export function Chat({ link }) {
     try {
       if (!current) current = await api.chat.create();
       if (!mounted.current) return;
-      const reply = { role: "assistant", content: "", thinking: "", provider, model, status: "streaming" };
+      const reply = { role: "assistant", content: "", thinking: "", sources: [], tool_activity: [], provider, model, status: "streaming" };
       current = { ...current, title: current.messages.length ? current.title : content.slice(0, 80),
         messages: [...current.messages, { role: "user", content }, reply] };
       setConversation(current);
@@ -106,6 +138,13 @@ export function Chat({ link }) {
       await api.chat.send(current.id, { provider, model, content, think }, (event) => {
         accepted = true;
         if (event.type === "content" || event.type === "thinking") reply[event.type] += event.text;
+        if (event.type === "tool") {
+          const known = new Set(reply.sources.map((source) => source.id));
+          reply.sources.push(...(event.sources || []).filter((source) => !known.has(source.id)));
+          const activity = { name: event.name, scope: event.scope, error: event.error, audit: event.audit,
+            source_ids: (event.sources || []).map((source) => source.id) };
+          if (!reply.tool_activity.some((item) => JSON.stringify(item) === JSON.stringify(activity))) reply.tool_activity.push(activity);
+        }
         if (event.type === "done") { done = true; reply.status = "complete"; }
         if (event.type === "error") { done = true; reply.status = "error"; reply.error = event.message; }
         if (mounted.current) setConversation({ ...current, messages: [...current.messages] });
@@ -138,7 +177,7 @@ export function Chat({ link }) {
   }
 
   return <div className="chat-page">
-    <PageIntro>A space to think, ask questions, and explore ideas with AI.</PageIntro>
+    <PageIntro>Ask questions, explore ideas, or have AI search and read papers saved in your literature library.</PageIntro>
     {error && <div className="notice" role="alert">{error}</div>}
     <div className="chat-layout">
       <aside className="card chat-history" aria-label="Conversations">
@@ -195,7 +234,19 @@ export function Chat({ link }) {
             <div className="chat-message-label">{message.role === "user" ? "You" : `${message.model} · ${providerName(message.provider)}`}</div>
             {message.thinking?.trim() && <Thinking key={`${conversation.id}-${i}`} text={message.thinking} />}
             <div className="answer">{message.content || (message.status === "streaming"
-              ? (message.thinking ? "Generating reply…" : `Waiting for ${message.model}…`) : "")}</div>
+              ? (message.sources?.length ? "Reading saved literature…" : message.thinking ? "Generating reply…" : `Waiting for ${message.model}…`) : "")}</div>
+            {message.sources?.length > 0 && <div className="chat-sources" aria-label="Literature accessed for this answer">
+              <div className="chat-sources-label"><BookOpen size={13} /> Literature accessed</div>
+              <div className="chat-source-list">
+                {message.sources.map((source) => {
+                  const scopes = [...new Set((message.tool_activity || []).filter((item) => item.source_ids?.includes(source.id)).map((item) => item.scope).filter(Boolean))];
+                  return <a key={source.id} className="chat-source" title={source.title} {...link(`/literature?q=${encodeURIComponent(source.title)}`)}>
+                    <span>#{source.id}</span><span className="chat-source-title">{source.title}</span>
+                    {scopes.map((scope) => <em key={scope} className={scope.endsWith("_unavailable") ? "is-unavailable" : ""}>{SCOPE_LABELS[scope] || scope}</em>)}
+                  </a>;
+                })}
+              </div>
+            </div>}
             {message.error && <p className="bad" role="alert">{message.error}</p>}
             {message.status === "interrupted" && <p className="muted">Reply stopped.</p>}
           </article>)}

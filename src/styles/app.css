@@ -588,6 +588,7 @@ button.link { background: none; border: 0; padding: 0; cursor: pointer; font: in
 .is-open .article-chevron { transform: none; }
 .article-meta, .tags { padding-left: 23px; }
 .article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--text-2); }
+.copy-button { width: 28px; padding: 0; justify-content: center; flex: none; }
 .source-badge .chip-dot { margin-right: 2px; }
 
 .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -627,6 +628,7 @@ button.link { background: none; border: 0; padding: 0; cursor: pointer; font: in
 .article-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ids { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-right: auto; }
 .ids .link { font-size: 12.5px; }
+.identifier { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .pager .btn + .btn { margin-left: -8px; }
 
 @media (max-width: 860px) {
@@ -646,10 +648,11 @@ button.link { background: none; border: 0; padding: 0; cursor: pointer; font: in
 /* article row: title on the left, delete on the right */
 .article-head { display: flex; align-items: flex-start; gap: 12px; }
 .article-head .article-title { flex: 1; min-width: 0; }
-.article-delete { flex: none; display: flex; align-items: center; gap: 8px; margin-top: -4px; }
+.article-quick-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.article-delete { flex: none; display: flex; align-items: center; gap: 8px; }
 .icon-action {
   display: grid; place-items: center; width: 28px; height: 28px;
-  border: 1px solid transparent; border-radius: var(--r-sm);
+  border: 1px solid rgb(251 113 133 / 0.4); border-radius: var(--r-sm);
   background: none; color: var(--text-3); cursor: pointer;
   transition: color 0.12s, background-color 0.12s, border-color 0.12s;
 }

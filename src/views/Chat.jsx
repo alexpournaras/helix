@@ -5,7 +5,7 @@ import { Empty, PageIntro } from "../components/ui.jsx";
 
 const CHAT_SELECTION_KEY = "helix.chat.provider-model";
 const SCOPE_LABELS = {
-  search: "Search result", abstract: "Abstract", full_text: "Full text", figures: "Figures/tables", references: "References",
+  library: "Library", search: "Search result", abstract: "Abstract", full_text: "Full text", figures: "Figures/tables", references: "References",
   abstract_unavailable: "Abstract unavailable", full_text_unavailable: "Full text unavailable",
   figures_unavailable: "Figures unavailable", references_unavailable: "References unavailable",
 };
@@ -48,6 +48,7 @@ export function Chat({ link }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const abort = useRef(null);
   const mounted = useRef(false);
+  const promptRef = useRef(null);
   const thread = useRef(null);
   const following = useRef(true);
   const selected = providers.find((p) => p.id === provider);
@@ -171,13 +172,16 @@ export function Chat({ link }) {
             if (mounted.current) setConversation(saved);
           }
         } catch (e) { if (mounted.current) setError(e.message); }
-        if (mounted.current) setBusy(false);
+        if (mounted.current) {
+          setBusy(false);
+          requestAnimationFrame(() => promptRef.current?.focus());
+        }
       }
     }
   }
 
   return <div className="chat-page">
-    <PageIntro>Ask questions, explore ideas, work with notes, or have AI search and read papers saved in your literature library.</PageIntro>
+    <PageIntro>Ask questions, work with notes, or have AI fetch, search, and read papers in your literature library.</PageIntro>
     {error && <div className="notice" role="alert">{error}</div>}
     <div className="chat-layout">
       <aside className="card chat-history" aria-label="Conversations">
@@ -253,7 +257,7 @@ export function Chat({ link }) {
         </div>
         <form className="card-foot chat-composer" onSubmit={send}>
           <label className="sr-only" htmlFor="chat-prompt">Message</label>
-          <textarea className="input textarea" id="chat-prompt" placeholder="Ask a question…" value={prompt} maxLength={100000} disabled={busy}
+          <textarea ref={promptRef} className="input textarea" id="chat-prompt" placeholder="Ask a question…" value={prompt} maxLength={100000} readOnly={busy}
             onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(e); }
             }} />

@@ -12,6 +12,21 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_literature",
+            "description": "List papers already saved in the Helix literature library without requiring a search query. Use for requests like list papers, show all papers, or what is in the literature library.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 25},
+                    "sort": {"type": "string", "enum": ["added", "newest", "oldest", "title"], "default": "added"},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_literature",
             "description": "Search papers already saved in Helix by text, exact tag, or both. When the user says a paper is tagged with a value, put that exact value in tag rather than query.",
             "parameters": {
@@ -121,6 +136,16 @@ def _summary(item) -> dict[str, Any]:
     }
 
 
+def _list_summary(item) -> dict[str, Any]:
+    return {
+        **_source(item),
+        "authors": item.authors[:4],
+        "journal": item.journal,
+        "tags": [tag.name for tag in item.tags],
+        "has_full_text": item.has_full_text,
+    }
+
+
 def _arguments(value: str | dict | None) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -158,6 +183,19 @@ def _get(args: dict[str, Any]):
 def execute(name: str, raw_arguments: str | dict | None) -> dict[str, Any]:
     """Execute an allow-listed tool and return JSON-safe data for the model and UI."""
     args = _arguments(raw_arguments)
+    if name == "list_literature":
+        try:
+            limit = min(50, max(1, int(args.get("limit") or 25)))
+        except (TypeError, ValueError):
+            limit = 25
+        sort = str(args.get("sort") or "added")
+        if sort not in ("added", "newest", "oldest", "title"):
+            sort = "added"
+        page = db.search(sort=sort, limit=limit)
+        return {"total": page.total, "returned": len(page.items), "truncated": page.total > len(page.items),
+                "papers": [_list_summary(item) for item in page.items], "scope": "library",
+                "sources": [_source(item) for item in page.items]}
+
     if name == "search_literature":
         query = str(args.get("query") or "").strip()
         tag = str(args.get("tag") or "").strip()
@@ -288,6 +326,7 @@ def execute(name: str, raw_arguments: str | dict | None) -> dict[str, Any]:
 
 def tool_event(name: str, result: dict[str, Any]) -> dict[str, Any]:
     labels = {
+        "list_literature": "Listed the literature library",
         "search_literature": "Searched the literature library",
         "list_literature_tags": "Listed literature tags",
         "get_literature": "Read a saved paper",

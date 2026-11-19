@@ -121,6 +121,14 @@ def cancel(run_id: int) -> bool:
     return True
 
 
+def cancel_all() -> list[int]:
+    """Request cancellation of every active fetch and return their run IDs."""
+    run_ids = list(_tasks)
+    for task in list(_tasks.values()):
+        task.cancel()
+    return run_ids
+
+
 async def _run(run_id: int, source: SourceId, request: FetchRequest) -> None:
     module = REGISTRY[source]
     counts = {"fetched": 0, "new": 0, "updated": 0, "failed": 0}

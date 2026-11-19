@@ -2,6 +2,7 @@
 from typing import Any
 
 from . import notes_tools
+from .literature import mutation_tools as literature_mutation_tools
 from .literature import tools as literature_tools
 
 # Put workspace-note actions first, with simple tag-specific tools ahead of the
@@ -11,10 +12,12 @@ _NOTE_PRIORITY = {
     "create_notes": 4, "create_note": 5, "edit_note": 6, "delete_note": 7, "delete_all_notes": 8,
 }
 _note_tools = sorted(notes_tools.TOOLS, key=lambda tool: _NOTE_PRIORITY[tool["function"]["name"]])
-TOOLS = [*_note_tools, *literature_tools.TOOLS]
+TOOLS = [*_note_tools, *literature_tools.TOOLS, *literature_mutation_tools.TOOLS]
 
 
 def execute(name: str, arguments: str | dict | None) -> dict[str, Any]:
     if name in notes_tools.NAMES:
         return notes_tools.execute(name, arguments)
+    if name in literature_mutation_tools.NAMES:
+        return literature_mutation_tools.execute(name, arguments)
     return literature_tools.execute(name, arguments)

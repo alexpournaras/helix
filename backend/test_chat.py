@@ -43,6 +43,32 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(chat._note_mutation_allowed("edit_note", natural_pin_and_link))
         self.assertFalse(chat._note_mutation_allowed("create_note", natural_pin_and_link))
         self.assertFalse(chat._note_mutation_allowed("add_note_tag", natural_pin_and_link))
+        literature_history = [{"role": "user", "content": "please delete all papers"},
+                              {"role": "assistant", "content": "Are you sure?"}]
+        self.assertTrue(chat._literature_delete_confirmed("yes", literature_history))
+        self.assertTrue(chat._literature_delete_confirmed("delete all the papers yes", literature_history))
+        self.assertTrue(chat._literature_delete_confirmed("i just said delete them", literature_history))
+        self.assertTrue(chat._literature_delete_confirmed("yes, delete all papers", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("now?", literature_history))
+        self.assertTrue(chat._literature_delete_confirmed("delete bro", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("can u do it now?", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("no, don't delete them", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("cancel", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("what will happen?", literature_history))
+        self.assertFalse(chat._literature_delete_confirmed("please delete all papers", []))
+        combined_history = [{"role": "user", "content": "remove all notes and literatures"},
+                            {"role": "assistant", "content": "Please confirm literature deletion."}]
+        self.assertTrue(chat._literature_delete_confirmed("yes", combined_history))
+        self.assertIsNotNone(chat.LITERATURE_FETCH_PATTERN.search("fetch 5 papers about VHL"))
+        self.assertIsNotNone(chat.LITERATURE_CANCEL_FETCH_PATTERN.search("can u stop all fetching?"))
+        self.assertIsNotNone(chat.LITERATURE_CANCEL_FETCH_PATTERN.search("actually stop the europe pmc i dont want from there"))
+        self.assertIsNotNone(chat.LITERATURE_CANCEL_FETCH_PATTERN.search("stop run 35"))
+        self.assertIsNotNone(chat.LITERATURE_CANCEL_FETCH_PATTERN.search("Stop fetch 35"))
+        self.assertIsNone(chat.LITERATURE_CANCEL_FETCH_PATTERN.search("what fetches are running?"))
+        cancel_history = [{"role": "user", "content": "actually stop the europe pmc i dont want from there"},
+                          {"role": "assistant", "content": "Please be more explicit."}]
+        self.assertIn("europe pmc", chat._pending_fetch_cancel_intent("yes stop", cancel_history))
+        self.assertIn("europe pmc", chat._pending_fetch_cancel_intent("stop", cancel_history))
         inherited = chat._note_intent_context("all of them", "Please delete all notes")
         self.assertTrue(chat._note_mutation_allowed("delete_note", inherited))
         self.assertTrue(chat._note_mutation_allowed("delete_all_notes", inherited))
@@ -114,6 +140,71 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertIn("BRCA1 is a tumor suppressor gene", notes.get_note(note["id"])["content"])
+
+    async def test_literature_delete_requires_separate_confirmation(self):
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        url = f"/api/chat/conversations/{conversation['id']}/messages"
+
+        async def initial_request(config, request, **kwargs):
+            refused = kwargs["execute_tool"]("delete_all_literature", {})
+            self.assertEqual(refused["scope"], "literature_delete_confirmation_required")
+            yield {"type": "content", "text": "Please confirm deletion of all papers."}
+            yield {"type": "done"}
+
+        with patch.object(chat.ollama, "chat_stream", initial_request):
+            await self.client.post(url, json={"model": "test", "content": "delete all papers"})
+
+        async def confirmed_request(config, request, **kwargs):
+            system = "\n".join(message.content for message in request.messages if message.role == "system")
+            self.assertIn("LITERATURE DELETION RESULT", system)
+            self.assertNotIn("delete_all_literature", {tool["function"]["name"] for tool in kwargs["tools"]})
+            yield {"type": "content", "text": "Deleted all papers."}
+            yield {"type": "done"}
+
+        result = {"deleted_count": 3, "scope": "literature_deleted",
+                  "audit": {"action": "delete_all_literature", "count": 3}, "sources": []}
+        with patch.object(chat.ollama, "chat_stream", confirmed_request), patch.object(chat, "execute_chat_tool", return_value=result) as execute:
+            response = await self.client.post(url, json={"model": "test", "content": "yes"})
+        self.assertEqual(response.status_code, 200)
+        execute.assert_called_once_with("delete_all_literature", {})
+
+    async def test_literature_fetch_requires_explicit_fetch_language(self):
+        async def stream(config, request, **kwargs):
+            refused = kwargs["execute_tool"]("fetch_literature", {"term": "VHL"})
+            self.assertEqual(refused["scope"], "literature_fetch_refused")
+            yield {"type": "done"}
+
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        url = f"/api/chat/conversations/{conversation['id']}/messages"
+        with patch.object(chat.ollama, "chat_stream", stream):
+            await self.client.post(url, json={"model": "test", "content": "tell me about VHL papers"})
+
+        async def fetch(config, request, **kwargs):
+            started = kwargs["execute_tool"]("fetch_literature", {"term": "VHL", "max_results": 5})
+            self.assertEqual(started["scope"], "literature_fetch_started")
+            yield {"type": "done"}
+
+        started = {"run": {"id": 9}, "scope": "literature_fetch_started",
+                   "audit": {"action": "fetch_literature", "run_id": 9}, "sources": []}
+        with patch.object(chat.ollama, "chat_stream", fetch), patch.object(chat, "execute_chat_tool", return_value=started):
+            response = await self.client.post(url, json={"model": "test", "content": "fetch 5 papers about VHL"})
+        self.assertEqual(response.status_code, 200)
+
+    async def test_cancel_all_fetches_requires_explicit_stop_request(self):
+        async def stream(config, request, **kwargs):
+            cancelled = kwargs["execute_tool"]("cancel_all_literature_fetches", {})
+            self.assertEqual(cancelled["scope"], "literature_fetches_cancelled")
+            yield {"type": "done"}
+
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        result = {"cancelled_count": 2, "cancelled_ids": [3, 4], "scope": "literature_fetches_cancelled",
+                  "audit": {"action": "cancel_all_literature_fetches", "run_ids": [3, 4]}, "sources": []}
+        with patch.object(chat.ollama, "chat_stream", stream), patch.object(chat, "execute_chat_tool", return_value=result):
+            response = await self.client.post(
+                f"/api/chat/conversations/{conversation['id']}/messages",
+                json={"model": "test", "content": "can u stop all fetching?"},
+            )
+        self.assertEqual(response.status_code, 200)
 
     async def test_tag_followup_uses_dedicated_tool_and_preserves_note(self):
         note = notes.create_note(notes.NoteInput(title="VHL", content="Keep this", tags=["vhl"], pinned=True))

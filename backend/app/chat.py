@@ -20,7 +20,13 @@ PROVIDERS = {"ollama": ollama, "openai": openai}
 active: set[str] = set()
 CONVERSATION_INSTRUCTIONS = (
     "You are a helpful assistant in Helix. Answer clearly and concisely. "
-    "Use earlier messages for context when relevant. You have read-only tools for papers saved in the Helix literature library. "
+    "Use earlier messages for context when relevant. You have tools for papers saved in the Helix literature library. Reading tools are "
+    "read-only. You may start a fetch/import only when the user explicitly asks to fetch, import, download, or save papers, and may cancel "
+    "one or all active fetches only when explicitly asked to stop or cancel them. Requests such as 'stop Europe PMC', 'stop run 35', and "
+    "'stop fetch 35' are explicit; call the cancellation tool immediately without demanding exact wording. Papers saved before cancellation are kept. Deleting all "
+    "literature is destructive: on the initial request, ask for confirmation and do not call the deletion tool; call it only after a later "
+    "direct confirmation. Accept natural confirmation language and never demand an exact phrase. "
+    "When the user asks to list papers, show all papers, or asks what is in the library, use list_literature without demanding a query. "
     "When the user asks about saved literature, use the tools instead of guessing. Search when the paper is ambiguous and cite factual "
     "claims from a retrieved paper as [Literature #ID]. If the user mentions a tag, search with the exact tag field; do not treat a tag "
     "name as ordinary text. By default, read only abstracts with get_literature. Never access full text, figures/tables, or references/citations "
@@ -58,6 +64,43 @@ NOTE_CONFIRMATION = re.compile(
     re.IGNORECASE,
 )
 NOTE_MUTATION_AUDIT_ACTIONS = {"create", "create_many", "edit", "delete", "delete_all", "add_tag", "remove_tag"}
+LITERATURE_DELETE_PATTERN = re.compile(
+    r"\b(delete|remove|erase|trash)\b.{0,50}\b(all|every|everything)\b.{0,30}\b(papers?|literatures?|articles?)\b|"
+    r"\b(delete|remove|erase|trash)\b.{0,50}\b(papers?|literatures?|articles?)\b.{0,30}\b(all|every|everything)\b",
+    re.IGNORECASE,
+)
+LITERATURE_FETCH_PATTERN = re.compile(
+    r"\b(fetch|import|download)\b.{0,80}\b(papers?|literature|articles?)\b|"
+    r"\b(save|add)\b.{0,80}\b(papers?|literature|articles?)\b",
+    re.IGNORECASE,
+)
+LITERATURE_CANCEL_FETCH_PATTERN = re.compile(
+    r"\b(cancel|stop|halt|abort)\b.{0,100}\b(fetch(?:es|ing)?|imports?|importing|downloads?|downloading|run\s*#?\s*\d+|"
+    r"pubmed|pubmed\s+central|pmc|europe\s*pmc)\b",
+    re.IGNORECASE,
+)
+LITERATURE_CANCEL_FOLLOWUP = re.compile(
+    r"\s*(yes(?:\s+stop)?|stop|cancel|do it|go ahead|try again|retry|please stop)[\s.!?]*",
+    re.IGNORECASE,
+)
+LITERATURE_REPEATED_CONFIRMATION = re.compile(
+    r"\b(delete|remove|erase|trash)\b.{0,80}\b(papers?|literature|articles?|them)\b.{0,30}\b(yes|now|confirmed?)\b|"
+    r"\b(yes|confirmed?)\b.{0,30}\b(delete|remove|erase|trash)\b.{0,80}\b(papers?|literature|articles?|them)\b|"
+    r"\b(i\s+)?just\s+(said|told\s+you)\b.{0,50}\b(delete|remove|erase|trash)\b",
+    re.IGNORECASE,
+)
+LITERATURE_SAFE_CONFIRMATION = re.compile(
+    r"\s*(yes|yep|yeah|ok|okay|sure|confirm|confirmed|do it|go ahead|please do|proceed)[\s.!?]*",
+    re.IGNORECASE,
+)
+LITERATURE_CONFIRMATION_SIGNAL = re.compile(
+    r"\b(delete|remove|erase|trash)\b",
+    re.IGNORECASE,
+)
+LITERATURE_CANCELLATION_SIGNAL = re.compile(
+    r"\b(no|cancel|stop|abort|nevermind|never mind)\b|\b(don't|do not|dont)\b.{0,30}\b(delete|remove|erase|trash)\b",
+    re.IGNORECASE,
+)
 
 
 def _note_intent_context(user_message: str, previous_user_message: str = "") -> str:
@@ -80,6 +123,41 @@ def _pending_note_intent(user_message: str, messages: list[dict]) -> str:
         if item.get("role") == "user" and any(
             _note_mutation_allowed(tool_name, item.get("content", "")) for tool_name in NOTE_MUTATION_WORDS
         ):
+            return f"{item['content']}\nConfirmation: {user_message}"
+    return user_message
+
+
+def _literature_delete_confirmed(user_message: str, messages: list[dict]) -> bool:
+    if LITERATURE_CANCELLATION_SIGNAL.search(user_message):
+        return False
+    if (not LITERATURE_SAFE_CONFIRMATION.fullmatch(user_message)
+            and not LITERATURE_REPEATED_CONFIRMATION.search(user_message)
+            and not LITERATURE_CONFIRMATION_SIGNAL.search(user_message)):
+        return False
+    for item in reversed(messages):
+        if item.get("role") == "assistant" and any(
+            not activity.get("error") and (activity.get("audit") or {}).get("action") == "delete_all_literature"
+            for activity in item.get("tool_activity") or []
+        ):
+            return False
+        if item.get("role") == "user" and LITERATURE_DELETE_PATTERN.search(item.get("content", "")):
+            return True
+    return False
+
+
+def _pending_fetch_cancel_intent(user_message: str, messages: list[dict]) -> str:
+    if LITERATURE_CANCEL_FETCH_PATTERN.search(user_message):
+        return user_message
+    if not LITERATURE_CANCEL_FOLLOWUP.fullmatch(user_message):
+        return user_message
+    for item in reversed(messages):
+        if item.get("role") == "assistant" and any(
+            not activity.get("error") and (activity.get("audit") or {}).get("action") in
+            ("cancel_literature_fetch", "cancel_all_literature_fetches")
+            for activity in item.get("tool_activity") or []
+        ):
+            break
+        if item.get("role") == "user" and LITERATURE_CANCEL_FETCH_PATTERN.search(item.get("content", "")):
             return f"{item['content']}\nConfirmation: {user_message}"
     return user_message
 
@@ -223,6 +301,8 @@ async def send(conversation_id: str, body: SendMessage):
     config = adapter.load_config()
     current_content = body.content.strip()
     mutation_intent = _pending_note_intent(current_content, conversation["messages"])
+    literature_delete_confirmed = _literature_delete_confirmed(current_content, conversation["messages"])
+    fetch_cancel_intent = _pending_fetch_cancel_intent(current_content, conversation["messages"])
     history = [{"role": m["role"], "content": m["content"]} for m in conversation["messages"]
                if m["role"] == "user" or m.get("status") == "complete"]
     message = {"role": "user", "content": current_content}
@@ -231,6 +311,7 @@ async def send(conversation_id: str, body: SendMessage):
     audit = _verified_audit(conversation["messages"])
     if audit:
         system_messages.append({"role": "system", "content": audit})
+    confirmed_literature_delete = execute_chat_tool("delete_all_literature", {}) if literature_delete_confirmed else None
     if mutation_intent != current_content:
         system_messages.append({"role": "system", "content": (
             "AUTHORITATIVE HELIX REQUEST RESOLUTION. The current short reply is a confirmation or retry of the unresolved note request below. "
@@ -238,16 +319,45 @@ async def send(conversation_id: str, body: SendMessage):
             "in an earlier assistant message, reuse that draft as the tool input. Do not ask for another confirmation.\n"
             f"Resolved request:\n{mutation_intent}"
         )})
+    if literature_delete_confirmed:
+        system_messages.append({"role": "system", "content": (
+            "AUTHORITATIVE HELIX LITERATURE DELETION RESULT. Helix already executed the user's confirmed request to delete all saved "
+            "literature. Report this exact backend result accurately. Do not request another confirmation and do not call the deletion tool again.\n"
+            f"Result: {json.dumps(confirmed_literature_delete, ensure_ascii=False)}"
+        )})
+    if LITERATURE_CANCEL_FETCH_PATTERN.search(fetch_cancel_intent):
+        system_messages.append({"role": "system", "content": (
+            "AUTHORITATIVE HELIX FETCH CANCELLATION REQUEST. The user explicitly requested cancellation of a literature fetch. Call the "
+            "matching cancel_literature_fetch or cancel_all_literature_fetches tool now. Resolve the source or run ID from the recent "
+            "conversation. Do not ask the user to repeat or reword the request.\n"
+            f"Resolved request:\n{fetch_cancel_intent}"
+        )})
     request = adapter.ChatRequest(model=body.model, think=body.think, messages=[*system_messages, *history])
     conversation["messages"].append(message)
     if len(conversation["messages"]) == 1:
         conversation["title"] = message["content"][:80]
     reply = {"role": "assistant", "content": "", "thinking": "", "sources": [], "tool_activity": [], "provider": body.provider,
              "model": body.model, "status": "interrupted"}
+    if confirmed_literature_delete is not None:
+        reply["tool_activity"].append({
+            "name": "delete_all_literature", "scope": confirmed_literature_delete.get("scope"),
+            "error": confirmed_literature_delete.get("error"), "audit": confirmed_literature_delete.get("audit"), "source_ids": [],
+        })
     conversation["messages"].append(reply)
     save(conversation)
     active.add(conversation_id)
     def execute_tool(name, arguments):
+        if name == "delete_all_literature" and confirmed_literature_delete is not None:
+            return confirmed_literature_delete
+        if name == "delete_all_literature" and not literature_delete_confirmed:
+            return {"error": "Deleting all literature requires confirmation in a separate follow-up message. No papers were deleted.",
+                    "scope": "literature_delete_confirmation_required", "sources": []}
+        if name == "fetch_literature" and not LITERATURE_FETCH_PATTERN.search(current_content):
+            return {"error": "The current user message did not explicitly request a literature fetch or import. No fetch was started.",
+                    "scope": "literature_fetch_refused", "sources": []}
+        if name in ("cancel_literature_fetch", "cancel_all_literature_fetches") and not LITERATURE_CANCEL_FETCH_PATTERN.search(fetch_cancel_intent):
+            return {"error": "The current user message did not explicitly request stopping a literature fetch. No fetch was cancelled.",
+                    "scope": "literature_fetch_cancel_refused", "sources": []}
         if not _note_mutation_allowed(name, mutation_intent):
             action = {
                 "delete_all_notes": "delete all notes", "create_notes": "create multiple notes",
@@ -263,7 +373,15 @@ async def send(conversation_id: str, body: SendMessage):
 
     async def events():
         try:
-            async for event in adapter.chat_stream(config, request, tools=CHAT_TOOLS, execute_tool=execute_tool):
+            if confirmed_literature_delete is not None:
+                yield json.dumps({"type": "tool", "name": "delete_all_literature",
+                                  "scope": confirmed_literature_delete.get("scope"),
+                                  "error": confirmed_literature_delete.get("error"),
+                                  "audit": confirmed_literature_delete.get("audit"), "sources": []}) + "\n"
+            available_tools = [tool for tool in CHAT_TOOLS if not (
+                confirmed_literature_delete is not None and tool["function"]["name"] == "delete_all_literature"
+            )]
+            async for event in adapter.chat_stream(config, request, tools=available_tools, execute_tool=execute_tool):
                 kind = event["type"]
                 if kind in ("content", "thinking"):
                     reply[kind] += event["text"]

@@ -28,6 +28,10 @@ class LiteratureToolTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_search_read_and_recent_are_read_only(self):
+        listed = tools.execute("list_literature", {})
+        self.assertEqual(listed["total"], 1)
+        self.assertEqual(listed["papers"][0]["id"], self.article_id)
+        self.assertNotIn("abstract_excerpt", listed["papers"][0])
         found = tools.execute("search_literature", {"query": "TP53"})
         self.assertEqual(found["papers"][0]["id"], self.article_id)
         tagged = tools.execute("search_literature", {"tag": "HI-AI-READ-THIS"})

@@ -230,7 +230,7 @@ async def chat_stream(
                     body["messages"].append({
                         "role": "tool", "tool_name": name, "content": json.dumps(result, ensure_ascii=False)
                     })
-            yield {"type": "error", "message": "The model used too many consecutive literature tools. Try a more specific request."}
+            yield {"type": "error", "message": "The model used too many consecutive tools. Try a more specific request."}
     except httpx.ReadTimeout:
         yield {"type": "error", "message": (
             f"Ollama sent no response for {config.timeout_seconds} seconds. "

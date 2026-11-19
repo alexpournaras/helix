@@ -70,6 +70,13 @@ async function stream(path, body, onEvent, signal) {
 }
 
 export const api = {
+  notes: {
+    list: () => request("/notes"),
+    create: (body) => request("/notes", { method: "POST", body: JSON.stringify(body) }),
+    get: (id) => request(`/notes/${id}`),
+    update: (id, body) => request(`/notes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+    remove: (id) => request(`/notes/${id}`, { method: "DELETE" }),
+  },
   chat: {
     providers: () => request("/chat/providers"),
     list: () => request("/chat/conversations"),

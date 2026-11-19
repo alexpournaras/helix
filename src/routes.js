@@ -1,4 +1,4 @@
-import { Bot, BookOpen, Database, FolderKanban, LayoutDashboard, MessageSquare, Plug, Settings } from "lucide-react";
+import { Bot, BookOpen, Database, FileText, FolderKanban, LayoutDashboard, MessageSquare, Plug, Settings } from "lucide-react";
 
 // `blurb` explains a not-yet-built section in plain terms.
 export const NAV = [
@@ -9,6 +9,7 @@ export const NAV = [
     section: "Research",
     items: [
       { id: "chat", path: "/chat", label: "Chat", icon: MessageSquare },
+      { id: "notes", path: "/notes", label: "Notes", icon: FileText },
       { id: "literature", path: "/literature", label: "Literature", icon: BookOpen },
       {
         id: "projects", path: "/projects", label: "Projects", icon: FolderKanban, soon: true,
@@ -36,6 +37,7 @@ export const NAV = [
 // Pages that aren't in the sidebar. `parent` builds the breadcrumb and keeps the sidebar entry
 // it descends from highlighted.
 const HIDDEN = [
+  { id: "note-new", path: "/notes/new", label: "New note", parent: "notes" },
   { id: "ollama", path: "/integrations/ollama", label: "Ollama", parent: "integrations" },
   { id: "openai", path: "/integrations/openai", label: "OpenAI", parent: "integrations" },
   { id: "literature-fetch", path: "/literature/fetch", label: "Mass import", parent: "literature" },
@@ -60,5 +62,9 @@ export function ancestors(route) {
 export function findRoute(pathname) {
   // Ignore any ?query or #hash: links like /literature?run=3 still resolve to their page.
   const clean = pathname.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
-  return ALL.find((r) => r.path === clean) ?? null;
+  const exact = ALL.find((r) => r.path === clean);
+  if (exact) return exact;
+  const note = clean.match(/^\/notes\/(\d+)$/);
+  if (note) return { id: "note", path: clean, label: "Note", parent: "notes", noteId: Number(note[1]) };
+  return null;
 }

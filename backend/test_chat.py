@@ -7,7 +7,7 @@ from unittest.mock import patch
 import httpx
 from fastapi import FastAPI
 
-from app import chat
+from app import chat, notes
 
 
 class ChatTests(unittest.IsolatedAsyncioTestCase):
@@ -24,6 +24,187 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.config.stop()
         self.temp.cleanup()
         chat.active.clear()
+
+    def test_note_mutations_require_matching_explicit_intent(self):
+        self.assertTrue(chat._note_mutation_allowed("delete_note", "Perfect, now delete the other one"))
+        self.assertFalse(chat._note_mutation_allowed("create_note", "Perfect, now delete the other one"))
+        self.assertFalse(chat._note_mutation_allowed("edit_note", "Perfect, now delete the other one"))
+        self.assertTrue(chat._note_mutation_allowed("create_note", "Write a note about VHL"))
+        self.assertTrue(chat._note_mutation_allowed("create_notes", 'Create two about VHL, one with tag "vhl"'))
+        request = 'Create two notes about VHL, and one should have tag "vhl"'
+        self.assertIsNone(chat._validate_multi_note_tags(request, {"notes": [{"title": "One", "tags": ["vhl"]}, {"title": "Two"}]}))
+        self.assertIn("exactly one", chat._validate_multi_note_tags(request, {"notes": [{"title": "One", "tags": ["vhl"]}, {"title": "Two", "tags": ["vhl"]}]}))
+        self.assertIn("exactly one", chat._validate_multi_note_tags(request, {"notes": [{"title": "One"}, {"title": "Two"}]}))
+        self.assertTrue(chat._note_mutation_allowed("edit_note", "Add this to the first note"))
+        self.assertTrue(chat._note_mutation_allowed("remove_note_tag", "Remove the tag from the first"))
+        self.assertTrue(chat._note_mutation_allowed("add_note_tag", 'Add tag "yo" to note 5'))
+        self.assertFalse(chat._note_mutation_allowed("create_note", 'Add tag "yo" to note 5'))
+        natural_pin_and_link = "pin the vhl one, and link the dna one with whatever paper u like"
+        self.assertTrue(chat._note_mutation_allowed("edit_note", natural_pin_and_link))
+        self.assertFalse(chat._note_mutation_allowed("create_note", natural_pin_and_link))
+        self.assertFalse(chat._note_mutation_allowed("add_note_tag", natural_pin_and_link))
+        inherited = chat._note_intent_context("all of them", "Please delete all notes")
+        self.assertTrue(chat._note_mutation_allowed("delete_note", inherited))
+        self.assertTrue(chat._note_mutation_allowed("delete_all_notes", inherited))
+        self.assertFalse(chat._note_mutation_allowed("create_note", inherited))
+        self.assertFalse(chat._note_mutation_allowed("delete_all_notes", "Delete one note"))
+        self.assertEqual(chat._note_intent_context("all of them", "What notes exist?"), "What notes exist?\nConfirmation: all of them")
+        self.assertEqual(chat._note_intent_context("Tell me about all of them", "Delete all notes"), "Tell me about all of them")
+        drafting_history = [
+            {"role": "user", "content": "edit content of note 6"},
+            {"role": "assistant", "content": "What content?"},
+            {"role": "user", "content": "about paok"},
+            {"role": "assistant", "content": "Please provide exact text."},
+            {"role": "user", "content": "improvise"},
+            {"role": "assistant", "content": "Here is a draft."},
+            {"role": "user", "content": "yes do it and save it"},
+            {"role": "assistant", "content": "Please confirm."},
+            {"role": "user", "content": "yes"},
+            {"role": "assistant", "content": "Here is the final draft."},
+        ]
+        pending_edit = chat._pending_note_intent("save it", drafting_history)
+        self.assertTrue(chat._note_mutation_allowed("edit_note", pending_edit))
+        self.assertFalse(chat._note_mutation_allowed("create_note", pending_edit))
+        retry_edit = chat._pending_note_intent("try again", drafting_history)
+        self.assertTrue(chat._note_mutation_allowed("edit_note", retry_edit))
+        for approval in ("can u do it now?", "JUST DO IT", "please just do it", "do it now"):
+            resolved = chat._pending_note_intent(approval, drafting_history)
+            self.assertTrue(chat._note_mutation_allowed("edit_note", resolved), approval)
+            self.assertFalse(chat._note_mutation_allowed("create_note", resolved), approval)
+        completed_history = [*drafting_history, {"role": "assistant", "content": "Saved", "tool_activity": [
+            {"name": "edit_note", "error": None, "audit": {"action": "edit", "note_id": 6}}
+        ]}]
+        self.assertEqual(chat._pending_note_intent("yes", completed_history), "yes")
+
+        create_history = [
+            {"role": "user", "content": "create 2 notes about vhl"},
+            {"role": "assistant", "content": "Send content or ask me to draft."},
+            {"role": "user", "content": "draft"},
+            {"role": "assistant", "content": "Here are two drafts."},
+        ]
+        pending_create = chat._pending_note_intent("yes save", create_history)
+        self.assertTrue(chat._note_mutation_allowed("create_notes", pending_create))
+        self.assertFalse(chat._note_mutation_allowed("edit_note", pending_create))
+
+    async def test_retry_injects_pending_edit_and_can_reuse_drafted_content(self):
+        note = notes.create_note(notes.NoteInput(title="Original", content="Old content"))
+        conversation = chat.create()
+        conversation["messages"] = [
+            {"role": "user", "content": f"edit content of note {note['id']}"},
+            {"role": "assistant", "content": "Draft: BRCA1 is a tumor suppressor gene involved in repairing damaged DNA.",
+             "provider": "openai", "model": "test", "status": "complete"},
+        ]
+        chat.save(conversation)
+
+        async def stream(config, request, **kwargs):
+            system = "\n".join(message.content for message in request.messages if message.role == "system")
+            self.assertIn("AUTHORITATIVE HELIX REQUEST RESOLUTION", system)
+            self.assertIn(f"edit content of note {note['id']}", system)
+            result = kwargs["execute_tool"]("edit_note", {
+                "id": note["id"], "content": "BRCA1 is a tumor suppressor gene involved in repairing damaged DNA.",
+            })
+            self.assertEqual(result["scope"], "note_edited")
+            yield {"type": "content", "text": "Updated note."}
+            yield {"type": "done"}
+
+        with patch.object(chat.ollama, "chat_stream", stream):
+            response = await self.client.post(
+                f"/api/chat/conversations/{conversation['id']}/messages",
+                json={"model": "test", "content": "try again"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("BRCA1 is a tumor suppressor gene", notes.get_note(note["id"])["content"])
+
+    async def test_tag_followup_uses_dedicated_tool_and_preserves_note(self):
+        note = notes.create_note(notes.NoteInput(title="VHL", content="Keep this", tags=["vhl"], pinned=True))
+
+        async def stream(config, request, **kwargs):
+            result = kwargs["execute_tool"]("remove_note_tag", {"id": note["id"], "tag": "vhl"})
+            self.assertEqual(result["scope"], "note_tag_removed")
+            yield {"type": "content", "text": "Removed the tag."}
+            yield {"type": "done"}
+
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        with patch.object(chat.ollama, "chat_stream", stream):
+            response = await self.client.post(
+                f"/api/chat/conversations/{conversation['id']}/messages",
+                json={"model": "test", "content": "Remove the tag from note 1"},
+            )
+        self.assertEqual(response.status_code, 200)
+        saved = notes.get_note(note["id"])
+        self.assertEqual(saved["tags"], [])
+        self.assertEqual(saved["title"], "VHL")
+        self.assertEqual(saved["content"], "Keep this")
+        self.assertTrue(saved["pinned"])
+
+    async def test_multiple_note_request_can_create_tagged_notes_without_literature(self):
+        async def stream(config, request, **kwargs):
+            result = kwargs["execute_tool"]("create_notes", {"notes": [
+                {"title": "VHL one", "tags": ["vhl"]},
+                {"title": "VHL two"},
+            ]})
+            self.assertEqual(result["scope"], "notes_created")
+            yield {"type": "content", "text": "Created two notes."}
+            yield {"type": "done"}
+
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        with patch.object(chat.ollama, "chat_stream", stream):
+            response = await self.client.post(
+                f"/api/chat/conversations/{conversation['id']}/messages",
+                json={"model": "test", "content": 'Create two about VHL, one with tag "vhl"'},
+            )
+        self.assertEqual(response.status_code, 200)
+        saved = notes.list_notes()
+        self.assertEqual(len(saved), 2)
+        self.assertEqual(next(note for note in saved if note["title"] == "VHL one")["tags"], ["vhl"])
+
+    async def test_wrong_note_mutation_is_refused_while_requested_delete_succeeds(self):
+        note = notes.create_note(notes.NoteInput(title="Delete me"))
+
+        async def stream(config, request, **kwargs):
+            execute = kwargs["execute_tool"]
+            refused = execute("create_note", {"title": "Should not exist"})
+            self.assertIn("did not explicitly request a note create", refused["error"])
+            deleted = execute("delete_note", {"id": note["id"]})
+            self.assertEqual(deleted["scope"], "note_deleted")
+            yield {"type": "content", "text": "Deleted."}
+            yield {"type": "done"}
+
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        with patch.object(chat.ollama, "chat_stream", stream):
+            response = await self.client.post(
+                f"/api/chat/conversations/{conversation['id']}/messages",
+                json={"model": "test", "content": "Delete the other note"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(notes.list_notes(), [])
+
+    async def test_delete_confirmation_inherits_immediately_previous_request(self):
+        first = notes.create_note(notes.NoteInput(title="First"))
+        second = notes.create_note(notes.NoteInput(title="Second"))
+        conversation = (await self.client.post("/api/chat/conversations")).json()
+        url = f"/api/chat/conversations/{conversation['id']}/messages"
+
+        async def ask_to_confirm(config, request, **kwargs):
+            yield {"type": "content", "text": "Delete all notes?"}
+            yield {"type": "done"}
+
+        with patch.object(chat.ollama, "chat_stream", ask_to_confirm):
+            await self.client.post(url, json={"model": "test", "content": "Please delete all notes"})
+
+        async def delete_confirmed(config, request, **kwargs):
+            execute = kwargs["execute_tool"]
+            deleted = execute("delete_all_notes", {})
+            self.assertEqual(deleted["scope"], "notes_deleted")
+            self.assertEqual(set(deleted["deleted_ids"]), {first["id"], second["id"]})
+            self.assertIn("error", execute("create_note", {"title": "Wrong action"}))
+            yield {"type": "content", "text": "Deleted both notes."}
+            yield {"type": "done"}
+
+        with patch.object(chat.ollama, "chat_stream", delete_confirmed):
+            response = await self.client.post(url, json={"model": "test", "content": "all of them"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(notes.list_notes(), [])
 
     async def test_history_stream_and_delete(self):
         seen = []

@@ -1,6 +1,7 @@
 """Persistent conversations and provider-neutral streaming endpoints."""
 import asyncio
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from uuid import uuid4
@@ -10,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import settings
-from .literature.tools import TOOLS as LITERATURE_TOOLS, execute as execute_literature_tool
+from .chat_tools import TOOLS as CHAT_TOOLS, execute as execute_chat_tool
 from .providers import ollama, openai
 
 router = APIRouter(prefix="/api/chat")
@@ -28,14 +29,100 @@ CONVERSATION_INSTRUCTIONS = (
     "to have read a scope unless the tool result confirms it; if a tool returns an unavailable error, report that limitation. Helix may append a "
     "trusted tool-audit note to earlier assistant messages—use it as the authoritative record of what was actually accessed. Be explicit that "
     "figure tools provide stored captions, URLs, and table data but do not visually inspect image pixels."
+    " You can also list, search, and read Helix notes. Note tags are independent from literature tags; adding a tag to a note never requires "
+    "a literature search or a paper with that tag. For tag-only changes, always use add_note_tag or remove_note_tag; those tools preserve the "
+    "title and content automatically. Create or edit a note only when the user explicitly asks you to do so. When the user asks for two or "
+    "more notes, use create_notes once instead of repeated create_note calls. If the user supplies only a topic or ambiguous acronym, do not "
+    "invent facts, citations, dates, or an expanded meaning; use a simple title based on their words and leave content empty. If the user "
+    "explicitly asks you to draft or improvise content, you may draft it; a later 'yes' or 'save it' confirms the most recent unresolved note "
+    "create or edit request, so perform that pending mutation instead of asking them to repeat it. "
+    "Delete a note only when the user explicitly asks to delete it; a direct confirmation such as 'all of them' inherits the immediately "
+    "preceding note request. Use exact note IDs returned by the note tools. Before appending to or "
+    "partially changing a note, read it first so existing content is preserved. Never substitute one note action for another. Report a note "
+    "mutation as successful only when that exact tool returns success; do not claim a note was created, edited, or deleted otherwise."
 )
+
+NOTE_MUTATION_WORDS = {
+    "create_note": r"\b(create|make|remember|jot|record|start)\b|\bsave\b.{0,30}\bnote\b|\bnote\b.{0,30}\bsave\b|\b(new|another)\s+note\b|\b(write|take)\b.{0,30}\bnote\b|\bnote down\b|δημιουργ|φτιάξ|αποθήκευσ|σημείω",
+    "create_notes": r"\b(create|make|remember|jot|record|start)\b|\bsave\b.{0,30}\bnotes\b|\bnotes\b.{0,30}\bsave\b|\b(new|multiple|several|two|three|four|five)\s+notes?\b|\b(write|take)\b.{0,30}\bnotes?\b|δημιουργ|φτιάξ|αποθήκευσ|σημείω",
+    "edit_note": r"\b(edit|update|change|modify|append|amend|revise|rewrite|add|pin|unpin|link|unlink)\b|\b(remove|delete|clear)\b.{0,30}\b(tag|paper|literature)\b|ενημέρωσ|επεξεργ|αλλάξ|τροποποίησ|πρόσθεσ|καρφίτσωσ|σύνδεσ|αποσύνδεσ",
+    "add_note_tag": r"\b(add|apply|attach|set|give)\b.{0,30}\btag\b|\btag\b.{0,30}\b(add|apply|attach|with)\b|πρόσθεσ.{0,30}ετικέτ",
+    "remove_note_tag": r"\b(remove|delete|clear|drop)\b.{0,30}\btag\b|αφαίρεσ.{0,30}ετικέτ|σβήσ.{0,30}ετικέτ",
+    "delete_note": r"\b(delete|remove|trash|erase)\b|\bget rid of\b|διαγραφ|σβήσ|αφαίρεσ",
+    "delete_all_notes": r"\b(delete|remove|trash|erase)\b|\bget rid of\b|διαγραφ|σβήσ|αφαίρεσ",
+}
+ALL_NOTES_WORDS = re.compile(r"\b(all|every|both|everything)\b|όλα|όλες", re.IGNORECASE)
+NOTE_CONFIRMATION = re.compile(
+    r"\s*(yes\b.*|yep\b.*|yeah\b.*|ok|okay|sure|confirm|confirmed|(?:please\s+)?(?:just\s+)?do it(?:\s+now)?|can (?:you|u) do it(?:\s+now)?|go ahead|please do|proceed|save|save it|save them|save please|try again|retry|please retry|again|use that|that works|all|all of them|them all|both|everything|"
+    r"ναι|οκ|όλα|όλα τους|κάντο|κάν' το|προχώρα)[\s.!?]*",
+    re.IGNORECASE,
+)
+NOTE_MUTATION_AUDIT_ACTIONS = {"create", "create_many", "edit", "delete", "delete_all", "add_tag", "remove_tag"}
+
+
+def _note_intent_context(user_message: str, previous_user_message: str = "") -> str:
+    """A direct confirmation inherits only the immediately preceding user's requested action."""
+    if previous_user_message and NOTE_CONFIRMATION.fullmatch(user_message):
+        return f"{previous_user_message}\nConfirmation: {user_message}"
+    return user_message
+
+
+def _pending_note_intent(user_message: str, messages: list[dict]) -> str:
+    """Resolve a short approval against the latest unfinished note mutation request."""
+    if not NOTE_CONFIRMATION.fullmatch(user_message):
+        return user_message
+    for item in reversed(messages):
+        if item.get("role") == "assistant" and any(
+            not activity.get("error") and (activity.get("audit") or {}).get("action") in NOTE_MUTATION_AUDIT_ACTIONS
+            for activity in item.get("tool_activity") or []
+        ):
+            break
+        if item.get("role") == "user" and any(
+            _note_mutation_allowed(tool_name, item.get("content", "")) for tool_name in NOTE_MUTATION_WORDS
+        ):
+            return f"{item['content']}\nConfirmation: {user_message}"
+    return user_message
+
+
+def _note_mutation_allowed(tool_name: str, user_message: str) -> bool:
+    pattern = NOTE_MUTATION_WORDS.get(tool_name)
+    allowed = pattern is None or re.search(pattern, user_message.casefold()) is not None
+    if tool_name == "delete_all_notes":
+        allowed = allowed and ALL_NOTES_WORDS.search(user_message) is not None
+    return allowed
+
+
+def _validate_multi_note_tags(user_message: str, arguments) -> str | None:
+    """Enforce an explicit 'one note has tag X' distribution before any notes are created."""
+    match = re.search(r"\bone\b.{0,80}\btag(?:ged)?(?:\s+(?:with|as))?\s*[\"']([^\"']+)[\"']", user_message, re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        parsed = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
+        items = parsed.get("notes") if isinstance(parsed, dict) else None
+    except (TypeError, ValueError):
+        items = None
+    if not isinstance(items, list):
+        return None
+    requested_tag = match.group(1).strip().casefold()
+    tagged_count = sum(
+        1 for item in items if isinstance(item, dict) and
+        any(str(tag).strip().casefold() == requested_tag for tag in item.get("tags", []))
+    )
+    if tagged_count != 1:
+        return f'The user requested tag "{match.group(1).strip()}" on exactly one new note, but the tool call applied it to {tagged_count}. No notes were created.'
+    return None
 
 
 def _verified_audit(messages: list[dict]) -> str:
     rows = []
     for message in messages:
         for item in message.get("tool_activity") or []:
-            ids = ", ".join(f"Literature #{value}" for value in item.get("source_ids", [])) or "no paper"
+            item_audit = item.get("audit") or {}
+            note_id = item_audit.get("note_id")
+            note_ids = item_audit.get("note_ids") or []
+            ids = (f"Note #{note_id}" if note_id else ", ".join(f"Note #{value}" for value in note_ids) if note_ids
+                   else ", ".join(f"Literature #{value}" for value in item.get("source_ids", [])) or "no record")
             if item.get("error"):
                 rows.append(f"FAILED: {item.get('name')} [{item.get('scope')}] on {ids}: {item['error']}")
             else:
@@ -134,14 +221,23 @@ async def send(conversation_id: str, body: SendMessage):
         raise HTTPException(409, "This conversation already has a reply in progress.")
     conversation = read(conversation_id)
     config = adapter.load_config()
+    current_content = body.content.strip()
+    mutation_intent = _pending_note_intent(current_content, conversation["messages"])
     history = [{"role": m["role"], "content": m["content"]} for m in conversation["messages"]
                if m["role"] == "user" or m.get("status") == "complete"]
-    message = {"role": "user", "content": body.content.strip()}
+    message = {"role": "user", "content": current_content}
     history.append(message)
     system_messages = [{"role": "system", "content": CONVERSATION_INSTRUCTIONS}]
     audit = _verified_audit(conversation["messages"])
     if audit:
         system_messages.append({"role": "system", "content": audit})
+    if mutation_intent != current_content:
+        system_messages.append({"role": "system", "content": (
+            "AUTHORITATIVE HELIX REQUEST RESOLUTION. The current short reply is a confirmation or retry of the unresolved note request below. "
+            "The user does not need to repeat exact wording. Perform the matching note tool now. If you already drafted the requested content "
+            "in an earlier assistant message, reuse that draft as the tool input. Do not ask for another confirmation.\n"
+            f"Resolved request:\n{mutation_intent}"
+        )})
     request = adapter.ChatRequest(model=body.model, think=body.think, messages=[*system_messages, *history])
     conversation["messages"].append(message)
     if len(conversation["messages"]) == 1:
@@ -151,10 +247,23 @@ async def send(conversation_id: str, body: SendMessage):
     conversation["messages"].append(reply)
     save(conversation)
     active.add(conversation_id)
+    def execute_tool(name, arguments):
+        if not _note_mutation_allowed(name, mutation_intent):
+            action = {
+                "delete_all_notes": "delete all notes", "create_notes": "create multiple notes",
+                "add_note_tag": "add a note tag", "remove_note_tag": "remove a note tag",
+            }.get(name, name.removesuffix("_note"))
+            return {"error": f"The current user message did not explicitly request a note {action}. No note was changed.",
+                    "scope": "note_action_refused", "sources": []}
+        if name == "create_notes":
+            error = _validate_multi_note_tags(mutation_intent, arguments)
+            if error:
+                return {"error": error, "scope": "note_action_refused", "sources": []}
+        return execute_chat_tool(name, arguments)
 
     async def events():
         try:
-            async for event in adapter.chat_stream(config, request, tools=LITERATURE_TOOLS, execute_tool=execute_literature_tool):
+            async for event in adapter.chat_stream(config, request, tools=CHAT_TOOLS, execute_tool=execute_tool):
                 kind = event["type"]
                 if kind in ("content", "thinking"):
                     reply[kind] += event["text"]

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import ProviderKeys, settings
 from .chat import router as chat_router
+from .notes import router as notes_router
 from .integrations import Integration, catalog_with_status
 from .literature import runner
 from .literature.db import db as literature_db
@@ -32,6 +33,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=f"{settings.app_name} API", version=settings.version, lifespan=lifespan)
 app.include_router(chat_router)
+app.include_router(notes_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

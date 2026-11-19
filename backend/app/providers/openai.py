@@ -204,7 +204,7 @@ async def chat_stream(
                         "call_id": call.get("call_id"),
                         "output": json.dumps(result, ensure_ascii=False),
                     })
-            yield {"type": "error", "message": "The model used too many consecutive literature tools. Try a more specific request."}
+            yield {"type": "error", "message": "The model used too many consecutive tools. Try a more specific request."}
     except httpx.ReadTimeout:
         yield {"type": "error", "message": f"OpenAI sent no response for {config.timeout_seconds} seconds."}
     except (httpx.HTTPError, ValueError) as exc:

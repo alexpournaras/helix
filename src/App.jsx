@@ -5,6 +5,7 @@ import { NAV, ancestors, findRoute } from "./routes.js";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./views/Dashboard.jsx";
 import { Chat } from "./views/Chat.jsx";
+import { Notes } from "./views/Notes.jsx";
 import { Integrations } from "./views/Integrations.jsx";
 import { Literature } from "./views/Literature.jsx";
 import { LiteratureFetch } from "./views/LiteratureFetch.jsx";
@@ -71,6 +72,9 @@ export default function App() {
   else if (route.id === "ollama") view = <OllamaSettings apiOnline={apiOnline} link={link} />;
   else if (route.id === "openai") view = <OpenAISettings apiOnline={apiOnline} />;
   else if (route.id === "chat") view = <Chat link={link} />;
+  else if (route.id === "notes" || route.id === "note" || route.id === "note-new") {
+    view = <Notes noteId={route.id === "note-new" ? "new" : route.noteId} navigate={navigate} />;
+  }
   else if (route.source) view = <LiteratureSource key={route.source} source={route.source} apiOnline={apiOnline} link={link} />;
   else if (route.id === "literature") view = <Literature apiOnline={apiOnline} link={link} />;
   else if (route.id === "literature-fetch") view = <LiteratureFetch apiOnline={apiOnline} link={link} />;
@@ -144,7 +148,7 @@ export default function App() {
           </span>
         </header>
         <main id="main" className="content">
-          <div className="content-inner" key={route?.id ?? "404"}>{view}</div>
+          <div className="content-inner" key={route?.path ?? "404"}>{view}</div>
         </main>
       </div>
     </div>

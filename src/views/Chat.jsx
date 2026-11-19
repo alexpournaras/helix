@@ -177,7 +177,7 @@ export function Chat({ link }) {
   }
 
   return <div className="chat-page">
-    <PageIntro>Ask questions, explore ideas, or have AI search and read papers saved in your literature library.</PageIntro>
+    <PageIntro>Ask questions, explore ideas, work with notes, or have AI search and read papers saved in your literature library.</PageIntro>
     {error && <div className="notice" role="alert">{error}</div>}
     <div className="chat-layout">
       <aside className="card chat-history" aria-label="Conversations">
@@ -234,7 +234,7 @@ export function Chat({ link }) {
             <div className="chat-message-label">{message.role === "user" ? "You" : `${message.model} · ${providerName(message.provider)}`}</div>
             {message.thinking?.trim() && <Thinking key={`${conversation.id}-${i}`} text={message.thinking} />}
             <div className="answer">{message.content || (message.status === "streaming"
-              ? (message.sources?.length ? "Reading saved literature…" : message.thinking ? "Generating reply…" : `Waiting for ${message.model}…`) : "")}</div>
+              ? (message.sources?.length ? "Reading saved literature…" : message.tool_activity?.length ? "Working with workspace data…" : message.thinking ? "Generating reply…" : `Waiting for ${message.model}…`) : "")}</div>
             {message.sources?.length > 0 && <div className="chat-sources" aria-label="Literature accessed for this answer">
               <div className="chat-sources-label"><BookOpen size={13} /> Literature accessed</div>
               <div className="chat-source-list">

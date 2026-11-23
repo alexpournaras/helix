@@ -9,9 +9,9 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.1 Database (full B3 schema, migrations, task queue, usage) + ID formats
 - [x] 1A.2 Settings and profiles
 - [x] 1A.3 Strict schema
-- [ ] 1A.4 Providers and model layer (+ C19 fix: done)
-- [ ] 1A.5 Ensembles
-- [ ] 1A.6 Worker and pipeline
+- [x] 1A.4 Providers and model layer, probes, pre-flight (+ C19 fix)
+- [x] 1A.5 Ensembles
+- [x] 1A.6 Worker and pipeline (lock, guards, stage machine, controls; dummy-pipeline tests)
 - [ ] 1A.7 Segmentation and packing
 - [ ] 1A.8 Literature additions
 - [ ] 1A.9 MeSH module

@@ -26,7 +26,7 @@ JSON_COLUMNS = {
     "hypothesis_keys", "score_breakdown", "skipped_sections", "segments", "packs", "profile", "appraisal_votes",
     "appraisal", "study_identity", "applicability", "quality_flags", "registry_ids", "pages", "effect", "checks",
     "confirmation", "claim_ids", "computed", "novelty", "draft_data", "issues", "support_checks", "resolutions",
-    "final_check", "readiness", "payload", "response", "limitations", "population",
+    "final_check", "readiness", "payload", "limitations", "population",
 }
 
 _TABLES = """

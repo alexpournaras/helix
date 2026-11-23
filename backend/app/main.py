@@ -64,7 +64,8 @@ def overview():
         "literature": literature_db.count(),
         "integrations_total": len(catalog),
         "integrations_ready": sum(1 for i in catalog if i.status != "planned"),
-        "ai_keys": sorted(k.upper() for k in ProviderKeys().present() if k != "ncbi_api_key"),
+        "ai_keys": sorted(k.upper() for k in ProviderKeys().present()
+                         if k in ("openai_api_key", "anthropic_api_key", "gemini_api_key", "ollama_api_key")),
     }
 
 

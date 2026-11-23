@@ -28,6 +28,9 @@ class ProviderKeys(BaseSettings):
     gemini_api_key: str = ""
     ncbi_api_key: str = ""
     ollama_api_key: str = ""  # only needed for ollama.com cloud models
+    openalex_api_key: str = ""  # research search and citation graph (required by OpenAlex since Feb 2026)
+    semantic_scholar_api_key: str = ""  # optional; higher Semantic Scholar rate limit
+    unpaywall_email: str = ""  # contact email Unpaywall requires; Helix never fills it in
 
     def present(self) -> set[str]:
         return {name for name, value in self.model_dump().items() if value.strip()}

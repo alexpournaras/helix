@@ -5,7 +5,8 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 ## M1: Evidence slice
 
 ### 1A Foundations
-- [ ] 1A.0 Experiments X1, X4, X5, X8 (`docs/spikes.md`) — need live keys; not run yet
+- [x] 1A.0 X4, X5, X8 run and passed (`docs/spikes.md`); X8 needs a held-out check
+- [ ] 1A.0 X1 — waits for the step schemas (1C–1F)
 - [x] 1A.1 Database (full B3 schema, migrations, task queue, usage) + ID formats
 - [x] 1A.2 Settings and profiles
 - [x] 1A.3 Strict schema

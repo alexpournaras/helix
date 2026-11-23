@@ -26,3 +26,8 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# research eval outputs (may hold API payloads)
+backend/eval/spikes/results/
+backend/eval/recordings/
+backend/eval/results/

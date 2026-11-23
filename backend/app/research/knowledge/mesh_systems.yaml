@@ -1,0 +1,90 @@
+# MeSH tree-number prefix → Helix body system (PLAN B0, 1A.9). Longest matching prefix wins for each tree
+# number; a descriptor's systems are the union over all its tree numbers. `null` means "no system" (the tree
+# is ignored, e.g. physiology or psychology branches that would otherwise add noise).
+# Draft from spike X8 (2026-11-23), built from live MeSH tree numbers. Needs human review (PLAN Part G.6).
+version: 1
+systems:
+  ent: Ear, nose and throat
+  neurology: Brain and nerves
+  cardiovascular: Heart and circulation
+  respiratory: Lungs and breathing
+  digestive: Digestive system and liver
+  mouth_dental: Mouth and teeth
+  musculoskeletal: Muscles, bones and joints
+  skin: Skin, hair and nails
+  urogenital: Kidneys, bladder and male genital
+  female_reproductive: Female reproductive system
+  pregnancy: Pregnancy and postpartum
+  eye: Eye and vision
+  endocrine_metabolic: Hormones and metabolism
+  hematology: Blood
+  immunology_allergy: Immune system and allergy
+  infection: Infections
+  oncology: Cancer
+  mental_health: Mental health
+  congenital_neonatal: Congenital and newborn
+  injury_poisoning: Injury and poisoning
+  general: General symptoms
+prefixes:
+  # Diseases (C)
+  C01: infection
+  C04: oncology
+  C05: musculoskeletal
+  C06: digestive
+  C07: mouth_dental
+  C07.550: ent                       # pharyngeal diseases
+  C08: respiratory
+  C09: ent
+  C10: neurology
+  C11: eye
+  C12: urogenital
+  C12.050.351.500: female_reproductive  # genital diseases, female
+  C12.100.250: female_reproductive      # genital diseases, female
+  C12.050.703: pregnancy                # pregnancy complications
+  C13: pregnancy                        # older MeSH: female urogenital diseases and pregnancy complications
+  C13.351: female_reproductive
+  C14: cardiovascular
+  C15: hematology
+  C16: congenital_neonatal
+  C17: skin
+  C17.300: musculoskeletal              # connective tissue diseases
+  C18: endocrine_metabolic
+  C19: endocrine_metabolic
+  C20: immunology_allergy
+  C21: injury_poisoning
+  C22: null                             # animal diseases: intake rejects non-human cases separately
+  C23: general
+  C25: injury_poisoning
+  C26: injury_poisoning
+  # Signs and symptoms (C23.888)
+  C23.888.119: general                  # body temperature changes (fever)
+  C23.888.144: general                  # body weight changes
+  C23.888.277: general                  # edema (cardiac, renal, venous …)
+  C23.888.307: eye                      # eye manifestations
+  C23.888.369: general                  # fatigue
+  C23.888.592: neurology                # neurologic manifestations
+  C23.888.592.612: general              # pain (location-specific branches below)
+  C23.888.592.612.054: digestive        # abdominal pain
+  C23.888.592.612.094: musculoskeletal  # arthralgia
+  C23.888.592.612.107: musculoskeletal  # back pain
+  C23.888.592.612.233: cardiovascular   # chest pain
+  C23.888.592.612.316: eye              # eye pain
+  C23.888.592.612.330: ent              # earache
+  C23.888.592.612.441: neurology        # headache
+  C23.888.592.612.547: musculoskeletal  # musculoskeletal pain
+  C23.888.592.612.553: musculoskeletal  # neck pain
+  C23.888.592.612.944: female_reproductive  # pelvic pain
+  C23.888.592.763.393: ent              # hearing disorders
+  C23.888.592.763.941: eye              # vision disorders
+  C23.888.592.958: ent                  # vertigo
+  C23.888.821: digestive                # signs and symptoms, digestive
+  C23.888.852: respiratory              # signs and symptoms, respiratory
+  C23.888.885: skin                     # skin manifestations
+  C23.888.942: urogenital               # urological manifestations
+  C23.550.414: general                  # hemorrhage
+  C23.550.429: digestive                # hyperbilirubinemia (jaundice)
+  C23.550.568: female_reproductive      # menstruation disturbances
+  # Mental disorders and behaviour (F)
+  F01: mental_health                    # behaviour and behaviour mechanisms (behavioural symptoms)
+  F02: null                             # psychological phenomena (pain perception etc.)
+  F03: mental_health

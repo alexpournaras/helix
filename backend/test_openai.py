@@ -61,7 +61,9 @@ class OpenAITests(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_missing_key_and_unsupported_model_fail_without_network(self):
-        status = await openai.status(openai.OpenAIConfig())
+        # Patch the key so the test never depends on (or reads) a real backend/.env (PLAN C19).
+        with patch.object(openai, "_key", return_value=""):
+            status = await openai.status(openai.OpenAIConfig())
         self.assertFalse(status["reachable"])
         self.assertEqual(len(status["models"]), 9)
 

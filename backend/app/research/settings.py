@@ -222,11 +222,46 @@ def _economy() -> dict:
     }
 
 
-PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy}
+DEV_OPENAI = "gpt-5.4-mini"
+DEV_OLLAMA = "qwen3-coder:latest"
+
+
+def _dev() -> dict:
+    """Development setup (decision 2026-11-23): family A = gpt-5.4-mini, family B = a local Ollama model.
+
+    Keeps the quality structure (same ensembles and cross-family checks) with cheaper models. Not for real
+    cases: small/local models in critical roles have not passed E3, and pre-flight warns about it."""
+    def swap(ref: dict) -> dict:
+        family = provider_of(ref["model"])
+        if family == "openai":
+            effort = {"xhigh": "high", "max": "high", None: "medium"}.get(ref.get("effort"), ref.get("effort"))
+            return _m(DEV_OPENAI, effort)
+        return _m(DEV_OLLAMA, None)
+
+    roles: dict[str, dict] = {}
+    for name, spec in QUALITY_ROLES.items():
+        members = [swap(m) for m in spec["members"]]
+        fallback: list[dict] = []
+        for ref in (swap(m) for m in spec.get("fallback", [])):
+            if ref not in fallback:
+                fallback.append(ref)
+        roles[name] = {"members": members, "fallback": fallback}
+    return {
+        "roles": roles,
+        "strongest": {"openai": _m(DEV_OPENAI, "high"), "ollama": _m(DEV_OLLAMA, None)},
+        "providers": {"ollama": {"enabled": True, "num_ctx": 32768, "max_output_tokens": 8192,
+                                 "idle_timeout_seconds": 300, "deadline_seconds": 1800}},
+        "concurrency": {"ollama": 1, "openai": 8},
+    }
+
+
+PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy,
+                                                   "dev": _dev}
 PROFILE_DESCRIPTIONS = {
     "quality": "Strongest model for every judgment, full ensembles, up to 5 rounds (default).",
     "balanced": "sol and opus for most roles, single extraction, one critic, 3 rounds, 15 papers per round.",
     "economy": "One efficient model per role, no ensembles except the safety panel, 1 round, 10 papers.",
+    "dev": "Development only: gpt-5.4-mini (family A) + a local Ollama model (family B), quality structure.",
 }
 
 
@@ -297,7 +332,7 @@ class GuardsCfg(Strict):
 
 
 class ResearchSettings(Strict):
-    profile: Literal["quality", "balanced", "economy"]
+    profile: Literal["quality", "balanced", "economy", "dev"]
     roles: dict[str, RoleSpec]
     strongest: dict[str, ModelRef]
     providers: ProvidersCfg
@@ -337,17 +372,20 @@ class ResearchSettings(Strict):
             raise ValueError(f"Missing roles: {', '.join(sorted(missing))}.")
         if len(self.roles["safety"].members) < 2:
             raise ValueError("The safety panel needs two models in every profile (B15).")
-        for family in ("openai", "anthropic"):
+        families = {m.family for spec in self.roles.values() for m in spec.members}
+        for family in families & {"openai", "anthropic", "ollama"}:
             if family not in self.strongest:
                 raise ValueError(f"strongest.{family} is required (adjudication and confirmation).")
         return self
 
 
 def deep_merge(base: dict, overlay: dict) -> dict:
-    """Recursively merge `overlay` into a copy of `base`. Lists and scalars replace; `roles.<name>` replaces whole."""
+    """Recursively merge `overlay` into a copy of `base`. Lists and scalars replace; `roles.<name>` and `strongest` replace whole."""
     out = copy.deepcopy(base)
     for key, value in overlay.items():
-        if key == "roles" and isinstance(value, dict):
+        if key == "strongest" and isinstance(value, dict):
+            out[key] = copy.deepcopy(value)  # a profile names its families' strongest models in full
+        elif key == "roles" and isinstance(value, dict):
             roles = out.setdefault("roles", {})
             for name, spec in value.items():
                 roles[name] = copy.deepcopy(spec)
@@ -422,8 +460,8 @@ def resolve_role(settings: ResearchSettings, role: str, available: Callable[[Mod
 
 def strongest_other(settings: ResearchSettings, family: str, available: Callable[[ModelRef], bool]) -> ModelRef:
     """Strongest model of the family other than `family`; falls back to the same family if unavailable."""
-    other = "anthropic" if family == "openai" else "openai"
-    for fam in (other, family):
+    others = [f for f in settings.strongest if f != family]
+    for fam in others + [family]:
         ref = settings.strongest.get(fam)
         if ref is not None and available(ref):
             return ref

@@ -67,6 +67,7 @@ class Provider(Protocol):
 
 # Known limits (C3, C28). Model listing and probes refine these at run time.
 KNOWN_MODELS: dict[str, dict[str, Any]] = {
+    "gpt-5.4-mini": {"context_window": 400_000, "max_output_tokens": 128_000, "reasoning": True},
     "gpt-6.2-astra": {"context_window": 1_050_000, "max_output_tokens": 128_000, "reasoning": True},
     "gpt-6.2-sol": {"context_window": 1_050_000, "max_output_tokens": 128_000, "reasoning": True},
     "gpt-6.1-terra": {"context_window": 400_000, "max_output_tokens": 128_000, "reasoning": True},

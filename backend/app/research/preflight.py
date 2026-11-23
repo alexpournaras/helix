@@ -25,6 +25,7 @@ from .settings import ModelRef, ResearchSettings, resolve_role, strongest_other
 PROBE_EFFORTS = {
     "openai": ["none", "minimal", "low", "medium", "high", "xhigh"],
     "anthropic": ["low", "medium", "high", "xhigh", "max"],
+    "ollama": [],
 }
 
 
@@ -88,7 +89,9 @@ async def probe(provider: Any, ref: ModelRef, *, efforts: list[str] | None = Non
     for effort in plan:
         request = StructuredRequest(model=ref.model, system=PROBE_SYSTEM, user=PROBE_USER, schema=schema,
                                     schema_name="ProbeOut", effort=effort, max_output_tokens=2000,
-                                    idle_timeout=60, deadline=180)
+                                    # a local model may first have to load into memory
+                                    idle_timeout=300 if ref.family == "ollama" else 60,
+                                    deadline=600 if ref.family == "ollama" else 180)
         started = time.monotonic()
         try:
             result = await provider.complete(request)
@@ -204,6 +207,13 @@ def run(settings: ResearchSettings, providers: dict[str, Any], probes: ProbeStor
         except LookupError:
             errors.append("No strongest model is available for adjudication and confirmation.")
             break
+    if settings.profile == "dev":
+        warnings.append("Development profile: not for real cases (models have not passed the E3 evaluation).")
+    if "ollama" in used:
+        critical = [r for r in ("safety", "verify", "brief_check", "synthesis", "critic.safety")
+                    if r in settings.roles and any(m.family == "ollama" for m in settings.roles[r].members)]
+        if critical:
+            warnings.append(f"Ollama model in critical roles ({', '.join(critical)}); allowed only for development.")
     gate = privacy_gate(settings, synthetic=synthetic, uses_openai="openai" in used)
     if gate:
         errors.append(gate)

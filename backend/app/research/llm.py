@@ -103,8 +103,10 @@ def _max_output(ctx: CallContext, ref: ModelRef) -> int:
     configured = 64000
     if isinstance(cfg, dict):
         configured = int(cfg.get("max_output_tokens") or cfg.get("max_tokens") or configured)
+    if ref.family in ("fake", "ollama"):
+        return configured
     _, cap = limits(ref.model)
-    return min(configured, cap) if ref.family != "fake" else configured
+    return min(configured, cap)
 
 
 def _timeouts(ctx: CallContext, ref: ModelRef) -> tuple[float, float]:
@@ -165,6 +167,8 @@ async def complete_json_meta(ctx: CallContext, role: str, schema: type[T], syste
     # 2. Context guard
     max_out = _max_output(ctx, ref)
     context_window, _ = limits(ref.model)
+    if ref.family == "ollama":
+        context_window = int(ctx.settings.providers.ollama.get("num_ctx") or context_window)
     estimate = tokens.estimate_many(full_system, user, json.dumps(provider_schema))
     if ref.family != "fake" and estimate > context_window - max_out:
         raise ContextOverflow(f"Input of about {estimate} tokens exceeds {ref.model}'s budget "
@@ -188,7 +192,7 @@ async def complete_json_meta(ctx: CallContext, role: str, schema: type[T], syste
     result = await _call(ctx, provider, request, role, ref, prompt_version, key, "first")
     if result.stop == "truncated":
         _, cap = limits(ref.model)
-        bigger = min(max_out * 2, cap) if ref.family != "fake" else max_out * 2
+        bigger = max_out * 2 if ref.family in ("fake", "ollama") else min(max_out * 2, cap)
         if bigger <= max_out:
             raise ModelError("overflow", f"{ref.model} output was truncated at {max_out} tokens.")
         request.max_output_tokens = bigger

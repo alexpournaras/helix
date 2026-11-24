@@ -129,6 +129,12 @@ class PaperSplitterTests(unittest.TestCase):
                 self.assertEqual(len(pieces), 2, pieces)
                 self.assertEqual(pieces[1], "Next.")
 
+    def test_version_abbreviation_before_a_number(self):
+        """Spike X7 (seg.v1 error): "IBM SPSS Statistics ver. 30 (…)" was split after "ver."."""
+        self.assertEqual(split_paper("We used Stats ver. 30 (Tool Inc.) for it. Next one."),
+                         ["We used Stats ver. 30 (Tool Inc.) for it.", "Next one."])
+        self.assertEqual(split_paper("Tool v. 2.1 was used. Next one."), ["Tool v. 2.1 was used.", "Next one."])
+
     def test_never_splits_after_initials(self):
         self.assertEqual(split_paper("J. A. Smith ran the trial. Next one."), ["J. A. Smith ran the trial.", "Next one."])
         self.assertEqual(split_paper("Data from Mary K. Jones were used. Next one."),

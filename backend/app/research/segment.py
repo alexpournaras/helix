@@ -19,7 +19,7 @@ from typing import Iterable, Literal
 
 from app.literature.models import Details
 
-SEGMENTER_VERSION = "seg.v1"
+SEGMENTER_VERSION = "seg.v2"  # v2: "ver." / "v." before a number (spike X7)
 ANSWER_MAX_CHARS = 2000
 MIN_PIECE = 3
 
@@ -37,7 +37,7 @@ _ABBREVIATIONS = {
     "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
 }
 # Tokens that are abbreviations only before a number ("No. 4", "p. 12"), so "No. It stopped." still splits.
-_ABBREVIATIONS_BEFORE_DIGIT = {"no", "nos", "nr", "vol", "vols", "p", "pp", "art"}
+_ABBREVIATIONS_BEFORE_DIGIT = {"no", "nos", "nr", "vol", "vols", "p", "pp", "art", "ver", "v"}
 
 _GREEK_LETTER = re.compile(r"[Ͱ-Ͽἀ-῿]")
 _LATIN_LETTER = re.compile(r"[A-Za-zÀ-ɏ]")

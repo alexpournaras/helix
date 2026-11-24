@@ -18,7 +18,8 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.8 Literature additions (flags, `search_records`, `count`, `fetch_many`, `enrich(citations=False)`, `find_existing`, `tag_origin`)
 - [x] 1A.9 MeSH module (`mesh.py`; recorded fixtures; X8b held-out 98%). Mapping table + X8b labels await human review
 - [x] 1A.10 Notes basics, test infrastructure, eval runner (`eval/run.py`), doctor, log canary
-- [ ] 1A.11 Feasibility X3, X7, X9, X6
+- [x] 1A.11 X7 passed (99.2%, `seg.v2`)
+- [ ] 1A.11 X3, X9, X6 — wait for the extraction prompts/schemas (1C.3, 1E) and a running pipeline
 - [ ] Human checkpoint after 1A
 
 ### 1B Clinical knowledge

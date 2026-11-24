@@ -10,6 +10,8 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X4 | Europe PMC allowlist confirmed; guideline or SR found for **10/10** complaints | ✅ |
 | X5 | 199-ID PubMed efetch (POST) parsed **199/199** in 3.5 s; retraction and concern fields present | ✅ |
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
+| X7 | Paper splitter on **240 sentences** of open-access text (6 papers, 3 systems): **238/240 (99.2%)** correct with `seg.v1`; the one error fixed in `seg.v2` | ✅ |
+| X3, X9, X6 | **Not run.** Need the extraction and knowledge-extraction prompts and schemas (1C.3, 1E) and a running pipeline (X6); run with them, as X1 | — |
 | X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
 ## X4 Europe PMC (`x4_europepmc.py`)
@@ -80,3 +82,14 @@ The expected labels were written by the agent **before** the run and need a huma
   toothache → ent (the earache pain branch); breast neoplasms → skin (`C17.800` breast diseases);
   myasthenia gravis → oncology (thymoma branch); gout → congenital_neonatal (inborn errors). Herpes zoster maps
   to infection only, croup to ent + respiratory (not infection).
+
+## X7 sentence splitter (`x7_splitter.py`, 2026-11-24)
+
+- Six open-access research articles from PMC (ENT: PMC13662099, PMC13654706; neurology: PMC13657683,
+  PMC13657970; skin: PMC13657800, PMC13744600), 40 pieces each from methods/results paragraphs: 240 pieces,
+  every one checked by hand.
+- **238/240 correct (99.2%). Pass (≥ 97%).** The only error: "IBM SPSS Statistics ver." | "30 (IBM SPSS, Tokyo,
+  Japan) was used…": "ver." before a number. Fixed in `seg.v2` (with "v." the same way), plus a regression test.
+- Handled correctly: author-year and numbered citations, "e.g.,", "et al.", "No. 2019-11-035-001", "St. Olavs",
+  decimals, ± and CIs, "p = 0.018;", "vs.", nested brackets, "Pvt. Ltd." inside brackets, "°C", "≥ 18".
+- Not covered by this sample (watch in E1/E3): PDF text (M2), Greek papers, tables.

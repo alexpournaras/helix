@@ -17,7 +17,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.7 Segmentation and packing (`segment.py`, `packing.py`)
 - [x] 1A.8 Literature additions (flags, `search_records`, `count`, `fetch_many`, `enrich(citations=False)`, `find_existing`, `tag_origin`)
 - [x] 1A.9 MeSH module (`mesh.py`; recorded fixtures; X8b held-out 98%). Mapping table + X8b labels await human review
-- [ ] 1A.10 Notes basics, test infrastructure, eval runner, doctor, log canary
+- [x] 1A.10 Notes basics, test infrastructure, eval runner (`eval/run.py`), doctor, log canary
 - [ ] 1A.11 Feasibility X3, X7, X9, X6
 - [ ] Human checkpoint after 1A
 

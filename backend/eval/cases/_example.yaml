@@ -1,0 +1,19 @@
+# Example eval case (files starting with "_" are not run). Cases live in eval/cases/<system>/<id>.yaml.
+# Synthetic only (PLAN B16.8): never paste a real person's health text here.
+id: example.synthetic-headache
+system: neurology
+synthetic: true
+profile: dev
+problem_text: >
+  Synthetic case. A 34-year-old reports a dull headache on both sides most afternoons for three weeks,
+  worse after long screen work. No fever, no weakness, no vision changes.
+answers:
+  # question key or pattern -> scripted answer (used once the questions step exists, 1C.4)
+  sleep: About six hours a night.
+  medications: None.
+approve: true
+expected:
+  safety_level: routine
+  red_flags: []
+  hypothesis_families: [tension_type, medication_overuse, visual_strain, sleep]
+notes: Typical presentation; no red flags expected.

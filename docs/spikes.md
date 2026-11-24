@@ -68,8 +68,7 @@ Run through `app/research/mesh.py` (the real lookup rules) on 83 complaints that
 `mesh_systems.yaml`, across all 21 systems, with paediatric, pregnancy, poisoning/injury and rare conditions.
 The expected labels were written by the agent **before** the run and need a human check (PLAN Part G.6).
 
-- **Verified 82/83.** Unverified: *malaise* (no descriptor under that word; MeSH files it as an entry term of
-  nothing). As in X8, the intake model's proposed systems are unioned in, so an unverified term isn't a dead end.
+- **Verified 82/83.** Unverified: *malaise* (neither the heading search nor an entry-term match found a descriptor). As in X8, the intake model's proposed systems are unioned in, so an unverified term isn't a dead end.
 - **Correct 80/82 verified (98%), 96% overall. Pass.**
 - **Misses, for the table review (not fixed, to keep this run held-out):**
   1. *Renal colic* → `general` only. Its trees are `C23.888.592.612.972` (an unmapped pain sub-branch) and

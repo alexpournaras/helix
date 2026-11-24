@@ -1,0 +1,241 @@
+"""Eval runner (PLAN Part E, Part G.3–4, 1A.10).
+
+    .venv/Scripts/python -m eval.run --mode fake|replay|live [--case ID] [--name NAME] [--compare OLD.json]
+
+Modes:
+- fake: fake model providers, network blocked. Checks the pipeline mechanics.
+- replay: real adapters, every HTTP request served from eval/recordings/<name>/ (unknown requests fail).
+  Use it to compare a prompt or threshold change against a recorded run (Part G.4).
+- live: real providers and sources; every response is recorded to eval/recordings/<name>/ for later replay.
+  Pre-flight must pass (privacy gate included).
+
+Cases are YAML files in eval/cases/<system>/ and must be synthetic (B16.8). Each case runs in its own temporary
+data folder; results go to eval/results/<name>.json (git-ignored, like recordings). Answers to the pipeline's
+waits come from the case through the factory's resolvers.
+
+The pipeline factory is `module:function`, called as factory(ctx) → (Pipeline, resolvers), where resolvers maps a
+`waiting_for` value to fn(case, investigation) → the `apply` function for Machine.resolve_wait.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import importlib
+import json
+import shutil
+import sys
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+import yaml
+from pydantic import BaseModel, Field
+
+from app.research import llm, preflight, settings as S, transport
+from app.research.db import ResearchDB
+from app.research.prices import PriceTable
+from app.research.providers import FakeProvider, default_providers
+from app.research.ratelimit import Limiters
+from app.research.runner import Worker
+
+EVAL_DIR = Path(__file__).resolve().parent
+CASES_DIR = EVAL_DIR / "cases"
+RESULTS_DIR = EVAL_DIR / "results"
+RECORDINGS_DIR = EVAL_DIR / "recordings"
+DEFAULT_FACTORY = "app.research.steps:build_pipeline"
+MAX_WAITS = 12
+Mode = Literal["fake", "replay", "live"]
+
+
+class EvalCase(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]*$")
+    system: str
+    synthetic: Literal[True]  # real cases never go into eval (B16.8)
+    problem_text: str = Field(min_length=1)
+    profile: str = "dev"
+    answers: dict[str, str] = Field(default_factory=dict)  # question key or pattern → scripted answer
+    approve: bool = True  # approve plans and selections
+    expected: dict[str, Any] = Field(default_factory=dict)  # safety level, red flags, hypothesis families …
+    notes: str = ""
+
+
+def load_cases(folder: Path = CASES_DIR, only: str | None = None) -> list[EvalCase]:
+    """Every `*.yaml` under folder (files starting with `_` are examples), sorted by id."""
+    cases = []
+    for path in sorted(Path(folder).rglob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        data = yaml.safe_load(path.read_text("utf-8")) or {}
+        try:
+            case = EvalCase.model_validate(data)
+        except Exception as exc:  # noqa: BLE001 - name the file
+            raise ValueError(f"{path.name}: {exc}") from exc
+        if only is None or case.id == only:
+            cases.append(case)
+    ids = [c.id for c in cases]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Duplicate case ids.")
+    return sorted(cases, key=lambda c: c.id)
+
+
+# ---------- E1 pipeline checks (Part E1); steps add theirs as they are built ----------
+
+@dataclass
+class CheckResult:
+    id: str
+    ok: bool
+    detail: str = ""
+
+
+def _e1_8_no_open_tasks(db: ResearchDB, inv: dict) -> CheckResult:
+    open_tasks = db.open_task_count(inv["id"])
+    if inv["status"] != "complete":
+        return CheckResult("E1.8", True, f"not complete ({inv['status']})")
+    return CheckResult("E1.8", open_tasks == 0, f"{open_tasks} open task(s) after completion")
+
+
+def _e1_13_votes(db: ResearchDB, inv: dict) -> CheckResult:
+    """Placeholder until claims exist (1E): counts are reported, no claims → ok."""
+    rows = db.query("SELECT COUNT(*) AS n FROM llm_calls WHERE investigation_id = ?", (inv["id"],))
+    return CheckResult("E1.13", True, f"{rows[0]['n']} model call(s) logged")
+
+
+E1_CHECKS: list[Callable[[ResearchDB, dict], CheckResult]] = [_e1_8_no_open_tasks, _e1_13_votes]
+
+
+# ---------- running ----------
+
+def _context(db: ResearchDB, mode: Mode, profile: str) -> llm.CallContext:
+    research = S.build(profile)
+    if mode == "fake":
+        providers = {f: FakeProvider(f) for f in ("openai", "anthropic", "ollama")}
+        available = None
+    else:
+        providers = default_providers(research)
+        # Replay needs no keys: auth headers aren't part of a recording's key.
+        available = (lambda ref: True) if mode == "replay" else None
+    return llm.CallContext(db=db, settings=research, providers=providers, limiters=Limiters({}),
+                           prices=PriceTable(), available=available)
+
+
+def _transport(mode: Mode, recordings: Path):
+    if mode == "fake":
+        return transport.BlockedTransport()
+    if mode == "replay":
+        if not recordings.exists():
+            raise FileNotFoundError(f"No recordings at {recordings}.")
+        return transport.ReplayTransport(recordings)
+    return transport.RecordTransport(recordings)
+
+
+def load_factory(spec: str) -> Callable:
+    module, _, name = spec.partition(":")
+    try:
+        return getattr(importlib.import_module(module), name)
+    except (ImportError, AttributeError) as exc:
+        raise SystemExit(f"Pipeline factory {spec} isn't available yet ({exc}). The research steps arrive in 1C.")
+
+
+async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings: Path,
+                   timeout: float = 600.0) -> dict:
+    tmp = Path(tempfile.mkdtemp(prefix=f"helix-eval-{case.id}-"))
+    try:
+        db = ResearchDB(tmp / "research.sqlite3")
+        db.init()
+        ctx = _context(db, mode, case.profile)
+        if mode == "live":
+            pf = preflight.run(ctx.settings, ctx.providers, preflight.ProbeStore(tmp / "probes.json"),
+                               synthetic=True, require_probes=False)
+            if not pf.ok:
+                return {"id": case.id, "system": case.system, "status": "preflight_failed", "errors": pf.errors}
+        pipeline, resolvers = factory(ctx)
+        started = datetime.now(timezone.utc)
+        with transport.use_transport(_transport(mode, recordings)):
+            worker = Worker(db, pipeline, services=ctx, max_parallel=8)
+            inv_id = db.create_investigation(case.problem_text, profile=case.profile,
+                                             settings_snapshot=ctx.settings.model_dump(mode="json"), synthetic=True,
+                                             title=case.id)
+            await worker.machine.advance(inv_id)
+            waits: list[str] = []
+            for _ in range(MAX_WAITS + 1):
+                await worker.run_until_idle(timeout=timeout)
+                inv = db.investigation(inv_id)
+                if inv["status"] != "waiting_user":
+                    break
+                resolver = resolvers.get(inv["waiting_for"])
+                if resolver is None or len(waits) >= MAX_WAITS:
+                    break
+                waits.append(inv["waiting_for"])
+                await worker.machine.resolve_wait(inv_id, inv["waiting_for"], resolver(case, inv))
+            inv = db.investigation(inv_id)
+        checks = [check(db, inv) for check in E1_CHECKS]
+        return {
+            "id": case.id, "system": case.system, "status": inv["status"], "outcome": inv["outcome"],
+            "stage": inv["stage"], "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
+            "waits": waits, "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
+            "usage": db.usage(inv_id), "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
+        }
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str,
+              recordings_root: Path = RECORDINGS_DIR, results_dir: Path = RESULTS_DIR) -> dict:
+    recordings = Path(recordings_root) / name
+    results = [await run_case(c, mode=mode, factory=factory, recordings=recordings) for c in cases]
+    report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "cases": results, "summary": {
+                  "cases": len(results), "complete": sum(r["status"] == "complete" for r in results),
+                  "e1_failures": sum(not r.get("e1_ok", False) for r in results)}}
+    Path(results_dir).mkdir(parents=True, exist_ok=True)
+    (Path(results_dir) / f"{name}-{mode}.json").write_text(json.dumps(report, indent=2), "utf-8")
+    return report
+
+
+def compare(old: dict, new: dict) -> list[str]:
+    """Per-case differences in status, outcome and E1 results (for the replay comparison in a PR)."""
+    before = {c["id"]: c for c in old.get("cases", [])}
+    lines = []
+    for case in new.get("cases", []):
+        prev = before.get(case["id"])
+        if prev is None:
+            lines.append(f"{case['id']}: new case")
+            continue
+        for key in ("status", "outcome", "e1_ok"):
+            if prev.get(key) != case.get(key):
+                lines.append(f"{case['id']}: {key} {prev.get(key)} → {case.get(key)}")
+    for missing in sorted(set(before) - {c["id"] for c in new.get("cases", [])}):
+        lines.append(f"{missing}: no longer run")
+    return lines
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Helix research eval runner")
+    parser.add_argument("--mode", choices=("fake", "replay", "live"), required=True)
+    parser.add_argument("--case", help="run one case id")
+    parser.add_argument("--cases", default=str(CASES_DIR))
+    parser.add_argument("--name", default="default", help="recordings and results name")
+    parser.add_argument("--pipeline", default=DEFAULT_FACTORY, help="module:function pipeline factory")
+    parser.add_argument("--compare", help="an earlier results JSON to compare against")
+    args = parser.parse_args(argv)
+    cases = load_cases(Path(args.cases), args.case)
+    if not cases:
+        print("No cases found.")
+        return 1
+    report = asyncio.run(run(cases, mode=args.mode, factory=load_factory(args.pipeline), name=args.name))
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+    for case in report["cases"]:
+        print(f"{case['id']:<28} {case['status']:<14} {str(case.get('outcome')):<22} e1={'ok' if case.get('e1_ok') else 'FAIL'}")
+    print(json.dumps(report["summary"]))
+    if args.compare:
+        for line in compare(json.loads(Path(args.compare).read_text("utf-8")), report) or ["no differences"]:
+            print(line)
+    return 0 if report["summary"]["e1_failures"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

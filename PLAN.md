@@ -640,6 +640,7 @@ Each step lists its input, output, checks, what it saves, and how it fails (B10)
 - Split on line breaks, then on `.`, `!`, `?` and `…` when followed by whitespace and an uppercase letter, digit, quote or bracket (Unicode-aware).
 - For Greek, also split on `;` and U+037E.
 - Merge pieces shorter than 3 characters into the previous one.
+- The paper protections from B8.14 (brackets, abbreviations, initials, decimals) apply here too (`segment.py`, one splitter).
 
 **Generate.** Output `IntakeResult`:
 - `is_health_problem`, `is_human`, `not_accepted_reason`

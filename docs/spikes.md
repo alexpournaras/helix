@@ -10,6 +10,7 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X4 | Europe PMC allowlist confirmed; guideline or SR found for **10/10** complaints | ✅ |
 | X5 | 199-ID PubMed efetch (POST) parsed **199/199** in 3.5 s; retraction and concern fields present | ✅ |
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
+| X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
 ## X4 Europe PMC (`x4_europepmc.py`)
 
@@ -60,3 +61,23 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 **Caveat:** the mapping table was written from these same 50 terms' tree numbers, so 96% is an in-sample
 figure. Before 1A.9 is done, run a held-out set of ≥ 50 different complaints (rare conditions, paediatric,
 pregnancy, poisoning). The table also needs a human review (PLAN Part G.6).
+
+## X8b MeSH held-out check (`x8b_mesh_heldout.py`, 2026-11-24)
+
+Run through `app/research/mesh.py` (the real lookup rules) on 83 complaints that weren't used to write
+`mesh_systems.yaml`, across all 21 systems, with paediatric, pregnancy, poisoning/injury and rare conditions.
+The expected labels were written by the agent **before** the run and need a human check (PLAN Part G.6).
+
+- **Verified 82/83.** Unverified: *malaise* (no descriptor under that word; MeSH files it as an entry term of
+  nothing). As in X8, the intake model's proposed systems are unioned in, so an unverified term isn't a dead end.
+- **Correct 80/82 verified (98%), 96% overall. Pass.**
+- **Misses, for the table review (not fixed, to keep this run held-out):**
+  1. *Renal colic* → `general` only. Its trees are `C23.888.592.612.972` (an unmapped pain sub-branch) and
+     `C23.888.721` (colic). Candidate rule: map that pain sub-branch to `urogenital` once a reviewer confirms
+     which branch `.972` is.
+  2. *Colic* → `congenital_neonatal` (`C16.614.166`, infant colic). Arguably correct for the paediatric case the
+     descriptor describes; the expected label may be what's wrong.
+- **Systems that come along with the expected one** (not errors, worth knowing): facial paralysis → mouth_dental;
+  toothache → ent (the earache pain branch); breast neoplasms → skin (`C17.800` breast diseases);
+  myasthenia gravis → oncology (thymoma branch); gout → congenital_neonatal (inborn errors). Herpes zoster maps
+  to infection only, croup to ent + respiratory (not infection).

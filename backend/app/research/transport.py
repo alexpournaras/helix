@@ -66,7 +66,10 @@ class RecordTransport(httpx.AsyncBaseTransport):
             "method": request.method, "host": request.url.host, "path": request.url.path,
             "status": response.status_code, "headers": keep, "body": body.decode("utf-8", "replace"),
         }, ensure_ascii=False), "utf-8")
-        return httpx.Response(response.status_code, headers=response.headers, content=body, request=request)
+        # `body` is already decoded: drop the encoding headers or httpx would decompress it a second time.
+        headers = [(k, v) for k, v in response.headers.multi_items()
+                   if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
+        return httpx.Response(response.status_code, headers=headers, content=body, request=request)
 
 
 _override: contextvars.ContextVar[httpx.AsyncBaseTransport | None] = contextvars.ContextVar("transport", default=None)

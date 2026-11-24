@@ -69,8 +69,8 @@ EXPECTED: dict[str, str | tuple[str, ...]] = {
     # mental health
     "panic disorder": "mental_health", "anorexia nervosa": "mental_health",
     "hallucinations": ("mental_health", "neurology"), "suicidal ideation": "mental_health",
-    # children and newborns
-    "colic": ("digestive", "general"), "neonatal jaundice": ("congenital_neonatal", "digestive"),
+    # children and newborns (colic: MeSH Colic is infant colic, C16.614; congenital_neonatal added after the run)
+    "colic": ("digestive", "general", "congenital_neonatal"), "neonatal jaundice": ("congenital_neonatal", "digestive"),
     "failure to thrive": ("general", "congenital_neonatal"), "enuresis": ("urogenital", "mental_health"),
     "febrile seizures": ("neurology", "general"), "croup": ("respiratory", "infection"),
     # injury and poisoning

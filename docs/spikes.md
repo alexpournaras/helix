@@ -93,3 +93,18 @@ The expected labels were written by the agent **before** the run and need a huma
 - Handled correctly: author-year and numbered citations, "e.g.,", "et al.", "No. 2019-11-035-001", "St. Olavs",
   decimals, ± and CIs, "p = 0.018;", "vs.", nested brackets, "Pvt. Ltd." inside brackets, "°C", "≥ 18".
 - Not covered by this sample (watch in E1/E3): PDF text (M2), Greek papers, tables.
+
+### Table audit and fixes (2026-11-24, after X8b)
+
+Every prefix in `mesh_systems.yaml` was checked against its live MeSH heading (in place of a separate human
+review, by your instruction). Findings and changes (table version 2):
+- `C23.888.592.612.330` is **Facial Pain**, not earache (the comment was wrong): now `neurology`, with Toothache
+  (`.330.500`) → `mouth_dental` and Earache (`.302`) → `ent` added.
+- Renal Colic (`.972`) → `urogenital` added (X8b miss 1).
+- *Colic* is MeSH's infant colic (`C16.614.166`), so `congenital_neonatal` is right: the X8b label was widened
+  (X8b miss 2 was a label error).
+- `C13` no longer exists in current MeSH (merged into C12); kept for old tree numbers.
+- Pelvic Pain stays `female_reproductive`; male pelvic pain gets its system from the model's proposed systems.
+
+After the fixes: X8 48/50 (unchanged), X8b 82/82 verified. **The honest held-out figure is the 98% before the
+fixes;** the 100% is in-sample.

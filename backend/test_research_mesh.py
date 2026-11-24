@@ -159,6 +159,11 @@ class MappingTests(_MeshCase):
             "C07.550.100": ["ent"],  # pharyngeal, not mouth
             "C07.100": ["mouth_dental"],
             "C12.050.351.500.100": ["female_reproductive"],
+            # audit 2026-11-24: .330 is facial pain, not earache
+            "C23.888.592.612.302": ["ent"],  # earache
+            "C23.888.592.612.330": ["neurology"],  # facial pain
+            "C23.888.592.612.330.500": ["mouth_dental"],  # toothache
+            "C23.888.592.612.972": ["urogenital"],  # renal colic (X8b)
         }
         for tree, systems in cases.items():
             with self.subTest(tree=tree):

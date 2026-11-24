@@ -1,8 +1,9 @@
 # MeSH tree-number prefix → Helix body system (PLAN B0, 1A.9). Longest matching prefix wins for each tree
 # number; a descriptor's systems are the union over all its tree numbers. `null` means "no system" (the tree
 # is ignored, e.g. physiology or psychology branches that would otherwise add noise).
-# Draft from spike X8 (2026-11-23), built from live MeSH tree numbers. Needs human review (PLAN Part G.6).
-version: 1
+# Draft from spike X8 (2026-11-23), built from live MeSH tree numbers. Audited 2026-11-24: every prefix checked
+# against its live MeSH heading; facial pain/earache/toothache corrected, renal colic added (X8b).
+version: 2
 systems:
   ent: Ear, nose and throat
   neurology: Brain and nerves
@@ -41,7 +42,7 @@ prefixes:
   C12.050.351.500: female_reproductive  # genital diseases, female
   C12.100.250: female_reproductive      # genital diseases, female
   C12.050.703: pregnancy                # pregnancy complications
-  C13: pregnancy                        # older MeSH: female urogenital diseases and pregnancy complications
+  C13: pregnancy                        # older MeSH only (merged into C12 since 2023); kept for old tree numbers
   C13.351: female_reproductive
   C14: cardiovascular
   C15: hematology
@@ -69,11 +70,14 @@ prefixes:
   C23.888.592.612.107: musculoskeletal  # back pain
   C23.888.592.612.233: cardiovascular   # chest pain
   C23.888.592.612.316: eye              # eye pain
-  C23.888.592.612.330: ent              # earache
+  C23.888.592.612.302: ent              # earache
+  C23.888.592.612.330: neurology        # facial pain (trigeminal; dental and sinus causes come via other trees)
+  C23.888.592.612.330.500: mouth_dental # toothache
   C23.888.592.612.441: neurology        # headache
   C23.888.592.612.547: musculoskeletal  # musculoskeletal pain
   C23.888.592.612.553: musculoskeletal  # neck pain
   C23.888.592.612.944: female_reproductive  # pelvic pain
+  C23.888.592.612.972: urogenital       # renal colic (X8b)
   C23.888.592.763.393: ent              # hearing disorders
   C23.888.592.763.941: eye              # vision disorders
   C23.888.592.958: ent                  # vertigo

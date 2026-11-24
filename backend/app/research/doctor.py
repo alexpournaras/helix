@@ -65,7 +65,8 @@ def _keys(keys: ProviderKeys) -> list[Check]:
 
 
 def _preflight(research: ResearchSettings, probes: preflight.ProbeStore) -> list[Check]:
-    result = preflight.run(research, default_providers(research), probes, synthetic=False)
+    # Checked as for a synthetic case; the real-case gate (data sharing) is reported under privacy.
+    result = preflight.run(research, default_providers(research), probes, synthetic=True)
     out = [Check("preflight", "fail", e) for e in result.errors]
     out += [Check("preflight", "warn", w) for w in result.warnings]
     if result.ok:

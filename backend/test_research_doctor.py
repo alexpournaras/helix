@@ -58,6 +58,14 @@ class DoctorTests(ResearchTestCase):
         checks = _by_name(self.run_checks())
         self.assertTrue(any(c.status == "warn" and "privacy question" in c.detail for c in checks["privacy"]))
 
+    def test_data_sharing_warns_but_does_not_fail(self):
+        self.settings("dev", privacy={"openai_project_shares_data": True})
+        self.probes("gpt-5.4-mini", "qwen3-coder:latest")
+        with patch("app.research.providers.ollama.OllamaProvider.has_key", lambda self: True):
+            checks = self.run_checks()
+        self.assertEqual(doctor.exit_code(checks), 0, [c.detail for c in checks if c.status == "fail"])
+        self.assertTrue(any(c.status == "warn" and "only synthetic" in c.detail for c in _by_name(checks)["privacy"]))
+
     def test_store_prompts_on_warns(self):
         self.settings(privacy={"openai_project_shares_data": False, "store_prompts": True})
         checks = _by_name(self.run_checks())

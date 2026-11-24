@@ -156,6 +156,18 @@ class WorkerTests(ResearchTestCase):
         self.assertEqual(self.dummy.runs["a:1"], 2)
         self.assertEqual(self.db.investigation(inv)["status"], "complete")
 
+    async def test_requeued_task_is_not_claimed_while_its_run_is_finishing(self):
+        """Regression: a task that re-queued itself was claimed again before its first run returned, and the
+        first run's cleanup then removed the second run from the worker (seen as a flaky test)."""
+        for _ in range(40):
+            dummy = Dummy()
+            self.worker = Worker(self.db, dummy.pipeline(), max_parallel=4)
+            inv = self.new()
+            dummy.fail_first["a:1"] = ModelError("format", "bad json")
+            await self.run_all(inv)
+            self.assertEqual(self.db.investigation(inv)["status"], "complete")
+            self.assertEqual(dummy.runs["a:1"], 2)
+
     async def test_skip_policy_and_more_than_half_skipped_fails(self):
         inv = self.new()
         self.dummy.fail_first["a:1"] = ModelError("config", "bad")

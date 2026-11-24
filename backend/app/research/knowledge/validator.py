@@ -26,7 +26,7 @@ def _case(example) -> Case:
 
 def check_rule(rule: Rule, sources: dict[str, Source]) -> list[str]:
     problems = [f"{rule.id}: unknown source {s}" for s in rule.sources if s not in sources]
-    for kind, expected in (("fires", TRUE), ("no", FALSE), ("unknown", UNKNOWN)):
+    for kind, expected in (("fires", TRUE), ("no_fire", FALSE), ("unknown", UNKNOWN)):
         for ex in getattr(rule.examples, kind):
             got = rule.check(_case(ex)).state
             if got != expected:

@@ -66,7 +66,7 @@ class Example(_Strict):
 
 class Examples(_Strict):
     fires: list[Example] = Field(min_length=1)
-    no: list[Example] = Field(min_length=1)
+    no_fire: list[Example] = Field(min_length=1)  # not "no": YAML reads that key as false
     unknown: list[Example] = Field(default_factory=list)
 
 
@@ -97,6 +97,7 @@ class Rule(_Strict):
 
     def check(self, case: Case) -> Result:
         """The rule's state for a case: its population and its conditions, both three-state."""
+        case = Case(case.segments, normalise_facts(case.facts))
         pop = population_state(self.population, case.facts)
         result = evaluate(self._compiled, case)
         if pop == FALSE or result.state == FALSE:
@@ -110,6 +111,7 @@ class Rule(_Strict):
 class Floor(_Strict):
     version: int
     review: Review
+    fragments: dict[str, Any] = Field(default_factory=dict, alias="_fragments")  # YAML anchors only
     rules: list[Rule]
 
 
@@ -181,6 +183,15 @@ class Pack(_Strict):
 
 
 # ---------- populations ----------
+
+def normalise_facts(facts: dict[str, Any]) -> dict[str, Any]:
+    """Derive age_months from age_years and the other way round."""
+    out = dict(facts)
+    if out.get("age_months") is None and out.get("age_years") is not None:
+        out["age_months"] = float(out["age_years"]) * 12
+    if out.get("age_years") is None and out.get("age_months") is not None:
+        out["age_years"] = float(out["age_months"]) / 12
+    return out
 
 def population_state(population: str, facts: dict[str, Any]) -> str:
     """Is the case in the population? true / false / unknown (a needed fact is missing)."""

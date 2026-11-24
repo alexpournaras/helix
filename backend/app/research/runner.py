@@ -63,6 +63,7 @@ class Worker:
         self.machine = Machine(db, pipeline, on_change=self.wake)
         self._wake = asyncio.Event()
         self._running: dict[int, asyncio.Task] = {}
+        self._finished = 0  # tasks finished so far (run_until_idle uses it to avoid a stop race)
         self._loop_task: asyncio.Task | None = None
         self._stopping = False
         self.enabled = False
@@ -129,7 +130,8 @@ class Worker:
         """Claim and start tasks up to the parallel limit. Returns how many were started."""
         started = 0
         while len(self._running) < self.max_parallel and not self._stopping:
-            task = await asyncio.to_thread(self.db.claim_task)
+            # Never claim a task whose previous run is still finishing (it may have re-queued itself).
+            task = await asyncio.to_thread(self.db.claim_task, exclude_ids=list(self._running))
             if task is None:
                 break
             self._running[task["id"]] = asyncio.create_task(self._run(task))
@@ -140,10 +142,12 @@ class Worker:
         """Test and eval helper: run tasks until nothing is runnable (not_before in the future counts as idle)."""
         async def drive() -> None:
             while True:
+                finished_before = self._finished
                 started = await self.fill()
                 if not self._running:
-                    # A task can finish while fill() is still claiming; only stop when a fill finds nothing.
-                    if started == 0:
+                    # A task can finish (and requeue itself) while fill() is still claiming: only stop when a
+                    # fill found nothing and no task finished meanwhile.
+                    if started == 0 and self._finished == finished_before:
                         return
                     continue
                 await asyncio.wait(list(self._running.values()), return_when=asyncio.FIRST_COMPLETED)
@@ -153,7 +157,9 @@ class Worker:
         try:
             await self.execute(task)
         finally:
-            self._running.pop(task["id"], None)
+            if self._running.get(task["id"]) is asyncio.current_task():
+                self._running.pop(task["id"], None)
+            self._finished += 1
             self.wake()
 
     async def execute(self, task: dict) -> None:

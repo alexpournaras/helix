@@ -548,6 +548,7 @@ Family A = OpenAI, family B = Anthropic. All defaults are settings (B15).
 This is the most safety-critical curated asset.
 
 - **Rule format:** `{id, level (emergency/urgent/routine_review), population (all/infant/child/pregnancy/older/immunocompromised), fires (structured brief conditions + English patterns on text_en), unknown (attribute to ask when unknown), rule_out_question, sources[]}`.
+- **Conditions** (`knowledge/conditions.py`) are three-state: a `mention` feature that was never mentioned makes the rule `unknown`, so its rule-out question is asked. Each rule carries `examples` (fires / no_fire / unknown) that are its unit tests.
 - **Review:** every rule is sourced from clinical triage or red-flag guidance and checked by two human reviewers, ideally clinicians.
 - **Testing:** every rule has a positive and a negative unit test, and the set is measured on the triage benchmark (E3.7).
 
@@ -561,7 +562,7 @@ This is the most safety-critical curated asset.
 | Abdomen, gut | severe pain with a rigid abdomen; vomiting blood or black stools; abdominal pain with possible pregnancy | persistent vomiting; jaundice |
 | Urinary, genital | sudden testicular pain; inability to pass urine | flank pain with fever |
 | Eye | painful red eye with vision loss or halos; chemical exposure; flashes or floaters with a curtain | |
-| Ear, nose, throat | stridor; drooling or unable to swallow saliva; sudden hearing loss; facial weakness | pulsatile tinnitus; progressive one-sided hearing loss |
+| Ear, nose, throat | stridor; drooling or unable to swallow saliva; sudden hearing loss; facial weakness | progressive one-sided hearing loss (pulsatile tinnitus is `routine_review`, NICE NG155 1.2.7) |
 | Skin | rapidly spreading rash with fever, blistering or mouth involvement; non-blanching rash | |
 | Hormones, metabolism | symptoms of very high or very low blood sugar; vomiting with abdominal pain in diabetes | |
 | Mental health | **thoughts of self-harm or suicide** (crisis resources shown immediately); risk to others; severe agitation or psychosis | physical danger signs of an eating disorder |

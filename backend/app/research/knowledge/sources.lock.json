@@ -1,0 +1,713 @@
+{
+  "sources": {
+    "nhs_acoustic_neuroma": {
+      "url": "https://www.nhs.uk/conditions/acoustic-neuroma/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/acoustic-neuroma/",
+      "title": "acoustic neuroma (vestibular schwannoma) - nhs"
+    },
+    "nhs_anaphylaxis": {
+      "url": "https://www.nhs.uk/conditions/anaphylaxis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/anaphylaxis/",
+      "title": "anaphylaxis - nhs"
+    },
+    "nhs_appendicitis": {
+      "url": "https://www.nhs.uk/conditions/appendicitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/appendicitis/",
+      "title": "appendicitis - nhs"
+    },
+    "nhs_baby_movements": {
+      "url": "https://www.nhs.uk/pregnancy/keeping-well/your-babys-movements/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/pregnancy/keeping-well/your-babys-movements/",
+      "title": "your baby&#x27;s movements - nhs"
+    },
+    "nhs_back_pain": {
+      "url": "https://www.nhs.uk/conditions/back-pain/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/back-pain/",
+      "title": "back pain - nhs"
+    },
+    "nhs_bells_palsy": {
+      "url": "https://www.nhs.uk/conditions/bells-palsy/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/bells-palsy/",
+      "title": "bell&#x27;s palsy - nhs"
+    },
+    "nhs_bowel_cancer_symptoms": {
+      "url": "https://www.nhs.uk/conditions/bowel-cancer/symptoms/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/bowel-cancer/symptoms/",
+      "title": "symptoms of bowel cancer - nhs"
+    },
+    "nhs_breast_lump": {
+      "url": "https://www.nhs.uk/symptoms/breast-lump/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/breast-lump/",
+      "title": "breast lumps - nhs"
+    },
+    "nhs_burns": {
+      "url": "https://www.nhs.uk/conditions/burns-and-scalds/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/burns-and-scalds/",
+      "title": "burns and scalds - nhs"
+    },
+    "nhs_cellulitis": {
+      "url": "https://www.nhs.uk/conditions/cellulitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/cellulitis/",
+      "title": "cellulitis - nhs"
+    },
+    "nhs_chemotherapy": {
+      "url": "https://www.nhs.uk/tests-and-treatments/chemotherapy/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/tests-and-treatments/chemotherapy/",
+      "title": "chemotherapy - nhs"
+    },
+    "nhs_chest_pain": {
+      "url": "https://www.nhs.uk/symptoms/chest-pain/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/chest-pain/",
+      "title": "chest pain - nhs"
+    },
+    "nhs_confusion": {
+      "url": "https://www.nhs.uk/symptoms/confusion/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/confusion/",
+      "title": "sudden confusion (delirium) - nhs"
+    },
+    "nhs_coughing_blood": {
+      "url": "https://www.nhs.uk/symptoms/coughing-up-blood/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/coughing-up-blood/",
+      "title": "coughing up blood - nhs"
+    },
+    "nhs_croup": {
+      "url": "https://www.nhs.uk/conditions/croup/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/croup/",
+      "title": "croup - nhs"
+    },
+    "nhs_dehydration": {
+      "url": "https://www.nhs.uk/conditions/dehydration/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/dehydration/",
+      "title": "dehydration - nhs"
+    },
+    "nhs_dka": {
+      "url": "https://www.nhs.uk/conditions/diabetic-ketoacidosis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/diabetic-ketoacidosis/",
+      "title": "diabetic ketoacidosis - nhs"
+    },
+    "nhs_double_vision": {
+      "url": "https://www.nhs.uk/symptoms/double-vision/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/double-vision/",
+      "title": "double vision - nhs"
+    },
+    "nhs_dvt": {
+      "url": "https://www.nhs.uk/conditions/deep-vein-thrombosis-dvt/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/deep-vein-thrombosis-dvt/",
+      "title": "dvt (deep vein thrombosis) - nhs"
+    },
+    "nhs_earwax": {
+      "url": "https://www.nhs.uk/conditions/earwax-build-up/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/earwax-build-up/",
+      "title": "earwax build-up - nhs"
+    },
+    "nhs_ectopic": {
+      "url": "https://www.nhs.uk/conditions/ectopic-pregnancy/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/ectopic-pregnancy/",
+      "title": "ectopic pregnancy - nhs"
+    },
+    "nhs_enlarged_prostate": {
+      "url": "https://www.nhs.uk/conditions/enlarged-prostate/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/enlarged-prostate/",
+      "title": "enlarged prostate - nhs"
+    },
+    "nhs_epiglottitis": {
+      "url": "https://www.nhs.uk/conditions/epiglottitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/epiglottitis/",
+      "title": "epiglottitis - nhs"
+    },
+    "nhs_epilepsy": {
+      "url": "https://www.nhs.uk/conditions/epilepsy/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/epilepsy/",
+      "title": "epilepsy - nhs"
+    },
+    "nhs_eye_injuries": {
+      "url": "https://www.nhs.uk/conditions/eye-injuries/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/eye-injuries/",
+      "title": "eye injuries - nhs"
+    },
+    "nhs_fainting": {
+      "url": "https://www.nhs.uk/symptoms/fainting/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/fainting/",
+      "title": "fainting - nhs"
+    },
+    "nhs_falls": {
+      "url": "https://www.nhs.uk/conditions/falls/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/falls/",
+      "title": "falls - nhs"
+    },
+    "nhs_fever_children": {
+      "url": "https://www.nhs.uk/symptoms/fever-in-children/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/fever-in-children/",
+      "title": "high temperature (fever) in children - nhs"
+    },
+    "nhs_flashes_floaters": {
+      "url": "https://www.nhs.uk/symptoms/floaters-and-flashes-in-the-eyes/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/floaters-and-flashes-in-the-eyes/",
+      "title": "floaters and flashes in the eyes - nhs"
+    },
+    "nhs_glaucoma": {
+      "url": "https://www.nhs.uk/conditions/glaucoma/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/glaucoma/",
+      "title": "glaucoma - nhs"
+    },
+    "nhs_head_injury": {
+      "url": "https://www.nhs.uk/conditions/head-injury-and-concussion/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/head-injury-and-concussion/",
+      "title": "head injury and concussion - nhs"
+    },
+    "nhs_headaches": {
+      "url": "https://www.nhs.uk/symptoms/headaches/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/headaches/",
+      "title": "headaches - nhs"
+    },
+    "nhs_hearing_loss": {
+      "url": "https://www.nhs.uk/conditions/hearing-loss/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/hearing-loss/",
+      "title": "hearing loss - nhs"
+    },
+    "nhs_hearing_tests": {
+      "url": "https://www.nhs.uk/tests-and-treatments/hearing-tests/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/tests-and-treatments/hearing-tests/",
+      "title": "hearing tests - nhs"
+    },
+    "nhs_heart_attack": {
+      "url": "https://www.nhs.uk/conditions/heart-attack/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/heart-attack/",
+      "title": "heart attack - nhs"
+    },
+    "nhs_high_temperature": {
+      "url": "https://www.nhs.uk/symptoms/fever-in-adults/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/fever-in-adults/",
+      "title": "high temperature (fever) in adults - nhs"
+    },
+    "nhs_hyperacusis": {
+      "url": "https://www.nhs.uk/conditions/hyperacusis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/hyperacusis/",
+      "title": "noise sensitivity (hyperacusis) - nhs"
+    },
+    "nhs_hyperglycaemia": {
+      "url": "https://www.nhs.uk/conditions/high-blood-sugar-hyperglycaemia/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/high-blood-sugar-hyperglycaemia/",
+      "title": "high blood sugar (hyperglycaemia) - nhs"
+    },
+    "nhs_hypoglycaemia": {
+      "url": "https://www.nhs.uk/conditions/low-blood-sugar-hypoglycaemia/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/low-blood-sugar-hypoglycaemia/",
+      "title": "low blood sugar (hypoglycaemia) - nhs"
+    },
+    "nhs_jaundice": {
+      "url": "https://www.nhs.uk/conditions/jaundice/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/jaundice/",
+      "title": "jaundice - nhs"
+    },
+    "nhs_kidney_infection": {
+      "url": "https://www.nhs.uk/conditions/kidney-infection/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/kidney-infection/",
+      "title": "kidney infection - nhs"
+    },
+    "nhs_laryngitis": {
+      "url": "https://www.nhs.uk/conditions/laryngitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/laryngitis/",
+      "title": "laryngitis - nhs"
+    },
+    "nhs_lumps": {
+      "url": "https://www.nhs.uk/symptoms/lumps/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/lumps/",
+      "title": "lumps - nhs"
+    },
+    "nhs_menieres": {
+      "url": "https://www.nhs.uk/conditions/menieres-disease/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/menieres-disease/",
+      "title": "ménière&#x27;s disease - nhs"
+    },
+    "nhs_meningitis": {
+      "url": "https://www.nhs.uk/conditions/meningitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/meningitis/",
+      "title": "meningitis - nhs"
+    },
+    "nhs_mental_health_emergency": {
+      "url": "https://www.nhs.uk/nhs-services/mental-health-services/where-to-get-urgent-help-for-mental-health/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/nhs-services/mental-health-services/where-to-get-urgent-help-for-mental-health/",
+      "title": "where to get urgent help for mental health - nhs"
+    },
+    "nhs_necrotising_fasciitis": {
+      "url": "https://www.nhs.uk/conditions/necrotising-fasciitis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/necrotising-fasciitis/",
+      "title": "necrotising fasciitis - nhs"
+    },
+    "nhs_numbness": {
+      "url": "https://www.nhs.uk/symptoms/pins-and-needles/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/pins-and-needles/",
+      "title": "pins and needles - nhs"
+    },
+    "nhs_poisoning": {
+      "url": "https://www.nhs.uk/conditions/poisoning/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/poisoning/",
+      "title": "poisoning - nhs"
+    },
+    "nhs_postmenopausal_bleeding": {
+      "url": "https://www.nhs.uk/symptoms/post-menopausal-bleeding/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/post-menopausal-bleeding/",
+      "title": "postmenopausal bleeding - nhs"
+    },
+    "nhs_pre_eclampsia": {
+      "url": "https://www.nhs.uk/conditions/pre-eclampsia/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/pre-eclampsia/",
+      "title": "pre-eclampsia - nhs"
+    },
+    "nhs_pregnancy_bleeding": {
+      "url": "https://www.nhs.uk/pregnancy/common-symptoms/vaginal-bleeding/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/pregnancy/common-symptoms/vaginal-bleeding/",
+      "title": "vaginal bleeding in pregnancy - nhs"
+    },
+    "nhs_psychosis": {
+      "url": "https://www.nhs.uk/mental-health/conditions/psychosis/overview/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/mental-health/conditions/psychosis/overview/",
+      "title": "overview - psychosis - nhs"
+    },
+    "nhs_pulmonary_embolism": {
+      "url": "https://www.nhs.uk/conditions/pulmonary-embolism/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/pulmonary-embolism/",
+      "title": "pulmonary embolism - nhs"
+    },
+    "nhs_rashes_babies_children": {
+      "url": "https://www.nhs.uk/symptoms/rashes-babies-and-children/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/rashes-babies-and-children/",
+      "title": "rashes in babies and children - nhs"
+    },
+    "nhs_rectal_bleeding": {
+      "url": "https://www.nhs.uk/symptoms/bleeding-from-the-bottom-rectal-bleeding/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/bleeding-from-the-bottom-rectal-bleeding/",
+      "title": "bleeding from the bottom (rectal bleeding) - nhs"
+    },
+    "nhs_red_eye": {
+      "url": "https://www.nhs.uk/symptoms/red-eye/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/red-eye/",
+      "title": "red eye - nhs"
+    },
+    "nhs_retinal_detachment": {
+      "url": "https://www.nhs.uk/conditions/detached-retina-retinal-detachment/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/detached-retina-retinal-detachment/",
+      "title": "detached retina (retinal detachment) - nhs"
+    },
+    "nhs_sciatica": {
+      "url": "https://www.nhs.uk/conditions/sciatica/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/sciatica/",
+      "title": "sciatica - nhs"
+    },
+    "nhs_sepsis": {
+      "url": "https://www.nhs.uk/conditions/sepsis/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/sepsis/",
+      "title": "sepsis - nhs"
+    },
+    "nhs_shortness_of_breath": {
+      "url": "https://www.nhs.uk/symptoms/shortness-of-breath/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/shortness-of-breath/",
+      "title": "shortness of breath - nhs"
+    },
+    "nhs_sjs": {
+      "url": "https://www.nhs.uk/conditions/stevens-johnson-syndrome/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/stevens-johnson-syndrome/",
+      "title": "stevens-johnson syndrome - nhs"
+    },
+    "nhs_sore_throat": {
+      "url": "https://www.nhs.uk/symptoms/sore-throat/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/sore-throat/",
+      "title": "sore throat - nhs"
+    },
+    "nhs_stomach_ache": {
+      "url": "https://www.nhs.uk/symptoms/stomach-ache/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/stomach-ache/",
+      "title": "stomach ache - nhs"
+    },
+    "nhs_stroke_symptoms": {
+      "url": "https://www.nhs.uk/conditions/stroke/symptoms/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/stroke/symptoms/",
+      "title": "symptoms of a stroke - nhs"
+    },
+    "nhs_suicidal_thoughts": {
+      "url": "https://www.nhs.uk/mental-health/feelings-symptoms-behaviours/behaviours/help-for-suicidal-thoughts/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/mental-health/feelings-symptoms-behaviours/behaviours/help-for-suicidal-thoughts/",
+      "title": "help for suicidal thoughts - nhs"
+    },
+    "nhs_swallowing_problems": {
+      "url": "https://www.nhs.uk/symptoms/swallowing-problems-dysphagia/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/swallowing-problems-dysphagia/",
+      "title": "dysphagia (swallowing problems) - nhs"
+    },
+    "nhs_testicle_pain": {
+      "url": "https://www.nhs.uk/symptoms/testicle-pain/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/testicle-pain/",
+      "title": "testicle pain - nhs"
+    },
+    "nhs_tinnitus": {
+      "url": "https://www.nhs.uk/conditions/tinnitus/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/tinnitus/",
+      "title": "tinnitus - nhs"
+    },
+    "nhs_vision_loss": {
+      "url": "https://www.nhs.uk/conditions/vision-loss/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/conditions/vision-loss/",
+      "title": "vision loss - nhs"
+    },
+    "nhs_vomiting_adults": {
+      "url": "https://www.nhs.uk/symptoms/diarrhoea-and-vomiting/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/diarrhoea-and-vomiting/",
+      "title": "diarrhoea and vomiting - nhs"
+    },
+    "nhs_vomiting_blood": {
+      "url": "https://www.nhs.uk/symptoms/vomiting-blood/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/vomiting-blood/",
+      "title": "vomiting blood - nhs"
+    },
+    "nhs_waters_breaking": {
+      "url": "https://www.nhs.uk/pregnancy/labour-and-birth/signs-that-labour-has-begun/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/pregnancy/labour-and-birth/signs-that-labour-has-begun/",
+      "title": "signs that labour has begun - nhs"
+    },
+    "nhs_weight_loss": {
+      "url": "https://www.nhs.uk/symptoms/unintentional-weight-loss/",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nhs.uk/symptoms/unintentional-weight-loss/",
+      "title": "unintentional weight loss - nhs"
+    },
+    "nice_cg103_delirium": {
+      "url": "https://www.nice.org.uk/guidance/cg103",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/cg103",
+      "title": "overview | delirium: prevention, diagnosis and management in hospital and long-term care | guidance | nice"
+    },
+    "nice_cg109_tloc": {
+      "url": "https://www.nice.org.uk/guidance/cg109",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/cg109",
+      "title": "overview | transient loss of consciousness (&#x27;blackouts&#x27;) in over 16s | guidance | nice"
+    },
+    "nice_cg134_anaphylaxis": {
+      "url": "https://www.nice.org.uk/guidance/cg134",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/cg134",
+      "title": "anaphylaxis: assessment and referral after emergency treatment | guidance | nice"
+    },
+    "nice_cg95_chest_pain": {
+      "url": "https://www.nice.org.uk/guidance/cg95",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/cg95",
+      "title": "overview | recent-onset chest pain of suspected cardiac origin: assessment and diagnosis | guidance | nice"
+    },
+    "nice_ng10_violence": {
+      "url": "https://www.nice.org.uk/guidance/ng10",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng10",
+      "title": "overview | violence and aggression: short-term management in mental health, health and community settings  | guidance | nice"
+    },
+    "nice_ng126_ectopic": {
+      "url": "https://www.nice.org.uk/guidance/ng126",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng126",
+      "title": "overview | ectopic pregnancy and miscarriage: diagnosis and initial management | guidance | nice"
+    },
+    "nice_ng128_stroke": {
+      "url": "https://www.nice.org.uk/guidance/ng128",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng128",
+      "title": "overview | stroke and transient ischaemic attack in over 16s: diagnosis and initial management  | guidance | nice"
+    },
+    "nice_ng12_cancer": {
+      "url": "https://www.nice.org.uk/guidance/ng12",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng12",
+      "title": "overview | suspected cancer: recognition and referral | guidance | nice"
+    },
+    "nice_ng133_hypertension_pregnancy": {
+      "url": "https://www.nice.org.uk/guidance/ng133",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng133",
+      "title": "overview | hypertension in pregnancy: diagnosis and management | guidance | nice"
+    },
+    "nice_ng143_fever_under5": {
+      "url": "https://www.nice.org.uk/guidance/ng143",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng143",
+      "title": "overview | fever in under 5s: assessment and initial management | guidance | nice"
+    },
+    "nice_ng155_tinnitus": {
+      "url": "https://www.nice.org.uk/guidance/ng155",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng155",
+      "title": "overview | tinnitus: assessment and management | guidance | nice"
+    },
+    "nice_ng17_type1_diabetes": {
+      "url": "https://www.nice.org.uk/guidance/ng17",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng17",
+      "title": "overview | type 1 diabetes in adults: diagnosis and management  | guidance | nice"
+    },
+    "nice_ng18_diabetes_children": {
+      "url": "https://www.nice.org.uk/guidance/ng18",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng18",
+      "title": "overview | diabetes (type 1 and type 2) in children and young people: diagnosis and management | guidance | nice"
+    },
+    "nice_ng201_antenatal": {
+      "url": "https://www.nice.org.uk/guidance/ng201",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng201",
+      "title": "overview | antenatal care  | guidance | nice"
+    },
+    "nice_ng217_epilepsy": {
+      "url": "https://www.nice.org.uk/guidance/ng217",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng217",
+      "title": "overview | epilepsies in children, young people and adults | guidance | nice"
+    },
+    "nice_ng225_self_harm": {
+      "url": "https://www.nice.org.uk/guidance/ng225",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng225",
+      "title": "overview | self-harm: assessment, management and preventing recurrence    | guidance | nice"
+    },
+    "nice_ng232_head_injury": {
+      "url": "https://www.nice.org.uk/guidance/ng232",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng232",
+      "title": "overview | head injury: assessment and early management | guidance | nice"
+    },
+    "nice_ng240_meningitis": {
+      "url": "https://www.nice.org.uk/guidance/ng240",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng240",
+      "title": "overview | meningitis (bacterial) and meningococcal disease: recognition, diagnosis and management | guidance | nice"
+    },
+    "nice_ng249_falls": {
+      "url": "https://www.nice.org.uk/guidance/ng249",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng249",
+      "title": "overview | falls: assessment and prevention in older people and in people 50 and over at higher risk | guidance | nice"
+    },
+    "nice_ng51_sepsis": {
+      "url": "https://www.nice.org.uk/guidance/ng51",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng51",
+      "title": "suspected sepsis: recognition, diagnosis and early management  | guidance | nice"
+    },
+    "nice_ng69_eating_disorders": {
+      "url": "https://www.nice.org.uk/guidance/ng69",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng69",
+      "title": "overview | eating disorders: recognition and treatment | guidance | nice"
+    },
+    "nice_ng98_hearing_loss": {
+      "url": "https://www.nice.org.uk/guidance/ng98",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "status": "ok",
+      "final_url": "https://www.nice.org.uk/guidance/ng98",
+      "title": "overview | hearing loss in adults: assessment and management | guidance | nice"
+    }
+  },
+  "papers": {
+    "30589445": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "Sound therapy (using amplification devices and/or sound generators) for tinnitus."
+    },
+    "30847513": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "A multidisciplinary European guideline for tinnitus: diagnostics, assessment, and treatment."
+    },
+    "31912887": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "Cognitive behavioural therapy for tinnitus."
+    },
+    "38040471": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "ACR Appropriateness Criteria® Tinnitus: 2023 Update."
+    },
+    "38516122": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "Diagnostic Yield and Utility of Radiographic Imaging in the Evaluation of Pulsatile Tinnitus: A Systematic Review."
+    },
+    "40111327": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "Clinical Practice Guideline for Management of Tinnitus: Recommendations From the US VA/DOD Clinical Practice Guideline Work Group."
+    },
+    "42861423": {
+      "status": "ok",
+      "checked_at": "2026-11-24T15:07:33+00:00",
+      "title": "Clinical Practice Guideline: Tinnitus Update."
+    }
+  }
+}

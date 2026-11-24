@@ -1,0 +1,1827 @@
+# Universal safety floor (PLAN B7.1, 1B.1). The most safety-critical curated asset.
+#
+# Each rule: id, area, level (emergency / urgent / routine_review), population, title, `fires` (conditions, see
+# knowledge/conditions.py), `unknown` (what to ask about when the rule is unknown), rule_out_question, sources
+# (ids in knowledge/sources.yaml) and examples. The examples are the rule's unit tests: `fires` must fire, `no`
+# must not, `unknown` must come out unknown (so the rule-out question is asked).
+#
+# Patterns are regexes on the English text, case-insensitive, whole words, negation-aware ("no chest pain" does
+# not match). `mention` = a feature a triage nurse would ask about: never mentioned → unknown → ask.
+#
+# DRAFTED BY AN AGENT (2026-11-24) from NHS and NICE guidance. Not yet reviewed by clinicians (PLAN Part G.6:
+# two reviewers, recorded in docs/decisions.md). Until then `review.status` stays `unreviewed` and pre-flight
+# warns. The rules err on the side of asking or escalating.
+version: 1
+review:
+  status: unreviewed
+  reviewers: []
+  notes: Agent draft from NHS and NICE pages listed in sources.yaml. Needs two human reviewers, ideally clinicians.
+
+_fragments:
+  chest: &CHEST
+    - chest (?:pain|pains|tightness|pressure|discomfort|ache|heaviness)
+    - (?:pain|pains|tightness|pressure|heaviness|ache) (?:in|across|on) (?:my|the|his|her|their) chest
+    - chest (?:hurts|is hurting|feels (?:tight|heavy|crushed))
+    - '(?:pain|pains|tight\w*|pressure|heav\w*|ache|aching|discomfort|crushing|squeez\w*)\W+(?:\w+\W+){0,5}chest'
+    - 'chest\W+(?:\w+\W+){0,3}(?:pain|pains|hurts|hurting|tight\w*|pressure|heavy|aches?|aching)'
+  breathless: &BREATHLESS
+    - short(?:ness)? of breath
+    - breathless\w*
+    - can'?t (?:catch (?:my|his|her) )?breath(?:e)?
+    - cannot breathe
+    - struggling to breathe
+    - (?:difficulty|trouble|problems?) breathing
+    - hard to breathe
+    - out of breath
+  fever: &FEVER
+    - (?<!hay )fever\w*
+    - (?:feels?|felt|is|was|seems?|feeling) (?:very |really |so )?hot
+    - burning up
+    - high temperature
+    - '(?:temperature|temp) (?:of |is |was |at |reading )?(?:3[89]|4[01])(?:\.\d)?'
+    - (?:shivering|shivers|rigors|chills)
+    - hot to (?:the )?touch
+  abdo: &ABDO
+    - (?:stomach|abdominal|abdomen|belly|tummy) (?:pain|ache|cramps?|hurts)
+    - pain in (?:my|the|his|her) (?:stomach|abdomen|belly|tummy|lower belly)
+    - '(?:pain|ache|cramps?|hurts?)\W+(?:\w+\W+){0,4}(?:stomach|abdomen|belly|tummy|pelvis)'
+    - (?:stomach|tummy|belly) (?:is )?(?:really )?(?:hurting|sore)
+    - cramps? in (?:my |the |his |her )?(?:lower )?(?:stomach|belly|tummy|abdomen)
+  confusion: &CONFUSION
+    - (?:sudden(?:ly)? )?confus\w*
+    - disorientat\w*
+    - not making (?:any )?sense
+    - (?:does ?n'?t|didn'?t) (?:know|recognise|recognize) (?:where|who)
+    - (?:talking|speaking) nonsense
+  diabetes_text: &DIABETES
+    - diabet\w*
+    - type 1
+    - type one
+    - insulin
+  head_hit: &HEADHIT
+    - (?:hit|banged|bumped|knocked|struck) (?:my|his|her|their|the) head
+    - head injury
+    - (?:knock|blow|bang) (?:on|to) the head
+    - concussion
+    - fell (?:and|then) hit
+  vision_change: &VISION
+    - blurr\w*
+    - vision (?:is )?(?:loss|lost|worse|changed|reduced|cloudy|dim)
+    - can'?t see (?:properly|clearly|well)
+    - lost (?:my |some )?(?:vision|sight)
+
+rules:
+  # ---------------- Heart, lungs, allergy ----------------
+  - id: heart.chest_pain_red_features
+    area: heart_lungs_allergy
+    level: emergency
+    title: Chest pain with breathlessness, sweating, sickness or pain spreading to the arm, jaw, neck or back
+    fires:
+      all:
+        - text: *CHEST
+        - any:
+            - mention: *BREATHLESS
+            - mention:
+                - 'sweat\w*'
+                - 'clammy'
+                - 'cold sweat'
+            - mention:
+                - '(?:spread\w*|going|radiat\w*|moving) (?:to|into|down) (?:my |the |his |her )?(?:left |right )?(?:arm|arms|jaw|neck|back|shoulder)'
+                - '(?:arm|jaw|neck) (?:pain|hurts|aches)'
+            - mention:
+                - '(?:feel|feeling|felt) sick'
+                - 'nause\w*'
+                - 'vomit\w*'
+            - mention:
+                - 'crushing'
+                - 'heavy'
+                - 'like (?:a|an) (?:weight|elephant)'
+    unknown: chest_pain_features
+    rule_out_question: With the chest pain, are you short of breath, sweating, feeling sick, or does the pain feel heavy or spread to your arm, jaw, neck or back?
+    sources: [nhs_chest_pain, nhs_heart_attack, nice_cg95_chest_pain]
+    examples:
+      fires:
+        - text: I have chest pain and I am sweating a lot.
+        - text: Tightness in my chest that spreads to my left arm.
+        - text: My chest hurts and I feel short of breath.
+      no_fire:
+        - text: My knee hurts when I climb stairs.
+        - text: I have chest pain when I press on one rib. I am not short of breath. I am not sweating. I don't feel sick. It is not heavy. It does not spread to my arm.
+      unknown:
+        - text: I have had some chest pain since this morning.
+
+  - id: lungs.sudden_severe_breathlessness
+    area: heart_lungs_allergy
+    level: emergency
+    title: Sudden or severe breathlessness, or blue lips
+    fires:
+      any:
+        - text:
+            - struggling to breathe
+            - can'?t breathe
+            - cannot breathe
+            - gasping for (?:air|breath)
+            - blue lips
+            - lips (?:are |turning |have gone )?blue
+            - too breathless to (?:speak|talk)
+            - can'?t (?:speak|talk) in (?:full )?sentences
+        - all:
+            - text:
+                - 'sudden\w*'
+                - 'all of a sudden'
+            - text: *BREATHLESS
+    rule_out_question: Did the breathlessness come on suddenly, or is it so bad you can't finish a sentence?
+    sources: [nhs_shortness_of_breath, nhs_pulmonary_embolism]
+    examples:
+      fires:
+        - text: I suddenly became very short of breath an hour ago.
+        - text: She is struggling to breathe and her lips look blue.
+      no_fire:
+        - text: I get a bit out of breath after running for a long time.
+        - text: No breathing problems at all.
+
+  - id: heart.pulmonary_embolism_signs
+    area: heart_lungs_allergy
+    level: emergency
+    title: Breathlessness or chest pain with a painful or swollen leg
+    fires:
+      all:
+        - text:
+            - '(?:calf|leg) (?:is )?(?:pain|painful|swollen|swelling|tender|red|warm)'
+            - '(?:pain|swelling) in (?:my|one|the) (?:calf|leg)'
+            - '(?:swollen|painful) (?:calf|leg)'
+        - any:
+            - text: *BREATHLESS
+            - text: *CHEST
+            - text:
+                - 'cough\w* (?:up )?blood'
+    rule_out_question: Along with the leg pain or swelling, are you short of breath or do you have chest pain?
+    sources: [nhs_pulmonary_embolism, nhs_dvt]
+    examples:
+      fires:
+        - text: My left calf is swollen and painful and now I am short of breath.
+      no_fire:
+        - text: My calf is sore after football. My breathing is fine and I have no chest pain.
+
+  - id: allergy.anaphylaxis
+    area: heart_lungs_allergy
+    level: emergency
+    title: Signs of anaphylaxis (swelling of the lips, tongue or throat, or a reaction with breathing problems or faintness)
+    fires:
+      any:
+        - text:
+            - anaphyla\w*
+            - (?:lips|tongue|throat|face) (?:is |are |started |starting )?(?:to )?swell\w*
+            - swell\w* (?:of|in) (?:my|the|his|her) (?:lips|tongue|throat|face)
+            - swollen (?:lips|tongue|throat|face)
+            - throat (?:is |feels )?(?:closing|tight\w*)
+            - '(?:throat|airway)\W+(?:\w+\W+){0,4}(?:closing|tight\w*|swell\w*)'
+        - all:
+            - text:
+                - 'rash'
+                - 'hives'
+                - 'itch\w*'
+                - 'allerg\w*'
+                - 'stung'
+                - 'sting'
+                - '(?:ate|eaten|eating) (?:a )?(?:peanuts?|nuts?|shellfish)'
+            - any:
+                - text: *BREATHLESS
+                - text:
+                    - 'wheez\w*'
+                    - 'faint\w*'
+                    - 'dizzy'
+                    - 'light ?headed'
+                    - 'collaps\w*'
+    rule_out_question: Is there any swelling of the lips, tongue or throat, wheezing, trouble breathing, or feeling faint?
+    sources: [nhs_anaphylaxis, nice_cg134_anaphylaxis]
+    examples:
+      fires:
+        - text: After eating peanuts my lips started to swell.
+        - text: I was stung by a wasp, I have hives everywhere and I feel faint.
+      no_fire:
+        - text: I have mild hay fever with an itchy nose in spring.
+        - text: My skin is itchy but there is no swelling and no trouble breathing.
+
+  - id: heart.fainting_with_cardiac_features
+    area: heart_lungs_allergy
+    level: emergency
+    title: Fainting with chest pain, palpitations or during exercise
+    fires:
+      all:
+        - text:
+            - 'faint\w*'
+            - 'passed out'
+            - 'blacked out'
+            - 'collapsed'
+            - 'lost consciousness'
+            - '(?:lose|losing) consciousness'
+        - any:
+            - mention: *CHEST
+            - mention:
+                - 'palpitation\w*'
+                - 'heart (?:was |is )?(?:racing|pounding|fluttering|skipping|beating fast)'
+                - 'racing heart'
+                - 'irregular heartbeat'
+            - mention:
+                - '(?:during|while|when) (?:exercis\w*|running|exertion|sport|playing)'
+    unknown: syncope_features
+    rule_out_question: Before fainting, did you have chest pain or a racing or irregular heartbeat, or did it happen during exercise?
+    sources: [nhs_fainting, nice_cg109_tloc]
+    examples:
+      fires:
+        - text: I passed out while running and my heart was racing before.
+      no_fire:
+        - text: I felt faint once after standing up quickly in a hot room. No chest pain, no palpitations, not during exercise.
+      unknown:
+        - text: I fainted yesterday at home.
+
+  - id: lungs.coughing_blood
+    area: heart_lungs_allergy
+    level: urgent
+    title: Coughing up blood
+    fires:
+      text:
+        - cough\w* (?:up )?(?:blood|bloody)
+        - blood (?:in|with) (?:my |the )?(?:phlegm|sputum|spit|mucus)
+        - bloody (?:phlegm|sputum|mucus)
+        - ha?emoptysis
+    rule_out_question: Have you coughed up any blood?
+    sources: [nhs_coughing_blood, nice_ng12_cancer]
+    examples:
+      fires:
+        - text: For a week I have been coughing up blood in the mornings.
+      no_fire:
+        - text: I have a dry cough but no blood.
+
+  - id: lungs.coughing_a_lot_of_blood
+    area: heart_lungs_allergy
+    level: emergency
+    title: Coughing up a lot of blood
+    fires:
+      all:
+        - text:
+            - 'cough\w* (?:up )?(?:a lot of |lots of |large amounts? of )?(?:blood|bloody)'
+        - text:
+            - 'a lot of blood'
+            - 'lots of blood'
+            - 'large amount'
+            - 'cupful'
+            - '(?:won''?t|will not|does ?n''?t) stop'
+            - 'clots?'
+    rule_out_question: Is it a lot of blood, or does the bleeding not stop?
+    sources: [nhs_coughing_blood]
+    examples:
+      fires:
+        - text: I am coughing up a lot of blood and it won't stop.
+      no_fire:
+        - text: There were small streaks of blood when I coughed once.
+
+  - id: lungs.new_exertional_breathlessness
+    area: heart_lungs_allergy
+    level: urgent
+    title: New breathlessness on exertion
+    fires:
+      all:
+        - text: *BREATHLESS
+        - text:
+            - 'walking'
+            - 'stairs'
+            - 'exercis\w*'
+            - 'exertion'
+            - 'climbing'
+            - 'any activity'
+            - '(?:at|after) the slightest'
+            - 'hills?'
+    rule_out_question: Do you get breathless with activity you could manage before, such as walking or stairs?
+    sources: [nhs_shortness_of_breath]
+    examples:
+      fires:
+        - text: Lately I get breathless climbing the stairs, which never happened before.
+      no_fire:
+        - text: I have no breathing problems on the stairs.
+
+  # ---------------- Brain and nerves ----------------
+  - id: neuro.stroke_signs
+    area: brain_nerves
+    level: emergency
+    title: Signs of a stroke (face drooping, arm weakness, speech problems)
+    fires:
+      text:
+        - (?:face|mouth|smile) (?:is |has )?(?:drooping|droop\w*|fallen|dropped)
+        - droop\w* (?:face|mouth|smile|eyelid)
+        - one side of (?:my |the |his |her |their )?face (?:is |has )?(?:droop\w*|weak|numb|fallen|gone)
+        - slurr\w* (?:speech|words)
+        - speech (?:is |was |became )?slurr\w*
+        - (?:can'?t|cannot|unable to) (?:speak|talk|find (?:my|the) words)
+        - sudden\w* (?:weak\w*|numb\w*) (?:in|on|of)
+        - (?:weakness|numbness) (?:in|of|on) (?:one|my left|my right|the left|the right|his left|his right|her left|her right) (?:arm|leg|side|hand)
+        - (?:arm|leg|hand|face) (?:went|is|feels|suddenly|has gone|suddenly went) (?:weak|numb|dead|heavy)
+        - (?:can'?t|cannot) get (?:my|the|his|her|their) words out
+        - words (?:are |came out |coming out )?(?:jumbled|muddled|wrong|garbled)
+        - '(?:can''?t|cannot) (?:lift|raise) (?:my|his|her|one)(?: left| right)? arm'
+    rule_out_question: Has any part of the face drooped, has an arm or leg gone weak or numb, or has speech become slurred or difficult?
+    sources: [nhs_stroke_symptoms, nice_ng128_stroke]
+    examples:
+      fires:
+        - text: His face is drooping on one side and his speech is slurred.
+        - text: I suddenly can't lift my right arm.
+      no_fire:
+        - text: My arm is sore after the vaccine.
+        - text: There is no weakness and my speech is normal.
+
+  - id: neuro.thunderclap_headache
+    area: brain_nerves
+    level: emergency
+    title: Sudden severe ("thunderclap") or worst-ever headache
+    fires:
+      all:
+        - text:
+            - 'headaches?'
+            - 'head (?:pain|ache)'
+        - text:
+            - worst (?:headache|pain) (?:of|in) my life
+            - worst (?:headache )?ever
+            - thunderclap
+            - (?:came|come|comes) on (?:suddenly|in (?:a few )?seconds|instantly|all at once)
+            - (?:sudden\w*|instant\w*) (?:and )?(?:very )?(?:severe|excruciating|unbearable|blinding)
+            - like (?:being )?(?:hit|kicked|struck) (?:on|in) the head
+            - explo(?:ded|sive|sion)
+    rule_out_question: Did the headache come on suddenly and reach full strength within seconds or a minute, or is it the worst you have ever had?
+    sources: [nhs_headaches, nice_ng128_stroke]
+    examples:
+      fires:
+        - text: The worst headache of my life came on suddenly while lifting.
+        - text: I had a sudden severe headache like being hit on the head.
+      no_fire:
+        - text: I get a dull headache most afternoons after screen work.
+
+  - id: neuro.seizure_first_or_prolonged
+    area: brain_nerves
+    level: emergency
+    title: A first seizure, or a seizure lasting more than 5 minutes or without recovery
+    fires:
+      all:
+        - text:
+            - 'seizures?'
+            - 'convuls\w*'
+            - '(?:had|having|has) (?:a )?fits?'
+            - 'fitting'
+            - 'epileptic (?:fit|attack)'
+        - any:
+            - mention:
+                - 'first (?:ever|time|one|seizure)'
+                - 'never (?:had|happened) (?:one |a seizure |this )?before'
+            - mention:
+                - '(?:more than|over|longer than) (?:5|five) minutes'
+                - '(?:won''?t|didn''?t|did not|will not) stop'
+                - 'one after (?:another|the other)'
+                - '(?:not|hasn''?t|has not|didn''?t) (?:woken|waking|woke) up'
+                - '(?:still )?unconscious'
+    unknown: seizure_history
+    rule_out_question: Was this a first seizure, did it last more than 5 minutes, or has the person not fully woken up afterwards?
+    sources: [nhs_epilepsy, nice_ng217_epilepsy]
+    examples:
+      fires:
+        - text: My son had a seizure for the first time today.
+        - text: She has been having a fit for more than 5 minutes.
+      no_fire:
+        - text: I am fit and healthy and run every day.
+        - text: He has known epilepsy. It was not his first seizure, it lasted one minute, it did not go on longer than 5 minutes and he recovered fully.
+      unknown:
+        - text: I think I had a seizure last night.
+
+  - id: neuro.new_confusion
+    area: brain_nerves
+    level: emergency
+    title: New or sudden confusion
+    fires:
+      text: *CONFUSION
+    rule_out_question: Has the person become confused, disoriented or hard to understand recently?
+    sources: [nhs_confusion, nice_cg103_delirium]
+    examples:
+      fires:
+        - text: Since this morning my husband is suddenly confused and doesn't know where he is.
+      no_fire:
+        - text: I am not confused, just tired.
+
+  - id: neuro.meningitis_signs
+    area: brain_nerves
+    level: emergency
+    title: Headache with fever and a stiff neck, dislike of light, or a rash
+    fires:
+      all:
+        - text:
+            - 'headaches?'
+            - 'head (?:pain|ache)'
+        - text: *FEVER
+        - any:
+            - mention:
+                - 'stiff neck'
+                - 'neck (?:is |feels )?stiff'
+                - '(?:can''?t|cannot) (?:bend|touch|move) (?:my |his |her )?(?:neck|chin)'
+            - mention:
+                - 'light hurts'
+                - 'sensitiv\w* to (?:the )?light'
+                - 'photophob\w*'
+                - '(?:bright )?lights? (?:hurts?|bothers?)'
+            - mention:
+                - 'rash'
+                - 'spots'
+                - 'blotches'
+    unknown: meningitis_features
+    rule_out_question: With the headache and fever, is there a stiff neck, does light hurt the eyes, or is there any rash?
+    sources: [nhs_meningitis, nice_ng240_meningitis]
+    examples:
+      fires:
+        - text: She has a headache, a high temperature and a stiff neck.
+      no_fire:
+        - text: I have a headache but no fever.
+        - text: Headache and fever with a cold. No stiff neck. I am not sensitive to light. There is no rash.
+      unknown:
+        - text: I have a bad headache and a fever since last night.
+
+  - id: neuro.sudden_vision_loss_or_double_vision
+    area: brain_nerves
+    level: emergency
+    title: Sudden loss of vision or sudden double vision
+    fires:
+      text:
+        - sudden\w* (?:loss of|lost) (?:my |his |her |the )?(?:vision|sight)
+        - (?:went|gone|going) blind
+        - (?:can'?t|cannot) see (?:out of|with) (?:one|my left|my right|his left|his right|her left|her right) eye
+        - sudden\w* (?:double|blurred) vision
+        - (?:double|blurred) vision (?:came on )?sudden\w*
+        - seeing double sudden\w*
+        - vision (?:suddenly )?(?:went|blacked|turned) (?:black|dark|out)
+    rule_out_question: Have you suddenly lost vision in one or both eyes, or suddenly started seeing double?
+    sources: [nhs_vision_loss, nhs_double_vision]
+    examples:
+      fires:
+        - text: This morning I suddenly lost the vision in my left eye.
+        - text: I have sudden double vision since an hour ago.
+      no_fire:
+        - text: My reading vision has been getting slowly worse over years.
+
+  - id: neuro.cauda_equina
+    area: brain_nerves
+    level: emergency
+    title: Back pain with numbness around the genitals or bottom, bladder or bowel problems, or weakness in both legs (cauda equina)
+    fires:
+      all:
+        - text:
+            - 'back pain'
+            - 'backache'
+            - 'sciatica'
+            - '(?:pain|ache) in (?:my |his |her )?(?:lower )?back'
+            - '(?:lower )?back (?:hurts|is hurting|is sore)'
+        - any:
+            - mention:
+                - 'numb\w* (?:around|between|in|of) (?:my |the |his |her )?(?:genitals|bottom|buttocks|groin|anus|inner thighs|saddle)\w*'
+                - 'saddle (?:numbness|an(?:a)?esthesia)'
+            - mention:
+                - '(?:can''?t|cannot|unable to|difficulty|trouble|problems?) (?:pee|peeing|urinat\w*|passing urine|control\w* (?:my |the )?(?:bladder|bowels?))'
+                - '(?:lost|loss of|losing) (?:bladder|bowel) control'
+                - 'wet (?:myself|the bed)'
+                - 'incontinen\w*'
+            - mention:
+                - 'both legs (?:are |feel |have gone )?(?:weak|numb)'
+                - '(?:weakness|numbness) in (?:both|my) legs'
+    unknown: saddle_bladder_symptoms
+    rule_out_question: Do you have numbness around your genitals or bottom, any new problem controlling your bladder or bowels, or weakness or numbness in both legs?
+    sources: [nhs_back_pain, nhs_sciatica]
+    examples:
+      fires:
+        - text: I have severe back pain and numbness around my bottom.
+        - text: Lower back pain and since yesterday I can't control my bladder.
+      no_fire:
+        - text: My back hurts after gardening. No numbness around the bottom or genitals. No trouble controlling my bladder or bowels. No weakness in my legs.
+      unknown:
+        - text: I have had lower back pain for two days.
+
+  - id: neuro.progressive_weakness_or_numbness
+    area: brain_nerves
+    level: urgent
+    title: New weakness or numbness that is getting worse
+    fires:
+      all:
+        - text:
+            - 'weak\w*'
+            - 'numb\w*'
+            - 'tingl\w*'
+            - 'pins and needles'
+        - text:
+            - 'getting worse'
+            - 'worsening'
+            - 'spreading'
+            - 'progress\w*'
+            - 'more and more'
+            - 'every day'
+    rule_out_question: Is the weakness or numbness spreading or getting worse?
+    sources: [nhs_numbness, nhs_stroke_symptoms]
+    examples:
+      fires:
+        - text: The numbness in my feet is spreading up my legs.
+      no_fire:
+        - text: My foot went numb for a minute after sitting cross-legged.
+
+  # ---------------- Infection and sepsis ----------------
+  - id: sepsis.red_flags
+    area: infection_sepsis
+    level: emergency
+    title: Possible sepsis (fever or infection with confusion, mottled or blue skin, very fast breathing, a non-blanching rash or no urine)
+    fires:
+      all:
+        - text:
+            - 'fever\w*'
+            - 'high temperature'
+            - '(?:shivering|shivers|rigors|chills)'
+            - 'infect\w*'
+            - 'very cold'
+        - any:
+            - text:
+                - 'confus\w*'
+                - 'slurr\w*'
+                - 'not making sense'
+                - '(?:very )?drowsy'
+                - 'hard to wake'
+            - text:
+                - 'mottled'
+                - 'blotchy skin'
+                - '(?:skin|lips|tongue) (?:is |are |looks? )?(?:blue|grey|gray|pale)'
+            - text:
+                - 'breathing (?:very )?(?:fast|quickly)'
+                - 'fast breathing'
+                - '(?:very )?breathless'
+            - text:
+                - 'non[- ]?blanching'
+                - '(?:rash|spots) (?:that )?(?:does ?n''?t|do ?n''?t|won''?t|did ?n''?t) (?:fade|go away)'
+            - text:
+                - '(?:haven''?t|hasn''?t|not) (?:peed|urinated|passed (?:any )?urine)'
+                - 'no urine'
+    rule_out_question: With the fever or infection, is there confusion, mottled or bluish skin, very fast breathing, a rash that doesn't fade when pressed, or no urine for a day?
+    sources: [nhs_sepsis, nice_ng51_sepsis]
+    examples:
+      fires:
+        - text: He has a high temperature and is confused and breathing very fast.
+        - text: Fever with shivering and her skin looks mottled.
+      no_fire:
+        - text: I have a mild fever with a runny nose and feel otherwise fine.
+
+  - id: sepsis.fever_infant_under_3_months
+    area: infection_sepsis
+    level: emergency
+    population: infant
+    title: Fever in a baby under 3 months
+    fires:
+      all:
+        - text: *FEVER
+        - fact: age_months
+          lt: 3
+    unknown: age_months
+    rule_out_question: How old is the baby? Is the baby under 3 months?
+    sources: [nhs_fever_children, nice_ng143_fever_under5]
+    examples:
+      fires:
+        - text: My baby has a fever of 38.2.
+          facts: {age_months: 2}
+      no_fire:
+        - text: My baby has a fever of 38.2.
+          facts: {age_months: 8}
+        - text: My baby is feeding well and has no fever.
+          facts: {age_months: 2}
+      unknown:
+        - text: The baby feels hot to the touch.
+
+  - id: sepsis.fever_immunocompromised
+    area: infection_sepsis
+    level: emergency
+    population: immunocompromised
+    title: Fever during chemotherapy or while immunosuppressed
+    fires:
+      text: *FEVER
+    unknown: immunocompromised
+    rule_out_question: Are you having chemotherapy or taking medicines that weaken the immune system?
+    sources: [nice_ng51_sepsis, nhs_chemotherapy]
+    examples:
+      fires:
+        - text: I have a temperature of 38.5 tonight.
+          facts: {chemotherapy: true}
+      no_fire:
+        - text: I have a temperature of 38.5 tonight.
+          facts: {immunocompromised: false}
+      unknown:
+        - text: I have a temperature of 38.5 tonight.
+
+  - id: infection.persistent_high_fever
+    area: infection_sepsis
+    level: urgent
+    title: A high temperature that lasts several days or won't come down
+    fires:
+      all:
+        - text: *FEVER
+        - text:
+            - (?:for|over|more than) (?:3|three|4|four|5|five|several|a few) days
+            - (?:3|three|4|four|5|five) days (?:of|with|now)
+            - (?:won'?t|will not|does ?n'?t|is not|isn'?t) (?:go|come|coming|going) down
+            - keeps coming back
+    rule_out_question: Has the high temperature lasted more than 3 days, or does it not come down with usual measures?
+    sources: [nhs_high_temperature, nhs_fever_children]
+    examples:
+      fires:
+        - text: I have had a fever for 5 days and it won't come down.
+      no_fire:
+        - text: I had a fever yesterday and today it is gone.
+
+  # ---------------- Abdomen and gut ----------------
+  - id: gut.severe_pain_rigid_abdomen
+    area: abdomen_gut
+    level: emergency
+    title: Severe abdominal pain with a rigid or very tender abdomen, or sudden severe abdominal pain
+    fires:
+      all:
+        - text: *ABDO
+        - any:
+            - text:
+                - 'rigid'
+                - 'hard as a board'
+                - 'board[- ]like'
+                - '(?:tummy|stomach|belly|abdomen) (?:is |feels )?(?:very )?(?:hard|tight|swollen)'
+                - 'hurts to (?:move|cough|walk)'
+                - '(?:can''?t|cannot) (?:move|stand up straight)'
+            - all:
+                - text:
+                    - 'severe'
+                    - 'unbearable'
+                    - 'excruciating'
+                    - 'worst'
+                    - 'agony'
+                    - 'agonising'
+                - text:
+                    - 'sudden\w*'
+                    - 'all of a sudden'
+    rule_out_question: Is the pain severe and sudden, is the abdomen hard or very tender, or does it hurt to move or cough?
+    sources: [nhs_stomach_ache, nhs_appendicitis]
+    examples:
+      fires:
+        - text: Sudden severe stomach pain and my belly feels hard.
+        - text: Pain in my lower belly, it hurts to walk or cough.
+      no_fire:
+        - text: Mild tummy ache after a big meal that passed in an hour.
+
+  - id: gut.vomiting_blood_or_black_stools
+    area: abdomen_gut
+    level: emergency
+    title: Vomiting blood or black, tarry stools
+    fires:
+      text:
+        - vomit\w* (?:up )?(?:blood|bloody)
+        - throw\w* up blood
+        - (?:blood|bloody) (?:in|with) (?:my |the |his |her )?vomit
+        - coffee[- ]grounds?
+        - black (?:tarry |sticky )?(?:poo|poos|stool|stools)
+        - tarry (?:poo|stool|stools)
+        - mela?ena
+        - (?:poo|poos|stool|stools) (?:is |are |has been |have been |look |looks |are very )?(?:black|tarry)
+        - ha?ematemesis
+    rule_out_question: Have you vomited blood or something like coffee grounds, or passed black, tarry stools?
+    sources: [nhs_vomiting_blood, nhs_rectal_bleeding]
+    examples:
+      fires:
+        - text: This morning I was vomiting blood.
+        - text: My stools have been black and tarry for two days.
+      no_fire:
+        - text: I vomited twice after bad food but there was no blood.
+
+  - id: gut.abdominal_pain_possible_pregnancy
+    area: abdomen_gut
+    level: emergency
+    title: Abdominal or pelvic pain when pregnant or possibly pregnant (ectopic pregnancy)
+    fires:
+      all:
+        - text:
+            - (?:stomach|abdominal|abdomen|belly|tummy|pelvic|pelvis) (?:pain|ache|cramps?)
+            - pain in (?:my|the) (?:stomach|abdomen|belly|tummy|lower belly|pelvis)
+            - pain (?:on|in) (?:one|my left|my right) side
+            - shoulder tip pain
+            - '(?:pain|ache|cramps?|hurts?)\W+(?:\w+\W+){0,4}(?:stomach|abdomen|belly|tummy|pelvis)'
+            - cramps? in (?:my |the )?(?:lower )?(?:stomach|belly|tummy|abdomen|pelvis)
+        - fact: sex
+          ne: male
+          missing: true
+        - any:
+            - fact: pregnant
+              eq: true
+            - text:
+                - 'missed (?:my )?period'
+                - 'period\W+(?:\w+\W+){0,3}late'
+                - '(?:might|could) be pregnant'
+                - 'positive (?:pregnancy )?test'
+                - '(?:I''?m|I am) pregnant'
+    unknown: pregnancy_possible
+    rule_out_question: Could you be pregnant, for example a missed or late period or a positive test?
+    sources: [nhs_ectopic, nice_ng126_ectopic]
+    examples:
+      fires:
+        - text: Pain in my lower belly on one side and my period is late.
+          facts: {sex: female, age_years: 27}
+        - text: I have cramps in my lower belly.
+          facts: {pregnant: true}
+      no_fire:
+        - text: I have stomach cramps after food.
+          facts: {sex: male, age_years: 30}
+      unknown:
+        - text: I have pain in my lower belly.
+          facts: {sex: female, age_years: 25}
+
+  - id: gut.persistent_vomiting
+    area: abdomen_gut
+    level: urgent
+    title: Vomiting that won't stop or prevents keeping fluids down
+    fires:
+      all:
+        - text:
+            - 'vomit\w*'
+            - 'being sick'
+            - 'throwing up'
+            - 'threw up'
+        - any:
+            - text:
+                - '(?:can''?t|cannot|unable to) keep (?:anything|fluids|water|food|drinks) down'
+            - text:
+                - '(?:for|over|more than) (?:2|two|3|three|24|48) (?:days|hours)'
+                - '(?:won''?t|will not|does ?n''?t) stop'
+    rule_out_question: Have you been vomiting for more than 2 days, or are you unable to keep fluids down?
+    sources: [nhs_vomiting_adults, nhs_dehydration]
+    examples:
+      fires:
+        - text: I have been vomiting for 2 days and can't keep water down.
+      no_fire:
+        - text: I vomited once this morning and now I am drinking normally.
+
+  - id: gut.jaundice
+    area: abdomen_gut
+    level: urgent
+    title: Yellowing of the skin or the whites of the eyes (jaundice)
+    fires:
+      text:
+        - yellow (?:skin|eyes)
+        - (?:skin|eyes|whites of (?:my |the |his |her )?eyes) (?:are |is |look |looks |turned |going |have gone )?yellow\w*
+        - jaundice\w*
+    rule_out_question: Have your skin or the whites of your eyes turned yellow?
+    sources: [nhs_jaundice]
+    examples:
+      fires:
+        - text: The whites of my eyes look yellow.
+      no_fire:
+        - text: My skin is a bit dry in winter.
+
+  # ---------------- Urinary and genital ----------------
+  - id: uro.sudden_testicular_pain
+    area: urinary_genital
+    level: emergency
+    title: Sudden or severe testicle pain
+    fires:
+      all:
+        - text:
+            - 'testic\w*'
+            - 'testes'
+            - 'testis'
+            - 'scrot\w*'
+            - '(?:pain|hurts?) in (?:my |his )?balls'
+            - '(?:my |his )?balls (?:hurt|are (?:painful|swollen))'
+        - text:
+            - 'sudden\w*'
+            - 'severe'
+            - 'came on (?:quickly|suddenly|fast)'
+            - 'excruciating'
+            - 'unbearable'
+            - 'agony'
+    rule_out_question: Did the testicle pain come on suddenly or is it severe?
+    sources: [nhs_testicle_pain]
+    examples:
+      fires:
+        - text: I have sudden severe pain in my left testicle.
+      no_fire:
+        - text: I noticed a small painless spot on my scrotum weeks ago.
+
+  - id: uro.cannot_pass_urine
+    area: urinary_genital
+    level: emergency
+    title: Unable to pass urine
+    fires:
+      text:
+        - (?:can'?t|cannot|unable to|haven'?t been able to|not able to) (?:pee|wee|urinate|pass (?:any )?urine)
+        - (?:haven'?t|hasn'?t|have not|has not|not) (?:peed|weed|urinated|passed (?:any )?urine) (?:for|since|in)
+    rule_out_question: Are you unable to pass urine at all?
+    sources: [nhs_enlarged_prostate, nhs_kidney_infection]
+    examples:
+      fires:
+        - text: Since last night I can't pee at all and my belly is swollen.
+      no_fire:
+        - text: I pee more often at night than before.
+
+  - id: uro.flank_pain_with_fever
+    area: urinary_genital
+    level: urgent
+    title: Pain in the side or lower back with a fever (possible kidney infection)
+    fires:
+      all:
+        - text:
+            - '(?:flank|loin|kidney) pain'
+            - 'pain in (?:my |the )?(?:side|flank|loin|lower back|back)'
+            - 'side (?:pain|hurts)'
+            - '(?:back|side) (?:is )?(?:hurting|aching)'
+        - text: *FEVER
+    rule_out_question: Do you have pain in your side or back together with a fever or shivering?
+    sources: [nhs_kidney_infection]
+    examples:
+      fires:
+        - text: Burning when I pee, pain in my side and a fever.
+      no_fire:
+        - text: Pain in my side when I twist, no fever.
+
+  # ---------------- Eye ----------------
+  - id: eye.painful_red_eye_with_vision_change
+    area: eye
+    level: emergency
+    title: A painful red eye with blurred or reduced vision, halos, or pain from light
+    fires:
+      all:
+        - text:
+            - 'eye pain'
+            - 'painful eye'
+            - '(?:eye|eyes) (?:is |are |really )?(?:hurts?|hurting|painful|sore|aching)'
+            - 'pain in (?:my |the |his |her )?eye'
+            - 'red eye'
+            - '(?:eye|eyes) (?:is |are )?(?:red|bloodshot)'
+        - any:
+            - mention: *VISION
+            - mention:
+                - 'halos?'
+                - 'rainbows? around lights'
+            - mention:
+                - 'light hurts'
+                - 'sensitiv\w* to (?:the )?light'
+                - 'photophob\w*'
+    unknown: vision_change
+    rule_out_question: Has your vision become blurred or reduced, do you see halos around lights, or does light hurt the eye?
+    sources: [nhs_red_eye, nhs_glaucoma]
+    examples:
+      fires:
+        - text: My eye is red and painful and my vision is blurry.
+      no_fire:
+        - text: My eye is red and itchy. My vision is not blurry. I see no halos. I am not sensitive to light.
+      unknown:
+        - text: I have a painful eye since yesterday.
+
+  - id: eye.chemical_exposure
+    area: eye
+    level: emergency
+    title: A chemical in the eye
+    fires:
+      all:
+        - text:
+            - 'eyes?'
+        - text:
+            - 'chemical\w*'
+            - 'bleach'
+            - 'acid'
+            - 'alkali'
+            - 'cleaning (?:product|fluid|spray)'
+            - 'cement'
+            - 'oven cleaner'
+            - 'drain cleaner'
+            - 'splash\w*'
+    rule_out_question: Has any chemical splashed into the eye?
+    sources: [nhs_eye_injuries]
+    examples:
+      fires:
+        - text: Bleach splashed into my eye a few minutes ago.
+      no_fire:
+        - text: My eyes are tired from reading.
+
+  - id: eye.flashes_floaters_curtain
+    area: eye
+    level: emergency
+    title: New flashes or floaters with a shadow or curtain over the vision (possible retinal detachment)
+    fires:
+      any:
+        - text:
+            - '(?:curtain|shadow|veil)\W+(?:\w+\W+){0,4}(?:vision|sight|eye)'
+        - all:
+            - text:
+                - 'flash\w*(?: of light| lights)?'
+                - 'floaters?'
+                - 'spots in (?:my |the )?vision'
+            - mention:
+                - 'curtain'
+                - 'shadow'
+                - 'veil'
+                - 'dark (?:area|patch|shape)'
+                - '(?:missing|lost) part of (?:my )?vision'
+    unknown: visual_field_loss
+    rule_out_question: Along with the flashes or floaters, is there a dark shadow or curtain over part of your vision?
+    sources: [nhs_flashes_floaters, nhs_retinal_detachment]
+    examples:
+      fires:
+        - text: I see flashes and now a dark curtain over part of my vision.
+      no_fire:
+        - text: I have had the same few floaters for years. No shadow or curtain.
+      unknown:
+        - text: I have noticed new floaters this week.
+
+  # ---------------- Ear, nose and throat ----------------
+  - id: ent.stridor
+    area: ent
+    level: emergency
+    title: Noisy, high-pitched breathing in (stridor)
+    fires:
+      text:
+        - stridor
+        - high[- ]pitched (?:sound|noise|whistl\w*|squeak\w*) (?:when|while|as) (?:breathing|breathes|breathing in|they breathe|he breathes|she breathes)
+        - struggling to breathe in
+        - harsh (?:sound|noise) (?:when|while) breathing in
+    rule_out_question: Is there a high-pitched or harsh noise when breathing in?
+    sources: [nhs_croup, nhs_epiglottitis]
+    examples:
+      fires:
+        - text: My child makes a high-pitched noise when breathing in.
+      no_fire:
+        - text: He has a barking cough during the day but breathes quietly.
+
+  - id: ent.drooling_unable_to_swallow
+    area: ent
+    level: emergency
+    title: Drooling or unable to swallow saliva with a sore throat or fever
+    fires:
+      any:
+        - text:
+            - '(?:can''?t|cannot|unable to) swallow (?:my |his |her |their )?(?:own )?(?:spit|saliva|anything|liquids|water)'
+        - all:
+            - text:
+                - 'drool\w*'
+            - text:
+                - 'sore throat'
+                - 'throat (?:pain|hurts)'
+                - 'swallow\w*'
+                - 'fever\w*'
+                - 'high temperature'
+    rule_out_question: Is the person drooling or unable to swallow their own saliva?
+    sources: [nhs_epiglottitis, nhs_sore_throat]
+    examples:
+      fires:
+        - text: She has a very sore throat, is drooling and has a fever.
+        - text: I can't swallow my own saliva.
+      no_fire:
+        - text: My baby is teething and drooling, no fever, feeding fine.
+
+  - id: ent.sudden_hearing_loss
+    area: ent
+    level: emergency
+    title: Sudden hearing loss
+    fires:
+      any:
+        - all:
+            - text:
+                - '(?:can''?t|cannot|unable to) hear (?:anything|properly|much)?\W*(?:\w+\W+){0,3}ears?'
+                - (?:hearing|ear) (?:is |went |has gone )?(?:muffled|blocked|dead|deaf)
+            - text:
+                - sudden\w*
+                - overnight
+                - woke up
+                - (?:since|from) (?:this morning|last night|yesterday|today)
+        - text:
+            - sudden\w* (?:hearing loss|loss of hearing|deaf\w*)
+            - sudden\w* lost (?:my |the |his |her )?hearing
+            - lost (?:my |the |his |her )?hearing (?:in (?:one|my left|my right|the left|the right) ear )?(?:suddenly|overnight)
+            - woke up (?:deaf|unable to hear|with (?:no|muffled|reduced) hearing)
+            - (?:hearing|ear) (?:went|has gone|suddenly went) (?:deaf|dead|muffled|quiet)
+    rule_out_question: Did you lose hearing suddenly, over hours to a few days?
+    sources: [nice_ng98_hearing_loss, nhs_hearing_loss]
+    examples:
+      fires:
+        - text: I woke up with muffled hearing in my right ear.
+        - text: Yesterday I suddenly lost hearing in my left ear.
+      no_fire:
+        - text: My hearing has slowly got worse in both ears over ten years.
+
+  - id: ent.facial_weakness
+    area: ent
+    level: emergency
+    title: New weakness or drooping of one side of the face
+    fires:
+      text:
+        - facial (?:weakness|droop|paralysis|palsy)
+        - (?:face|mouth|smile) (?:is |has )?(?:drooping|droop\w*|paraly\w*|fallen)
+        - one side of (?:my |the |his |her )?face (?:is |has )?(?:droop\w*|weak|paraly\w*|fallen)
+        - (?:can'?t|cannot) (?:close|shut) (?:my |his |her |one )?eye
+    rule_out_question: Has one side of the face become weak or droopy, or can one eye not close?
+    sources: [nhs_bells_palsy, nhs_stroke_symptoms]
+    examples:
+      fires:
+        - text: Since this morning one side of my face is drooping and I can't close my eye.
+      no_fire:
+        - text: My face feels puffy in the morning.
+
+  - id: ent.pulsatile_tinnitus
+    area: ent
+    level: routine_review  # NICE NG155 1.2.7: consider referral through local pathways
+    title: Pulsatile tinnitus (a sound in the ear in time with the heartbeat)
+    fires:
+      text:
+        - pulsatile tinnitus
+        - (?:tinnitus|ringing|whooshing|noise|sound|thumping) (?:that )?(?:beats|pulses|pulsing|throbs|throbbing|thumps)
+        - (?:in time|in sync|synchroni[sz]ed) with (?:my )?(?:heart\w*|pulse)
+        - (?:hear|hearing) (?:my )?(?:heartbeat|pulse|heart beat)
+        - (?:heartbeat|pulse) in (?:my )?ears?
+        - whoosh\w* (?:sound|noise|in (?:my )?ears?)
+    rule_out_question: Does the sound beat or whoosh in time with your heartbeat?
+    sources: [nice_ng155_tinnitus, nhs_tinnitus]
+    examples:
+      fires:
+        - text: I hear a whooshing sound in my ear in time with my heartbeat.
+      no_fire:
+        - text: I have a constant high-pitched ringing in both ears after concerts.
+
+  - id: ent.one_sided_progressive_hearing_loss
+    area: ent
+    level: urgent
+    title: Hearing loss or tinnitus in one ear that is getting worse
+    fires:
+      all:
+        - text:
+            - 'hearing (?:loss|is going|getting worse|worse)'
+            - 'losing (?:my )?hearing'
+            - '(?:can''?t|cannot) hear (?:as )?well'
+            - 'deaf\w*'
+            - 'tinnitus'
+            - 'ringing'
+        - text:
+            - 'one ear'
+            - 'one side'
+            - '(?:left|right) ear'
+            - 'only (?:in|on) (?:my |the )?(?:left|right)'
+            - 'one[- ]sided'
+            - 'unilateral'
+        - text:
+            - 'getting worse'
+            - 'worsening'
+            - 'gradual\w*'
+            - 'progress\w*'
+            - 'over (?:the )?(?:past |last )?(?:months|weeks|year)'
+    rule_out_question: Is the hearing loss or ringing only in one ear, and has it been getting worse?
+    sources: [nice_ng98_hearing_loss, nice_ng155_tinnitus, nhs_acoustic_neuroma]
+    examples:
+      fires:
+        - text: The hearing in my right ear has been getting worse over months, with ringing on that side.
+      no_fire:
+        - text: Ringing in both ears after a loud concert last night.
+
+  # ---------------- Skin ----------------
+  - id: skin.spreading_rash_with_fever_or_blisters
+    area: skin
+    level: emergency
+    title: A rapidly spreading rash with fever, blistering or peeling skin, or sores in the mouth, eyes or genitals
+    fires:
+      all:
+        - text:
+            - 'rash'
+            - 'spots'
+            - 'redness'
+            - 'blisters?'
+            - 'peeling'
+            - '(?:skin|area) (?:is |looks )?(?:red|swollen|hot)'
+        - any:
+            - all:
+                - text:
+                    - 'spreading'
+                    - 'spread\w*'
+                    - 'getting bigger'
+                    - 'all over (?:my |his |her )?body'
+                    - 'fast'
+                - text:
+                    - 'fever\w*'
+                    - 'high temperature'
+                    - '(?:feel|feeling|feels) (?:very )?unwell'
+                    - 'shivering'
+            - text:
+                - 'blister\w* (?:in|on|around) (?:my |the |his |her )?(?:mouth|lips|eyes|genitals)'
+                - '(?:mouth|lips|eyes|genitals) (?:sores|blisters|ulcers)'
+                - 'skin (?:is )?(?:peeling|coming off|blistering)'
+                - 'peeling skin'
+    rule_out_question: Is the rash spreading quickly with a fever, or is the skin blistering or peeling, or are there sores in the mouth or eyes?
+    sources: [nhs_sjs, nhs_cellulitis, nhs_necrotising_fasciitis]
+    examples:
+      fires:
+        - text: A red rash is spreading fast up my leg and I have a fever.
+        - text: After a new medicine I have a rash with blisters in my mouth.
+      no_fire:
+        - text: I have a small itchy patch of eczema on my elbow.
+
+  - id: skin.non_blanching_rash
+    area: skin
+    level: emergency
+    title: A rash that does not fade when pressed (non-blanching)
+    fires:
+      text:
+        - non[- ]?blanching
+        - '(?:rash|spots|blotches) (?:that )?(?:does ?n''?t|do ?n''?t|won''?t|did ?n''?t|does not|did not) (?:fade|go away|disappear|blanch)'
+        - purple (?:spots|rash|blotches)
+        - pin ?prick (?:spots|rash)
+        - tiny red (?:spots|dots) (?:that )?(?:do ?n'?t|does ?n'?t) fade
+    rule_out_question: If you press a clear glass on the rash, does it stay visible (not fade)?
+    sources: [nhs_meningitis, nhs_rashes_babies_children, nhs_sepsis]
+    examples:
+      fires:
+        - text: She has purple spots that don't fade when I press a glass on them.
+      no_fire:
+        - text: The rash fades when I press on it and he is playing normally.
+
+  # ---------------- Hormones and metabolism ----------------
+  - id: meta.diabetes_vomiting_abdominal_pain
+    area: hormones_metabolism
+    level: emergency
+    title: Vomiting with abdominal pain, ketones or fruity breath in someone with diabetes (possible DKA)
+    fires:
+      all:
+        - any:
+            - fact: diabetes
+              eq: true
+              missing: false
+            - text: *DIABETES
+        - any:
+            - all:
+                - text:
+                    - 'vomit\w*'
+                    - 'being sick'
+                    - 'throwing up'
+                    - 'threw up'
+                - text: *ABDO
+            - text:
+                - 'ketones? (?:are |is )?(?:high|positive|raised)'
+                - 'high ketones'
+                - 'fruity (?:breath|smell)'
+                - '(?:smell|smells) (?:of )?pear drops'
+                - 'breath smells (?:sweet|fruity)'
+    unknown: diabetes
+    rule_out_question: Do you have diabetes, and if so are your ketones raised?
+    sources: [nhs_dka, nice_ng17_type1_diabetes, nice_ng18_diabetes_children]
+    examples:
+      fires:
+        - text: I have type 1 diabetes and I am vomiting with stomach pain.
+        - text: Vomiting and tummy ache since this morning.
+          facts: {diabetes: true}
+      no_fire:
+        - text: Vomiting and tummy ache after bad food.
+        - text: I have diabetes and my sugars are stable, no vomiting.
+
+  - id: meta.very_high_blood_sugar
+    area: hormones_metabolism
+    level: emergency
+    title: Very high blood sugar with vomiting, confusion, drowsiness, deep or fast breathing, or ketones
+    fires:
+      all:
+        - text:
+            - 'blood sugars? (?:is |are |was |were )?(?:very |really )?high'
+            - 'high blood sugar'
+            - 'hyperglyc\w*'
+            - '(?:sugar|glucose) (?:is |was )?(?:over |above )?(?:2\d|3\d)(?:\.\d)?'
+            - '(?:sugar|glucose) (?:is |was )?(?:very )?high'
+            - '(?:meter|monitor) (?:says|shows|reads) hi'
+        - any:
+            - mention:
+                - 'vomit\w*'
+                - 'being sick'
+                - 'throwing up'
+            - mention: *CONFUSION
+            - mention:
+                - 'drowsy'
+                - 'sleepy'
+                - 'hard to wake'
+            - mention:
+                - 'breathing (?:fast|deep\w*|heav\w*)'
+                - 'fruity'
+                - 'ketones?'
+            - mention: *ABDO
+    unknown: hyperglycaemia_features
+    rule_out_question: With the high sugar, is there vomiting, stomach pain, confusion, drowsiness, fast or deep breathing, or high ketones?
+    sources: [nhs_hyperglycaemia, nhs_dka, nice_ng17_type1_diabetes]
+    examples:
+      fires:
+        - text: My blood sugar is very high and I am vomiting.
+      no_fire:
+        - text: My blood sugar was a bit high after a party, now normal.
+      unknown:
+        - text: My blood sugar is very high today.
+
+  - id: meta.severe_low_blood_sugar
+    area: hormones_metabolism
+    level: emergency
+    title: Low blood sugar with confusion, drowsiness, unconsciousness or a fit
+    fires:
+      all:
+        - text:
+            - 'low blood sugar'
+            - 'hypos?'
+            - 'hypoglyc\w*'
+            - 'blood sugars? (?:is |are |was |were |dropped |went )?(?:very |really |too )?low'
+            - '(?:sugar|glucose) (?:is |was |dropped to |fell to |of )?[0-3](?:\.\d)? ?(?:mmol)?'
+        - any:
+            - mention: *CONFUSION
+            - mention:
+                - 'drowsy'
+                - '(?:passed|passing) out'
+                - 'unconscious'
+                - 'fits?'
+                - 'seizure'
+                - '(?:not|isn''?t) responding'
+                - '(?:can''?t|won''?t) (?:be woken|wake)'
+    unknown: hypoglycaemia_severity
+    rule_out_question: With the low sugar, is the person confused, very drowsy, unconscious or having a fit?
+    sources: [nhs_hypoglycaemia]
+    examples:
+      fires:
+        - text: His blood sugar is very low and he is confused.
+      no_fire:
+        - text: I had a mild hypo, ate some sweets and feel fine. Not confused, not drowsy.
+      unknown:
+        - text: I keep having hypos this week.
+
+  # ---------------- Mental health ----------------
+  - id: mh.suicide_or_self_harm
+    area: mental_health
+    level: emergency
+    crisis: true
+    title: Thoughts of suicide or self-harm
+    fires:
+      text:
+        - suicid\w*
+        - kill\w* (?:my ?self|me)
+        - end (?:my|it all|my own) life
+        - end it all
+        - take my (?:own )?life
+        - (?:do ?n'?t|do not) want to (?:live|be alive|be here|wake up)
+        - better off dead
+        - (?:want|wanted|wanting) to die
+        - self[- ]?harm\w*
+        - (?:hurt|hurting|cut|cutting|harm|harming|burn|burning) my ?self
+        - no (?:reason|point) (?:to|in) (?:live|living|go on|going on)
+    rule_out_question: Are you having thoughts of ending your life or harming yourself?
+    sources: [nhs_suicidal_thoughts, nhs_mental_health_emergency, nice_ng225_self_harm]
+    examples:
+      fires:
+        - text: Lately I feel like I would be better off dead.
+        - text: I have been cutting myself again.
+        - text: I'm not sure, but I want to die.
+      no_fire:
+        - text: I don't want to die, I just want to sleep better.
+        - text: I am not suicidal and I have never harmed myself.
+
+  - id: mh.risk_to_others
+    area: mental_health
+    level: emergency
+    title: Thoughts of harming someone else
+    fires:
+      text:
+        - (?:hurt|harm|kill|attack) (?:someone|somebody|others|other people|people|him|her|them|my (?:wife|husband|partner|child|children|kids|mother|father|mum|dad))
+        - violent (?:thoughts|urges) (?:towards|toward|about) (?:others|someone|people|my)
+    rule_out_question: Are you having thoughts of harming anyone else?
+    sources: [nhs_mental_health_emergency, nice_ng10_violence]
+    examples:
+      fires:
+        - text: I have thoughts that I might hurt someone.
+      no_fire:
+        - text: I would never hurt anyone, I just feel low.
+
+  - id: mh.psychosis_or_severe_agitation
+    area: mental_health
+    level: emergency
+    title: Possible psychosis (hearing voices, seeing things, believing people are after them) or severe agitation
+    fires:
+      text:
+        - hearing voices
+        - voices (?:are )?(?:telling|tell|talking to) (?:me|him|her)
+        - (?:seeing|see) things (?:that )?(?:are ?n'?t|others (?:can'?t|cannot) see)
+        - hallucinat\w*
+        - (?:people|someone|they) (?:are )?(?:watching|following|after|spying on|controlling) (?:me|him|her)
+        - severe(?:ly)? agitat\w*
+        - out of control
+    rule_out_question: Is the person hearing or seeing things others don't, believing others are out to harm them, or so agitated they may be unsafe?
+    sources: [nhs_psychosis, nhs_mental_health_emergency]
+    examples:
+      fires:
+        - text: My brother is hearing voices telling him to do things.
+      no_fire:
+        - text: I talk to myself when I study, it helps me focus.
+
+  - id: mh.eating_disorder_physical_danger
+    area: mental_health
+    level: urgent
+    title: Physical danger signs with an eating disorder (fainting, chest pain, palpitations, very low weight)
+    fires:
+      all:
+        - text:
+            - 'eating disorder'
+            - 'anorexi\w*'
+            - 'bulimi\w*'
+            - 'not eating'
+            - 'starv\w*'
+            - 'making (?:my ?self|herself|himself) (?:sick|vomit)'
+            - 'purg\w*'
+            - 'binge\w*'
+        - text:
+            - 'faint\w*'
+            - 'dizzy'
+            - 'chest pain'
+            - 'palpitation\w*'
+            - 'heart (?:racing|skipping|irregular|fluttering)'
+            - 'very weak'
+            - '(?:bmi|BMI) (?:of |is |under |below )?1[0-6]'
+            - 'lost (?:a lot of|so much) weight'
+    rule_out_question: With the eating problems, have there been fainting, dizziness, chest pain, a racing or irregular heartbeat, or very fast weight loss?
+    sources: [nice_ng69_eating_disorders]
+    examples:
+      fires:
+        - text: I have anorexia and I fainted twice this week.
+      no_fire:
+        - text: I skip breakfast sometimes because I am busy.
+
+  # ---------------- Poisoning and injury ----------------
+  - id: inj.poisoning_or_overdose
+    area: poisoning_injury
+    level: emergency
+    title: Poisoning or overdose
+    fires:
+      text:
+        - overdos\w*
+        - took (?:too many|a lot of|all (?:my|the|of my)|loads of|lots of) (?:pills|tablets|medicines?|painkillers)
+        - swallowed (?:a |an |some )?(?:bleach|poison|chemicals?|batter(?:y|ies)|button batter\w*|cleaning \w+|antifreeze|a magnet|magnets)
+        - (?<!food )poison(?:ed|ing|ous)?
+        - drank (?:some |a lot of |the )?(?:bleach|antifreeze|chemicals?|cleaning \w+|weed ?killer)
+        - (?:ate|eaten|swallowed) (?:some |his |her |my |the )?(?:pills|tablets|medicines?)
+        - '(?:swallowed|ate|eaten|got into)\W+(?:\w+\W+){0,4}(?:pills|tablets|medicines?|medication|capsules)'
+    rule_out_question: Has anyone swallowed, inhaled or taken too much of a medicine, chemical or other substance?
+    sources: [nhs_poisoning]
+    examples:
+      fires:
+        - text: My toddler swallowed a button battery.
+        - text: I took too many tablets an hour ago.
+      no_fire:
+        - text: I think I have food poisoning from last night's dinner.
+
+  - id: inj.head_injury_red_features
+    area: poisoning_injury
+    level: emergency
+    title: Head injury with vomiting, confusion, drowsiness, memory loss, a fit or loss of consciousness
+    fires:
+      all:
+        - text: *HEADHIT
+        - any:
+            - mention:
+                - 'vomit\w*'
+                - 'being sick'
+                - 'threw up'
+                - 'throwing up'
+            - mention:
+                - 'confus\w*'
+                - 'drowsy'
+                - 'knocked out'
+                - '(?:lost|loss of) consciousness'
+                - 'passed out'
+                - 'blacked out'
+                - '(?:can''?t|cannot|does ?n''?t) remember'
+                - 'memory loss'
+                - 'fits?'
+                - 'seizure'
+    unknown: head_injury_features
+    rule_out_question: Since the head injury, has there been vomiting, confusion, drowsiness, memory loss, a fit, or any loss of consciousness?
+    sources: [nhs_head_injury, nice_ng232_head_injury]
+    examples:
+      fires:
+        - text: He hit his head and has vomited twice since.
+      no_fire:
+        - text: I bumped my head on a cupboard. No vomiting, not confused, not drowsy, I remember everything and didn't pass out.
+      unknown:
+        - text: I banged my head on a door this morning.
+
+  - id: inj.major_trauma_or_bleeding
+    area: poisoning_injury
+    level: emergency
+    title: Major trauma or heavy bleeding
+    fires:
+      text:
+        - car (?:crash|accident)
+        - hit by a (?:car|vehicle|bus|lorry|truck|bike)
+        - fell (?:from|off) (?:a )?(?:height|ladder|roof|balcony|scaffold\w*)
+        - stab(?:bed|bing)
+        - (?:was|been|got) shot
+        - gunshot
+        - heavy bleeding
+        - bleeding (?:heavily|a lot|badly)
+        - (?:bleeding )?(?:won'?t|will not|does ?n'?t) stop bleeding
+        - (?:can'?t|cannot) stop the bleeding
+        - bone (?:is )?sticking out
+        - (?:large|big|severe|deep) burn
+        - (?:electric|electrical) (?:shock|burn)
+    rule_out_question: Has there been a serious accident, heavy bleeding that won't stop, a large burn, or a bone sticking out?
+    sources: [nhs_burns, nhs_head_injury]
+    examples:
+      fires:
+        - text: He fell off a ladder and the bleeding won't stop.
+      no_fire:
+        - text: I had my flu shot yesterday and my arm is sore.
+
+  # ---------------- Pregnancy ----------------
+  - id: preg.bleeding
+    area: pregnancy
+    level: emergency
+    population: pregnancy
+    title: Vaginal bleeding in pregnancy
+    fires:
+      text:
+        - bleed\w*
+        - spotting
+        - blood (?:from|in) (?:my |the )?(?:vagina|underwear|pants|knickers)
+        - passing (?:blood|clots)
+        - blood when I wipe
+    unknown: pregnant
+    rule_out_question: Are you pregnant, and is there any bleeding from the vagina?
+    sources: [nhs_pregnancy_bleeding, nice_ng126_ectopic]
+    examples:
+      fires:
+        - text: I am 10 weeks pregnant and have some bleeding.
+          facts: {pregnant: true}
+      no_fire:
+        - text: Some spotting between periods.
+          facts: {pregnant: false}
+        - text: No bleeding at all.
+          facts: {pregnant: true}
+      unknown:
+        - text: I have spotting today.
+          facts: {sex: female, age_years: 30}
+
+  - id: preg.pre_eclampsia_signs
+    area: pregnancy
+    level: emergency
+    population: pregnancy
+    title: Severe headache, vision problems, pain below the ribs or sudden swelling in pregnancy (pre-eclampsia)
+    fires:
+      any:
+        - all:
+            - text:
+                - 'headaches?'
+                - 'head (?:pain|ache)'
+            - text:
+                - 'severe'
+                - 'bad'
+                - 'terrible'
+                - '(?:won''?t|does ?n''?t|will not) go away'
+                - 'worst'
+        - text:
+            - 'blurr\w* vision'
+            - 'vision (?:is )?blurr\w*'
+            - 'flashing lights'
+            - 'seeing (?:spots|stars|flashes)'
+            - 'zig ?zag\w*'
+        - text:
+            - 'pain (?:just )?(?:below|under) (?:my |the )?ribs'
+        - text:
+            - 'sudden\w* swelling'
+            - '(?:face|hands|feet) (?:are |is )?sudden\w* (?:swollen|puffy)'
+    unknown: pregnant
+    rule_out_question: In this pregnancy, do you have a severe headache, blurred vision or flashing lights, pain just below the ribs, or sudden swelling of the face, hands or feet?
+    sources: [nhs_pre_eclampsia, nice_ng133_hypertension_pregnancy]
+    examples:
+      fires:
+        - text: I am 34 weeks pregnant with a severe headache and blurred vision.
+          facts: {pregnant: true}
+      no_fire:
+        - text: Mild backache in the evenings.
+          facts: {pregnant: true}
+
+  - id: preg.reduced_fetal_movements
+    area: pregnancy
+    level: emergency
+    population: pregnancy
+    title: The baby is moving less, or has stopped moving
+    fires:
+      text:
+        - (?:baby|babies|baby'?s) (?:is |has been |seems )?(?:moving )?(?:less|much less|quieter)
+        - (?:baby|baby'?s) (?:has |have )?(?:stopped|stopping) (?:moving|kicking)
+        - (?:baby|it) (?:is ?n'?t|is not|has ?n'?t|has not|has ?n'?t been|is not) (?:moving|kicking)
+        - (?:fewer|reduced|less|decreased|no) (?:fetal |foetal |baby )?movements?
+        - (?:haven'?t|have not|not) felt (?:the |my )?baby (?:move|kick|moving|kicking)
+    unknown: pregnant
+    rule_out_question: Is your baby moving less than usual, or have the movements stopped?
+    sources: [nhs_baby_movements, nice_ng201_antenatal]
+    examples:
+      fires:
+        - text: The baby has been moving less since yesterday.
+          facts: {pregnant: true, weeks_pregnant: 32}
+        - text: I haven't felt the baby kick today.
+          facts: {pregnant: true}
+      no_fire:
+        - text: The baby is kicking a lot tonight.
+          facts: {pregnant: true}
+
+  - id: preg.waters_breaking_early
+    area: pregnancy
+    level: emergency
+    population: pregnancy
+    title: Waters breaking before 37 weeks
+    fires:
+      all:
+        - text:
+            - 'waters\W+(?:\w+\W+){0,2}(?:broken|broke|breaking|went|gone)'
+            - 'leak\w* (?:fluid|water)'
+            - 'gush of (?:fluid|water)'
+            - 'fluid (?:leaking|coming) (?:out )?(?:from|of) (?:my |the )?vagina'
+        - any:
+            - fact: weeks_pregnant
+              lt: 37
+            - text:
+                - 'before 37 weeks'
+                - 'premature'
+                - 'preterm'
+                - '(?:too )?early'
+                - '(?:2\d|3[0-6]) weeks'
+    unknown: weeks_pregnant
+    rule_out_question: How many weeks pregnant are you? Is it before 37 weeks?
+    sources: [nhs_waters_breaking]
+    examples:
+      fires:
+        - text: I think my waters have broken.
+          facts: {pregnant: true, weeks_pregnant: 33}
+      no_fire:
+        - text: I think my waters have broken.
+          facts: {pregnant: true, weeks_pregnant: 39}
+      unknown:
+        - text: I think my waters have broken.
+          facts: {pregnant: true}
+
+  # ---------------- Children ----------------
+  - id: child.floppy_or_unresponsive_infant
+    area: children
+    level: emergency
+    population: infant
+    title: A floppy, unresponsive or very drowsy baby, a weak or high-pitched cry, or blue skin
+    fires:
+      text:
+        - floppy
+        - limp
+        - lethargic
+        - unresponsive
+        - hard to wake
+        - '(?:won''?t|will not|does ?n''?t|is not|isn''?t) wak(?:e|ing)(?: up)?'
+        - very (?:sleepy|drowsy)
+        - weak cry
+        - high[- ]pitched (?:cry|crying|scream\w*)
+        - blue (?:lips|tongue|skin)
+        - (?:lips|tongue|skin) (?:is |are |looks? )?blue
+    unknown: age_months
+    rule_out_question: Is the baby floppy, very drowsy or hard to wake, crying weakly or in a high-pitched way, or turning blue?
+    sources: [nice_ng143_fever_under5, nhs_fever_children]
+    examples:
+      fires:
+        - text: My baby is floppy and hard to wake.
+          facts: {age_months: 4}
+      no_fire:
+        - text: My baby is alert, feeding well and smiling.
+          facts: {age_months: 4}
+      unknown:
+        - text: The baby seems very sleepy today.
+
+  - id: child.dehydration
+    area: children
+    level: emergency
+    population: child
+    title: Signs of dehydration in a child (no wet nappies, sunken eyes or soft spot, no tears, not drinking)
+    fires:
+      text:
+        - sunken (?:eyes|fontanelle|soft spot)
+        - no wet (?:nappies|nappy|diapers?)
+        - (?:has ?n'?t|has not|not) (?:had )?(?:a )?wet (?:nappy|nappies|diaper)
+        - (?:has ?n'?t|has not|not) (?:peed|weed|urinated) (?:for|in|since)
+        - 'no tears(?: when crying)?'
+        - (?:not|is ?n'?t|won'?t) drinking (?:anything|at all)
+    unknown: age_years
+    rule_out_question: Has the child had fewer wet nappies or not passed urine for 12 hours, no tears, sunken eyes, or stopped drinking?
+    sources: [nhs_dehydration, nice_ng143_fever_under5]
+    examples:
+      fires:
+        - text: She hasn't had a wet nappy since this morning and has no tears when crying.
+          facts: {age_years: 1}
+      no_fire:
+        - text: He is drinking well and has plenty of wet nappies.
+          facts: {age_years: 1}
+
+  - id: child.breathing_difficulty
+    area: children
+    level: emergency
+    population: child
+    title: A child with difficulty breathing (working hard, ribs sucking in, grunting, very fast breathing, pauses)
+    fires:
+      text:
+        - struggling to breathe
+        - working (?:very )?hard to breathe
+        - (?:ribs|chest|tummy|skin) (?:is |are )?(?:sucking|pulling) in
+        - sucking in (?:under|between) (?:the |his |her )?ribs
+        - grunting
+        - (?:flaring (?:nostrils|nose)|nostrils (?:are )?flar\w*)
+        - breathing (?:very )?(?:fast|quickly)
+        - fast breathing
+        - pauses in (?:his|her|their) breathing
+        - stops? breathing
+        - can'?t breathe
+    unknown: age_years
+    rule_out_question: Is the child struggling to breathe, breathing very fast, grunting, or are the ribs sucking in with each breath?
+    sources: [nice_ng143_fever_under5, nhs_croup]
+    examples:
+      fires:
+        - text: My son is breathing very fast and his ribs are sucking in.
+          facts: {age_years: 2}
+      no_fire:
+        - text: He has a runny nose but breathes normally.
+          facts: {age_years: 2}
+
+  # ---------------- Older adults ----------------
+  - id: older.sudden_confusion
+    area: older_adults
+    level: emergency
+    population: older
+    title: Sudden confusion in an older person (possible delirium)
+    fires:
+      text: *CONFUSION
+    unknown: age_years
+    rule_out_question: Has the person become confused suddenly, over hours or days?
+    sources: [nhs_confusion, nice_cg103_delirium]
+    examples:
+      fires:
+        - text: My mother has suddenly become confused since yesterday.
+          facts: {age_years: 82}
+      no_fire:
+        - text: My grandfather is sharp and not confused at all.
+          facts: {age_years: 84}
+
+  - id: older.fall_with_head_strike_on_anticoagulants
+    area: older_adults
+    level: emergency
+    title: A fall or head injury while taking blood thinners
+    fires:
+      all:
+        - text: *HEADHIT
+        - any:
+            - fact: on_anticoagulants
+              eq: true
+            - text:
+                - 'blood thinners?'
+                - 'anticoagulant\w*'
+                - 'warfarin'
+                - 'apixaban'
+                - 'rivaroxaban'
+                - 'edoxaban'
+                - 'dabigatran'
+    unknown: on_anticoagulants
+    rule_out_question: Does the person take blood-thinning medicine (anticoagulants such as warfarin, apixaban or rivaroxaban)?
+    sources: [nice_ng232_head_injury, nhs_falls, nice_ng249_falls]
+    examples:
+      fires:
+        - text: My father fell and hit his head. He takes warfarin.
+        - text: She fell and hit her head.
+          facts: {on_anticoagulants: true}
+      no_fire:
+        - text: She fell and hit her head.
+          facts: {on_anticoagulants: false}
+      unknown:
+        - text: Grandad fell and banged his head on the floor.
+
+  # ---------------- Possible cancer (NICE NG12) ----------------
+  - id: cancer.unexplained_weight_loss
+    area: possible_cancer
+    level: urgent
+    title: Unexplained weight loss
+    fires:
+      text:
+        - (?:lost|losing) (?:a lot of |some |\d+ ?(?:kg|kilos|pounds|lbs|stone) of )?weight (?:without (?:trying|dieting|meaning to)|for no (?:reason|obvious reason))
+        - unexplained weight loss
+        - weight loss (?:without|for no) (?:trying|reason|obvious reason)
+        - unintentional weight loss
+        - (?:clothes|trousers) (?:are |have become )?(?:getting )?(?:loose|looser)
+    rule_out_question: Have you lost weight without trying?
+    sources: [nice_ng12_cancer, nhs_weight_loss]
+    examples:
+      fires:
+        - text: I have lost 6 kg of weight without trying over three months.
+      no_fire:
+        - text: I lost weight on purpose by dieting.
+
+  - id: cancer.new_lump
+    area: possible_cancer
+    level: urgent
+    title: A new lump, or a lump that is growing
+    fires:
+      text:
+        - new lump
+        - (?:found|noticed|feel|felt|have) a (?:hard |small |new )?lump
+        - lump (?:in|on) (?:my |the |his |her )?(?:breast|neck|armpit|groin|testicle|testicles|throat)
+        - lump (?:that )?(?:is )?(?:getting bigger|growing|won'?t go away)
+        - (?:swelling|lump) that (?:won'?t|will not|does ?n'?t) go (?:away|down)
+    rule_out_question: Have you noticed a new lump, or one that is growing?
+    sources: [nice_ng12_cancer, nhs_lumps, nhs_breast_lump]
+    examples:
+      fires:
+        - text: I found a lump in my breast last week.
+      no_fire:
+        - text: The swelling on my ankle went down after a day.
+
+  - id: cancer.rectal_bleeding_with_bowel_change
+    area: possible_cancer
+    level: urgent
+    title: Blood in the stool with a change in bowel habit or weight loss
+    fires:
+      all:
+        - text:
+            - 'blood (?:in|on) (?:my |the )?(?:poo|poos|stool|stools|toilet paper)'
+            - 'bleeding from (?:my |the )?(?:bottom|back passage|rectum|anus)'
+            - 'rectal bleeding'
+            - 'bloody (?:poo|stool|stools)'
+        - any:
+            - mention:
+                - 'chang\w* (?:in )?(?:my )?bowel (?:habits?|movements)'
+                - 'looser (?:poo|stools?)'
+                - 'diarrho?ea'
+                - 'more often'
+                - 'constipat\w*'
+            - mention:
+                - '(?:for|over) (?:\d+|three|four|six|several) weeks'
+                - 'weight loss'
+                - 'lost weight'
+    unknown: bowel_habit_change
+    rule_out_question: Along with the blood, has your bowel habit changed (looser, more often or constipation) for several weeks, or have you lost weight?
+    sources: [nice_ng12_cancer, nhs_bowel_cancer_symptoms, nhs_rectal_bleeding]
+    examples:
+      fires:
+        - text: Blood in my poo and my stools have been looser for six weeks.
+      no_fire:
+        - text: Bright blood on the toilet paper once after straining. No change in my bowel habit. No weight loss.
+      unknown:
+        - text: I noticed blood in my stool yesterday.
+
+  - id: cancer.postmenopausal_bleeding
+    area: possible_cancer
+    level: urgent
+    title: Vaginal bleeding after the menopause
+    fires:
+      any:
+        - text:
+            - 'post[- ]?menopausal bleeding'
+            - 'bleeding after (?:the |my )?menopause'
+        - all:
+            - text:
+                - 'vaginal bleeding'
+                - 'bleeding from (?:my |the )?vagina'
+                - 'spotting'
+                - 'blood (?:in|on) (?:my )?(?:underwear|pants|knickers)'
+            - any:
+                - fact: postmenopausal
+                  eq: true
+                - text:
+                    - 'menopaus\w*'
+                    - 'periods stopped'
+                    - '(?:have ?n''?t|have not) had a period (?:for|in) (?:a year|years|over|more than)'
+    unknown: postmenopausal
+    rule_out_question: Have your periods stopped for more than a year (after the menopause)?
+    sources: [nice_ng12_cancer, nhs_postmenopausal_bleeding]
+    examples:
+      fires:
+        - text: I have some spotting and I went through the menopause five years ago.
+        - text: I noticed vaginal bleeding.
+          facts: {postmenopausal: true}
+      no_fire:
+        - text: Some spotting between periods this month.
+          facts: {postmenopausal: false}
+      unknown:
+        - text: I noticed vaginal bleeding.
+          facts: {sex: female, age_years: 55}
+
+  - id: cancer.persistent_hoarseness_or_swallowing
+    area: possible_cancer
+    level: urgent
+    title: Persistent hoarseness, or difficulty swallowing
+    fires:
+      text:
+        - 'hoarse\w* (?:voice )?(?:for|over|more than) (?:3|three|4|four|several|\d+) weeks'
+        - 'voice (?:has been|is) hoarse (?:for|over)'
+        - (?:difficulty|trouble|problems?) swallowing
+        - food (?:gets|getting|keeps getting) stuck
+        - (?:can'?t|cannot) swallow (?:food|properly|solids)
+        - dysphagia
+    rule_out_question: Has your voice been hoarse for more than 3 weeks, or is food getting stuck when you swallow?
+    sources: [nice_ng12_cancer, nhs_swallowing_problems, nhs_laryngitis]
+    examples:
+      fires:
+        - text: Food keeps getting stuck when I swallow.
+        - text: I have had a hoarse voice for 5 weeks.
+      no_fire:
+        - text: My voice was hoarse for two days with a cold.

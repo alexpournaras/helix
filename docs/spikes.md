@@ -108,3 +108,20 @@ review, by your instruction). Findings and changes (table version 2):
 
 After the fixes: X8 48/50 (unchanged), X8b 82/82 verified. **The honest held-out figure is the 98% before the
 fixes;** the 100% is in-sample.
+
+## Universal floor vignettes (`floor_vignettes.py`, 2026-11-24)
+
+Synthetic vignettes written separately from the rules' own examples. An emergency vignette passes when an
+emergency rule fires or is unknown (its rule-out question is asked); an everyday vignette passes when no
+emergency rule fires.
+
+| Set | First run | After fixes |
+|---|---|---|
+| Set 1 (20 emergencies, 15 everyday) | **13/20** emergencies caught; 1 false trigger ("hay fever" matched fever) | 20/20, 0 false |
+| Set 2 (written after the set-1 fixes) | **15/20** caught, 0 false | 20/20, 0 false |
+
+The first-run misses were all wording variants ("pain in the middle of his chest", "drank some bleach",
+"feels like it's closing", "killing myself", "temperature is 38.6"), fixed with proximity patterns. **The honest
+estimate is the first-run catch rate, about 70–75% on new wording**; the rule-based floor is one layer, the
+safety panel (B8.2) the second. The real measure is the E3.7 triage benchmark (Semigran vignettes) in 1C.2.
+

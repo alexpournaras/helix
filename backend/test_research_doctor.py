@@ -100,7 +100,8 @@ class DoctorTests(ResearchTestCase):
         checks = _by_name(self.run_checks())
         statuses = {c.detail.split(":")[0]: c.status for c in checks["knowledge"]}
         self.assertEqual(statuses["mesh_systems.yaml"], "ok")
-        self.assertIn(statuses["universal/red_flags.yaml"], ("ok", "warn"))
+        self.assertEqual(statuses["universal/red_flags.yaml"], "ok")
+        self.assertTrue(any("not yet reviewed" in c.detail for c in checks["knowledge"]))
 
     def test_git_tracked_secrets_fail(self):
         checks = _by_name(doctor.checks(data_dir=self.tmp, git_tracked=lambda paths: ["backend/.env"]))

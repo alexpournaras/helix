@@ -73,6 +73,19 @@ class ConditionTests(unittest.TestCase):
         self.assertEqual((r.state, r.unknown_facts), ("unknown", ["age_months"]))
         self.assertEqual(ev({"fact": "sex", "in": ["female"]}, "x", sex="female").state, "true")
 
+    def test_fact_missing_default(self):
+        node = {"fact": "diabetes", "eq": True, "missing": False}
+        self.assertEqual(ev(node, "x").state, "false")
+        self.assertEqual(ev(node, "x", diabetes=True).state, "true")
+        with self.assertRaises(C.ConditionError):
+            C.compile_condition({"fact": "diabetes", "eq": True, "missing": "no"})
+
+    def test_rule_derives_ages(self):
+        r = L.Rule.model_validate({**RULE, "fires": {"fact": "age_months", "lt": 3}, "unknown": "age",
+                                   "examples": {"fires": [{"text": "x", "facts": {"age_years": 0.1}}],
+                                                "no_fire": [{"text": "x", "facts": {"age_years": 2}}]}})
+        self.assertEqual(r.check(case("x", age_years=0.1)).state, "true")
+
     def test_bad_conditions(self):
         for node in ({}, {"all": []}, {"text": []}, {"fact": "shoe_size", "gt": 3}, {"fact": "age_years"},
                      {"frobnicate": 1}, {"text": ["(unclosed"]}, "chest pain"):
@@ -104,7 +117,7 @@ RULE = {
     "title": "Chest pain with breathlessness",
     "fires": {"all": [{"text": ["chest pain"]}, {"mention": ["breathless"]}]},
     "unknown": "breathlessness", "rule_out_question": "Are you breathless?", "sources": ["src_a"],
-    "examples": {"fires": [{"text": "Chest pain and breathless."}], "no": [{"text": "Knee pain."}],
+    "examples": {"fires": [{"text": "Chest pain and breathless."}], "no_fire": [{"text": "Knee pain."}],
                  "unknown": [{"text": "Chest pain."}]},
 }
 SOURCES = {"version": 1, "sources": [{"id": "src_a", "title": "Source A", "publisher": "Pub", "url": "https://a.test/",
@@ -131,14 +144,14 @@ class SchemaAndValidatorTests(unittest.TestCase):
         self.assertEqual(V.check_rule(self.rule(), self.sources), [])
 
     def test_examples_are_the_unit_tests(self):
-        bad = self.rule(examples={"fires": [{"text": "Knee pain."}], "no": [{"text": "Chest pain, breathless."}]})
+        bad = self.rule(examples={"fires": [{"text": "Knee pain."}], "no_fire": [{"text": "Chest pain, breathless."}]})
         problems = V.check_rule(bad, self.sources)
         self.assertEqual(len(problems), 2, problems)
 
     def test_schema_errors(self):
         for change in ({"level": "soonish"}, {"area": "elbows"}, {"rule_out_question": "Tell me."},
                        {"sources": []}, {"id": "nodots"}, {"fires": {"text": []}}, {"extra": 1},
-                       {"examples": {"fires": [{"text": "x"}], "no": []}}):
+                       {"examples": {"fires": [{"text": "x"}], "no_fire": []}}):
             with self.subTest(change=change):
                 with self.assertRaises(Exception):
                     self.rule(**change)

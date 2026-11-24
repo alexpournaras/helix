@@ -9,7 +9,8 @@ Condition grammar (YAML):
     {text: [regex, …]}     a positive (non-negated) mention → true; otherwise false
     {mention: [regex, …]}  a positive mention → true; only negated mentions → false; never mentioned → unknown
                            (use it for the features a triage nurse would ask about)
-    {fact: name, <op>: v}  op is eq, ne, lt, lte, gt, gte or in; a missing fact → unknown
+    {fact: name, <op>: v}  op is eq, ne, lt, lte, gt, gte or in; a missing fact → unknown, unless the node
+                           says `missing: false` (or true), e.g. "has diabetes" when nothing says so
 
 Patterns are case-insensitive regexes matched on whole words. A mention is negated when a negation cue ("no",
 "not", "without", "denies", "never", "n't", …) comes before it in the same segment, within NEGATION_WINDOW words,
@@ -91,13 +92,16 @@ def compile_condition(node: Any) -> dict:
         return {op: [_pattern(p) for p in patterns], "raw": list(patterns)}
     if "fact" in keys:
         name = node["fact"]
-        ops = keys - {"fact"}
+        ops = keys - {"fact", "missing"}
+        missing = node.get("missing")
+        if missing is not None and not isinstance(missing, bool):
+            raise ConditionError(f"fact {name}: missing must be true or false")
         if name not in FACTS:
             raise ConditionError(f"unknown fact {name!r} (known: {', '.join(FACTS)})")
         if len(ops) != 1 or not ops <= set(OPS):
             raise ConditionError(f"fact {name} needs exactly one of {OPS}")
         (op,) = ops
-        return {"fact": name, "op": op, "value": node[op]}
+        return {"fact": name, "op": op, "value": node[op], "missing": missing}
     raise ConditionError(f"unknown condition keys {sorted(keys)}")
 
 
@@ -159,10 +163,10 @@ def mentions(patterns: list[re.Pattern], segments: Iterable[tuple[str, str]]) ->
     return positive, negative
 
 
-def _fact(case: Case, name: str, op: str, value: Any) -> str:
+def _fact(case: Case, name: str, op: str, value: Any, missing: bool | None = None) -> str:
     have = case.facts.get(name)
     if have is None:
-        return UNKNOWN
+        return UNKNOWN if missing is None else (TRUE if missing else FALSE)
     try:
         ok = {
             "eq": lambda: have == value, "ne": lambda: have != value, "lt": lambda: have < value,
@@ -200,5 +204,5 @@ def evaluate(compiled: dict, case: Case) -> Result:
         if positive:
             return Result(TRUE, positive)
         return Result(FALSE if negative else UNKNOWN, [])
-    state = _fact(case, compiled["fact"], compiled["op"], compiled["value"])
+    state = _fact(case, compiled["fact"], compiled["op"], compiled["value"], compiled.get("missing"))
     return Result(state, [], [compiled["fact"]] if state == UNKNOWN else [])

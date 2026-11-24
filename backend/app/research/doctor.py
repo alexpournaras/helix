@@ -120,11 +120,28 @@ def _knowledge() -> list[Check]:
                                             f"{len(table['systems'])} systems"))
     except (OSError, ValueError, yaml.YAMLError) as exc:
         out.append(Check("knowledge", "fail", f"mesh_systems.yaml: {exc}"))
-    floor = KNOWLEDGE / "universal" / "red_flags.yaml"
-    if floor.exists():
-        out.append(Check("knowledge", "ok", "universal/red_flags.yaml: present"))
-    else:
+    from app.research.knowledge import loader, validator  # local: keeps doctor importable if knowledge breaks
+
+    if not (KNOWLEDGE / "universal" / "red_flags.yaml").exists():
         out.append(Check("knowledge", "warn", "universal/red_flags.yaml: not written yet (1B.1)"))
+        return out
+    try:
+        sources, lock = loader.load_sources(), loader.load_lock()
+        floor, packs = loader.load_floor(), loader.load_packs()
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        out.append(Check("knowledge", "fail", f"universal/red_flags.yaml: can't load: {str(exc)[:200]}"))
+        return out
+    problems = validator.check_floor(floor, sources) + [p for pk in packs.values()
+                                                       for p in validator.check_pack(pk, sources, lock)]
+    problems += validator.check_sources(sources, lock, validator.cited_sources(floor, packs.values()))
+    if problems:
+        out.append(Check("knowledge", "fail", f"universal/red_flags.yaml: {len(problems)} problem(s), e.g. {problems[0]}"))
+    else:
+        out.append(Check("knowledge", "ok", f"universal/red_flags.yaml: {len(floor.rules)} rules, "
+                                            f"{len(packs)} pack(s), {len(sources)} sources, all valid"))
+    for name, review in [("universal floor", floor.review)] + [(f"pack {k}", p.review) for k, p in packs.items()]:
+        if review.status != "reviewed":
+            out.append(Check("knowledge", "warn", f"{name}: agent draft, not yet reviewed by clinicians"))
     return out
 
 

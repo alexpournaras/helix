@@ -1,0 +1,212 @@
+# Curated complaint pack: tinnitus (PLAN B7.2, 1B.2). v0.
+#
+# DRAFTED BY AN AGENT (2026-11-24) from NICE NG155 (recommendations page read live on that date), NICE NG98 and
+# NHS pages. The automated build (eval/tools/build_pack.py: grounding pass at maximum depth → strongest models
+# draft → code verifies sources → human review) needs the grounding step (1C.3); this v0 is the hand-built
+# starting point it will be compared against. Not reviewed by a clinician yet (PLAN Part G.6).
+# Management topics are discussion points only: never instructions, never doses.
+version: 1
+complaint: tinnitus
+mesh: [D014012]
+built_by: agent draft v0 from NICE NG155 / NG98 and NHS; build_pack.py pending grounding (1C.3)
+review:
+  status: unreviewed
+  reviewers: []
+  notes: Levels follow NG155 section 1.2. Needs clinician review.
+
+red_flags:
+  - id: tinnitus.with_neurological_or_vestibular_symptoms
+    area: ent
+    level: emergency
+    title: Tinnitus with sudden neurological symptoms (such as facial weakness) or severe uncontrolled vertigo
+    fires:
+      all:
+        - text:
+            - tinnitus
+            - ringing (?:in|of) (?:my |the |his |her )?(?:left |right |both )?ears?
+            - buzzing (?:in|of) (?:my |the |his |her )?(?:left |right |both )?ears?
+            - noise in (?:my |the |his |her )?(?:left |right |both )?ears?
+        - any:
+            - mention:
+                - facial (?:weakness|droop)
+                - face (?:is |has )?(?:drooping|weak|numb)
+                - double vision
+                - slurr\w*
+                - sudden\w* (?:weak\w*|numb\w*)
+            - mention:
+                - vertigo
+                - (?:room|everything) (?:is )?spinning
+                - (?:can'?t|cannot) (?:stand|walk) (?:up )?(?:because of|from|with) (?:the )?(?:dizziness|spinning|vertigo)
+    unknown: neurological_symptoms
+    rule_out_question: Along with the tinnitus, have you had any sudden facial weakness, double vision, slurred speech, numbness, or severe spinning dizziness?
+    sources: [nice_ng155_tinnitus, nice_ng128_stroke]
+    examples:
+      fires:
+        - text: Sudden ringing in my right ear and now the room is spinning so I can't stand.
+        - text: Tinnitus started today and my face is drooping on one side.
+      no_fire:
+        - text: Constant tinnitus for years. No vertigo, no facial weakness, no double vision, no slurred speech, no numbness.
+      unknown:
+        - text: I have had tinnitus in my left ear for a week.
+
+  - id: tinnitus.with_disabling_distress
+    area: mental_health
+    level: urgent
+    title: Tinnitus causing distress that stops usual daily activities
+    fires:
+      all:
+        - text:
+            - tinnitus
+            - ringing (?:in|of) (?:my |the )?(?:left |right |both )?ears?
+            - noise in (?:my |the )?(?:left |right |both )?ears?
+        - text:
+            - (?:can'?t|cannot) cope
+            - unbearable
+            - (?:ruining|destroying|taking over) my life
+            - (?:can'?t|cannot) (?:work|function|concentrate|sleep at all)
+            - (?:severe|extreme) (?:distress|anxiety)
+            - driving me (?:mad|crazy|insane)
+            - (?:stopped|stopping) me (?:from )?(?:working|going out|doing)
+    rule_out_question: Is the tinnitus so distressing that it stops you working, sleeping or doing your usual daily activities?
+    sources: [nice_ng155_tinnitus]
+    examples:
+      fires:
+        - text: The ringing in my ears is unbearable and I can't work any more.
+      no_fire:
+        - text: My tinnitus is mildly annoying at night but I sleep and work fine.
+
+  - id: tinnitus.one_sided_persistent
+    area: ent
+    level: routine_review
+    title: Persistent tinnitus in one ear
+    fires:
+      all:
+        - text:
+            - tinnitus
+            - ringing
+            - buzzing
+            - hissing
+            - noise in (?:my |the )?ear
+        - text:
+            - one ear
+            - one side
+            - (?:left|right) ear
+            - only (?:in|on) (?:my |the )?(?:left|right)
+            - one[- ]sided
+            - unilateral
+    rule_out_question: Is the tinnitus only in one ear, and has it lasted more than a few weeks?
+    sources: [nice_ng155_tinnitus, nhs_acoustic_neuroma]
+    examples:
+      fires:
+        - text: I have had ringing only in my right ear for two months.
+      no_fire:
+        - text: Ringing in both ears after concerts.
+
+etiologies:
+  - id: noise_exposure
+    name: Noise-induced hearing damage
+    key_features: ["history of loud noise at work or leisure", "often both ears", "high-pitched tone", "may follow a single loud event"]
+    discriminating_questions: ["Have you been exposed to loud noise at work, music, shooting or machinery?", "Did it start after a loud event?"]
+    typical_evaluations: ["audiological assessment"]
+    sources: [nice_ng155_tinnitus, nhs_tinnitus]
+  - id: age_related_hearing_loss
+    name: Age-related hearing loss
+    key_features: ["gradual hearing loss in both ears", "older age", "difficulty following conversation in noise"]
+    discriminating_questions: ["Have you noticed your hearing getting worse?", "Do others say you have the television loud?"]
+    typical_evaluations: ["audiological assessment"]
+    sources: [nice_ng98_hearing_loss, nice_ng155_tinnitus]
+  - id: earwax_or_ear_canal
+    name: Earwax or an ear canal blockage
+    key_features: ["blocked or muffled feeling", "often one ear", "may follow swimming or cotton-bud use"]
+    discriminating_questions: ["Does the ear feel blocked or full?", "Is your hearing muffled on that side?"]
+    typical_evaluations: ["ear examination (otoscopy)"]
+    sources: [nhs_earwax, nhs_tinnitus]
+  - id: middle_ear_conditions
+    name: Middle-ear problems (fluid behind the eardrum, Eustachian tube dysfunction, otosclerosis)
+    key_features: ["muffled hearing", "ear fullness", "recent cold or ear infection", "popping or crackling"]
+    discriminating_questions: ["Have you had a recent cold or ear infection?", "Does the ear pop or feel full?"]
+    typical_evaluations: ["ear examination (otoscopy)", "tympanometry"]
+    sources: [nice_ng155_tinnitus]
+  - id: menieres_disease
+    name: Ménière's disease
+    key_features: ["episodes of spinning vertigo lasting minutes to hours", "fluctuating hearing loss", "ear fullness", "low-pitched roaring tinnitus"]
+    discriminating_questions: ["Do you have attacks of spinning dizziness?", "Does your hearing come and go in that ear?"]
+    typical_evaluations: ["audiological assessment", "specialist assessment"]
+    sources: [nhs_menieres]
+  - id: vestibular_schwannoma
+    name: Vestibular schwannoma (acoustic neuroma)
+    key_features: ["one-sided tinnitus", "one-sided or asymmetric hearing loss", "imbalance", "rarely facial numbness"]
+    discriminating_questions: ["Is the tinnitus or hearing loss only on one side?", "Any unsteadiness or facial numbness?"]
+    typical_evaluations: ["audiological assessment", "MRI of the internal auditory meati"]
+    red_flag: true
+    sources: [nhs_acoustic_neuroma, nice_ng155_tinnitus]
+  - id: pulsatile_vascular
+    name: Pulsatile tinnitus from blood-flow (vascular) causes
+    key_features: ["a whooshing or beating sound in time with the pulse", "may change with head position or pressing on the neck"]
+    discriminating_questions: ["Does the sound beat in time with your heartbeat?", "Does it change when you press on your neck or turn your head?"]
+    typical_evaluations: ["specialist assessment", "imaging chosen by the specialist"]
+    red_flag: true
+    sources: [nice_ng155_tinnitus, nhs_tinnitus]
+  - id: ototoxic_medicines
+    name: Medicines that can affect hearing
+    key_features: ["started or increased after a new medicine", "may be both ears", "may come with hearing loss"]
+    discriminating_questions: ["Did the tinnitus start after a new medicine or a change in dose?"]
+    typical_evaluations: ["medication review", "audiological assessment"]
+    sources: [nhs_tinnitus]
+  - id: somatic_jaw_neck
+    name: Somatic (somatosensory) tinnitus linked to the jaw or neck
+    key_features: ["sound changes with jaw clenching", "neck movement or pressure", "jaw or neck pain", "teeth grinding"]
+    discriminating_questions: ["Does the sound change when you clench your jaw or move your neck?", "Do you have jaw or neck pain?"]
+    typical_evaluations: ["examination of the jaw and neck"]
+    sources: [nice_ng155_tinnitus]
+  - id: stress_sleep_mood
+    name: Tinnitus made worse by stress, poor sleep, anxiety or low mood
+    key_features: ["louder when stressed or tired", "worse at night in quiet", "linked anxiety or low mood"]
+    discriminating_questions: ["Is the tinnitus worse when you are stressed or tired?", "How is it affecting your sleep and mood?"]
+    typical_evaluations: ["Tinnitus Functional Index", "mental health assessment if there are concerns"]
+    sources: [nice_ng155_tinnitus, nhs_tinnitus]
+
+history_checklist:
+  - {id: onset, attribute: onset, priority: high, question: "When did the tinnitus start, and did it start suddenly or gradually?", sources: [nice_ng155_tinnitus]}
+  - {id: laterality, attribute: laterality, priority: high, question: "Is it in one ear, both ears, or inside the head?", sources: [nice_ng155_tinnitus]}
+  - {id: pulsatile, attribute: pulsatile, priority: high, question: "Does the sound beat or whoosh in time with your heartbeat?", sources: [nice_ng155_tinnitus]}
+  - {id: hearing_change, attribute: hearing_loss, priority: high, question: "Has your hearing changed, and if so did it change suddenly (over 3 days or less) or gradually?", sources: [nice_ng155_tinnitus, nice_ng98_hearing_loss]}
+  - {id: neuro_vestibular, attribute: neurological_or_vestibular_symptoms, priority: high, question: "Have you had dizziness or spinning, facial weakness, numbness, or problems with balance?", sources: [nice_ng155_tinnitus]}
+  - {id: distress, attribute: impact_on_life, priority: high, question: "How much does the tinnitus affect your sleep, mood, concentration and daily activities?", sources: [nice_ng155_tinnitus]}
+  - {id: noise, attribute: noise_exposure, priority: medium, question: "Have you been exposed to loud noise at work, music events or hobbies?", sources: [nhs_tinnitus]}
+  - {id: ear_symptoms, attribute: ear_symptoms, priority: medium, question: "Do you have ear pain, discharge, a blocked feeling or fullness in the ear?", sources: [nhs_tinnitus]}
+  - {id: medicines, attribute: medications, priority: medium, question: "Did the tinnitus start after starting or changing any medicine?", sources: [nhs_tinnitus]}
+  - {id: sound_sensitivity, attribute: hyperacusis, priority: medium, question: "Do everyday sounds feel uncomfortably loud?", sources: [nhs_hyperacusis]}
+  - {id: jaw_neck, attribute: jaw_neck_symptoms, priority: low, question: "Does the sound change with jaw or neck movement, or do you have jaw or neck pain?", sources: [nice_ng155_tinnitus]}
+  - {id: character, attribute: character, priority: low, question: "What does it sound like (ringing, buzzing, hissing, humming, roaring)?", sources: [nhs_tinnitus]}
+
+evaluations:
+  - {id: otoscopy, test: Ear examination (otoscopy), indication: "Everyone with tinnitus, to look for wax, infection or eardrum problems", sources: [nhs_tinnitus]}
+  - {id: audiological_assessment, test: Audiological assessment (hearing test), indication: "Offered to people with tinnitus (NG155 1.4.1)", sources: [nice_ng155_tinnitus, nhs_hearing_tests]}
+  - {id: tympanometry, test: Tympanometry, indication: "When middle-ear or Eustachian tube problems are suspected (NG155 1.4.2)", sources: [nice_ng155_tinnitus]}
+  - {id: tfi, test: Tinnitus Functional Index (questionnaire), indication: "To assess how tinnitus affects an adult (NG155 1.3.1)", sources: [nice_ng155_tinnitus]}
+  - {id: mri_iam, test: MRI of the internal auditory meati, indication: "Non-pulsatile tinnitus with neurological, ear or head and neck signs (offer), or one-sided or asymmetric tinnitus without them (consider) (NG155 1.4.6–1.4.7)", sources: [nice_ng155_tinnitus]}
+  - {id: pulsatile_imaging, test: Imaging for pulsatile tinnitus chosen by a specialist, indication: "Persistent pulsatile tinnitus, after specialist assessment", sources: [nice_ng155_tinnitus]}
+
+management_topics:
+  - {id: information_support, topic: Information and tinnitus support, context: "NG155 recommends information and support at every stage, including what tinnitus is and self-help options", sources: [nice_ng155_tinnitus]}
+  - {id: hearing_aids, topic: Hearing aids (amplification) when there is hearing loss, context: "NG155 recommends offering amplification devices to people with tinnitus and hearing loss that affects communication, and considering them when it doesn't", sources: [nice_ng155_tinnitus, nice_ng98_hearing_loss]}
+  - {id: psychological_therapies, topic: Psychological therapies for tinnitus-related distress, context: "NG155 describes a stepped approach starting with digital tinnitus-related CBT, then group-based therapies such as mindfulness-based cognitive therapy, then individual CBT", sources: [nice_ng155_tinnitus]}
+  - {id: sound_therapy, topic: Sound therapy and sound generators, context: "Often used; NG155 found the evidence too limited to recommend for or against and asks for more research", sources: [nice_ng155_tinnitus]}
+  - {id: betahistine, topic: Betahistine for tinnitus, context: "NG155 recommends against offering betahistine to treat tinnitus", sources: [nice_ng155_tinnitus]}
+  - {id: treat_cause, topic: Treating a cause that is found, context: "For example removing earwax or treating a middle-ear problem", sources: [nhs_tinnitus, nhs_earwax]}
+  - {id: sleep_and_quiet, topic: Sleep and quiet environments, context: "Low background sound at night and sleep routines are common self-help topics", sources: [nhs_tinnitus]}
+  - {id: noise_protection, topic: Protecting hearing from loud noise, context: "Hearing protection to avoid further noise damage", sources: [nhs_tinnitus]}
+
+vocabulary:
+  mesh_terms: ["Tinnitus", "Hearing Loss", "Hearing Loss, Noise-Induced", "Hyperacusis", "Neuroma, Acoustic", "Meniere Disease"]
+  synonyms: ["ringing in the ears", "buzzing in the ears", "ear noise", "head noise", "whooshing sound", "hissing in the ear", "pulsatile tinnitus", "somatic tinnitus"]
+
+seed_literature:
+  - {pmid: "42861423", kind: guideline, title: "Clinical Practice Guideline: Tinnitus Update (AAO-HNSF, 2026)"}
+  - {pmid: "30847513", kind: guideline, title: "A multidisciplinary European guideline for tinnitus (HNO, 2019)"}
+  - {pmid: "40111327", kind: guideline, title: "VA/DoD Clinical Practice Guideline for Management of Tinnitus (2025)"}
+  - {pmid: "38040471", kind: guideline, title: "ACR Appropriateness Criteria: Tinnitus, 2023 update"}
+  - {pmid: "31912887", kind: systematic_review, title: "Cognitive behavioural therapy for tinnitus (Cochrane, 2020)"}
+  - {pmid: "30589445", kind: systematic_review, title: "Sound therapy for tinnitus (Cochrane, 2018)"}
+  - {pmid: "38516122", kind: systematic_review, title: "Diagnostic yield of imaging in pulsatile tinnitus: a systematic review (2023)"}

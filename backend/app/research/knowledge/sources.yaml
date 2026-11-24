@@ -1,0 +1,103 @@
+# Sources cited by the universal safety floor and the curated packs (PLAN B7, Part G.6).
+# Every URL is checked live by eval/tools/check_sources.py; results in sources.lock.json (tests require "ok").
+# NICE CKS pages are not used: they refuse automated requests (HTTP 403), so they can't be shown to resolve.
+# Kinds: triage (urgent-care advice), red_flag_guidance (clinical red-flag / referral criteria), guideline,
+# patient_information, review.
+version: 1
+sources:
+  - {id: nice_cg103_delirium, title: "Delirium: prevention, diagnosis and management in hospital and long-term care (CG103)", publisher: NICE, url: "https://www.nice.org.uk/guidance/cg103", kind: guideline}
+  - {id: nice_cg109_tloc, title: "Transient loss of consciousness ('blackouts') in over 16s (CG109)", publisher: NICE, url: "https://www.nice.org.uk/guidance/cg109", kind: guideline}
+  - {id: nice_cg134_anaphylaxis, title: "Anaphylaxis: assessment and referral after emergency treatment (CG134)", publisher: NICE, url: "https://www.nice.org.uk/guidance/cg134", kind: guideline}
+  - {id: nice_cg95_chest_pain, title: "Recent-onset chest pain of suspected cardiac origin (CG95)", publisher: NICE, url: "https://www.nice.org.uk/guidance/cg95", kind: guideline}
+  - {id: nice_ng10_violence, title: "Violence and aggression: short-term management in mental health, health and community settings (NG10)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng10", kind: guideline}
+  - {id: nice_ng126_ectopic, title: "Ectopic pregnancy and miscarriage: diagnosis and initial management (NG126)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng126", kind: guideline}
+  - {id: nice_ng128_stroke, title: "Stroke and transient ischaemic attack in over 16s (NG128)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng128", kind: guideline}
+  - {id: nice_ng12_cancer, title: "Suspected cancer: recognition and referral (NG12)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng12", kind: red_flag_guidance}
+  - {id: nice_ng133_hypertension_pregnancy, title: "Hypertension in pregnancy: diagnosis and management (NG133)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng133", kind: guideline}
+  - {id: nice_ng143_fever_under5, title: "Fever in under 5s: assessment and initial management (NG143)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng143", kind: guideline}
+  - {id: nice_ng155_tinnitus, title: "Tinnitus: assessment and management (NG155)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng155", kind: guideline}
+  - {id: nice_ng17_type1_diabetes, title: "Type 1 diabetes in adults: diagnosis and management (NG17)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng17", kind: guideline}
+  - {id: nice_ng18_diabetes_children, title: "Diabetes (type 1 and type 2) in children and young people (NG18)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng18", kind: guideline}
+  - {id: nice_ng201_antenatal, title: "Antenatal care (NG201)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng201", kind: guideline}
+  - {id: nice_ng217_epilepsy, title: "Epilepsies in children, young people and adults (NG217)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng217", kind: guideline}
+  - {id: nice_ng225_self_harm, title: "Self-harm: assessment, management and preventing recurrence (NG225)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng225", kind: guideline}
+  - {id: nice_ng232_head_injury, title: "Head injury: assessment and early management (NG232)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng232", kind: guideline}
+  - {id: nice_ng240_meningitis, title: "Meningitis (bacterial) and meningococcal disease (NG240)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng240", kind: guideline}
+  - {id: nice_ng249_falls, title: "Falls: assessment and prevention in older people and in people 50 and over at higher risk (NG249)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng249", kind: guideline}
+  - {id: nice_ng51_sepsis, title: "Suspected sepsis: recognition, diagnosis and early management (NG51)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng51", kind: guideline}
+  - {id: nice_ng69_eating_disorders, title: "Eating disorders: recognition and treatment (NG69)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng69", kind: guideline}
+  - {id: nice_ng98_hearing_loss, title: "Hearing loss in adults: assessment and management (NG98)", publisher: NICE, url: "https://www.nice.org.uk/guidance/ng98", kind: guideline}
+  - {id: nhs_acoustic_neuroma, title: "Acoustic neuroma (vestibular schwannoma)", publisher: NHS, url: "https://www.nhs.uk/conditions/acoustic-neuroma/", kind: patient_information}
+  - {id: nhs_anaphylaxis, title: "Anaphylaxis", publisher: NHS, url: "https://www.nhs.uk/conditions/anaphylaxis/", kind: triage}
+  - {id: nhs_appendicitis, title: "Appendicitis", publisher: NHS, url: "https://www.nhs.uk/conditions/appendicitis/", kind: triage}
+  - {id: nhs_baby_movements, title: "Your baby's movements", publisher: NHS, url: "https://www.nhs.uk/pregnancy/keeping-well/your-babys-movements/", kind: triage}
+  - {id: nhs_back_pain, title: "Back pain", publisher: NHS, url: "https://www.nhs.uk/conditions/back-pain/", kind: triage}
+  - {id: nhs_bells_palsy, title: "Bell's palsy", publisher: NHS, url: "https://www.nhs.uk/conditions/bells-palsy/", kind: triage}
+  - {id: nhs_bowel_cancer_symptoms, title: "Symptoms of bowel cancer", publisher: NHS, url: "https://www.nhs.uk/conditions/bowel-cancer/symptoms/", kind: triage}
+  - {id: nhs_breast_lump, title: "Breast lumps", publisher: NHS, url: "https://www.nhs.uk/symptoms/breast-lump/", kind: triage}
+  - {id: nhs_burns, title: "Burns and scalds", publisher: NHS, url: "https://www.nhs.uk/conditions/burns-and-scalds/", kind: triage}
+  - {id: nhs_cellulitis, title: "Cellulitis", publisher: NHS, url: "https://www.nhs.uk/conditions/cellulitis/", kind: triage}
+  - {id: nhs_chemotherapy, title: "Chemotherapy", publisher: NHS, url: "https://www.nhs.uk/tests-and-treatments/chemotherapy/", kind: triage}
+  - {id: nhs_chest_pain, title: "Chest pain", publisher: NHS, url: "https://www.nhs.uk/symptoms/chest-pain/", kind: triage}
+  - {id: nhs_confusion, title: "Sudden confusion (delirium)", publisher: NHS, url: "https://www.nhs.uk/symptoms/confusion/", kind: triage}
+  - {id: nhs_coughing_blood, title: "Coughing up blood (blood in phlegm)", publisher: NHS, url: "https://www.nhs.uk/symptoms/coughing-up-blood/", kind: triage}
+  - {id: nhs_croup, title: "Croup", publisher: NHS, url: "https://www.nhs.uk/conditions/croup/", kind: triage}
+  - {id: nhs_dehydration, title: "Dehydration", publisher: NHS, url: "https://www.nhs.uk/conditions/dehydration/", kind: triage}
+  - {id: nhs_dka, title: "Diabetic ketoacidosis", publisher: NHS, url: "https://www.nhs.uk/conditions/diabetic-ketoacidosis/", kind: triage}
+  - {id: nhs_double_vision, title: "Double vision", publisher: NHS, url: "https://www.nhs.uk/symptoms/double-vision/", kind: triage}
+  - {id: nhs_dvt, title: "DVT (deep vein thrombosis)", publisher: NHS, url: "https://www.nhs.uk/conditions/deep-vein-thrombosis-dvt/", kind: triage}
+  - {id: nhs_earwax, title: "Earwax build-up", publisher: NHS, url: "https://www.nhs.uk/conditions/earwax-build-up/", kind: patient_information}
+  - {id: nhs_ectopic, title: "Ectopic pregnancy", publisher: NHS, url: "https://www.nhs.uk/conditions/ectopic-pregnancy/", kind: triage}
+  - {id: nhs_enlarged_prostate, title: "Enlarged prostate", publisher: NHS, url: "https://www.nhs.uk/conditions/enlarged-prostate/", kind: triage}
+  - {id: nhs_epiglottitis, title: "Epiglottitis", publisher: NHS, url: "https://www.nhs.uk/conditions/epiglottitis/", kind: triage}
+  - {id: nhs_epilepsy, title: "Epilepsy", publisher: NHS, url: "https://www.nhs.uk/conditions/epilepsy/", kind: triage}
+  - {id: nhs_eye_injuries, title: "Eye injuries", publisher: NHS, url: "https://www.nhs.uk/conditions/eye-injuries/", kind: triage}
+  - {id: nhs_fainting, title: "Fainting", publisher: NHS, url: "https://www.nhs.uk/symptoms/fainting/", kind: triage}
+  - {id: nhs_falls, title: "Falls", publisher: NHS, url: "https://www.nhs.uk/conditions/falls/", kind: triage}
+  - {id: nhs_fever_children, title: "Fever in children", publisher: NHS, url: "https://www.nhs.uk/symptoms/fever-in-children/", kind: triage}
+  - {id: nhs_flashes_floaters, title: "Floaters and flashes in the eyes", publisher: NHS, url: "https://www.nhs.uk/symptoms/floaters-and-flashes-in-the-eyes/", kind: triage}
+  - {id: nhs_glaucoma, title: "Glaucoma", publisher: NHS, url: "https://www.nhs.uk/conditions/glaucoma/", kind: triage}
+  - {id: nhs_head_injury, title: "Head injury and concussion", publisher: NHS, url: "https://www.nhs.uk/conditions/head-injury-and-concussion/", kind: triage}
+  - {id: nhs_headaches, title: "Headaches", publisher: NHS, url: "https://www.nhs.uk/symptoms/headaches/", kind: triage}
+  - {id: nhs_hearing_loss, title: "Hearing loss", publisher: NHS, url: "https://www.nhs.uk/conditions/hearing-loss/", kind: triage}
+  - {id: nhs_hearing_tests, title: "Hearing tests", publisher: NHS, url: "https://www.nhs.uk/tests-and-treatments/hearing-tests/", kind: patient_information}
+  - {id: nhs_heart_attack, title: "Heart attack - symptoms", publisher: NHS, url: "https://www.nhs.uk/conditions/heart-attack/", kind: triage}
+  - {id: nhs_high_temperature, title: "High temperature (fever) in adults", publisher: NHS, url: "https://www.nhs.uk/symptoms/fever-in-adults/", kind: triage}
+  - {id: nhs_hyperacusis, title: "Noise sensitivity (hyperacusis)", publisher: NHS, url: "https://www.nhs.uk/conditions/hyperacusis/", kind: patient_information}
+  - {id: nhs_hyperglycaemia, title: "High blood sugar (hyperglycaemia)", publisher: NHS, url: "https://www.nhs.uk/conditions/high-blood-sugar-hyperglycaemia/", kind: triage}
+  - {id: nhs_hypoglycaemia, title: "Low blood sugar (hypoglycaemia)", publisher: NHS, url: "https://www.nhs.uk/conditions/low-blood-sugar-hypoglycaemia/", kind: triage}
+  - {id: nhs_jaundice, title: "Jaundice", publisher: NHS, url: "https://www.nhs.uk/conditions/jaundice/", kind: triage}
+  - {id: nhs_kidney_infection, title: "Kidney infection", publisher: NHS, url: "https://www.nhs.uk/conditions/kidney-infection/", kind: triage}
+  - {id: nhs_laryngitis, title: "Laryngitis", publisher: NHS, url: "https://www.nhs.uk/conditions/laryngitis/", kind: triage}
+  - {id: nhs_lumps, title: "Lumps", publisher: NHS, url: "https://www.nhs.uk/symptoms/lumps/", kind: triage}
+  - {id: nhs_menieres, title: "Ménière's disease", publisher: NHS, url: "https://www.nhs.uk/conditions/menieres-disease/", kind: patient_information}
+  - {id: nhs_meningitis, title: "Meningitis", publisher: NHS, url: "https://www.nhs.uk/conditions/meningitis/", kind: triage}
+  - {id: nhs_mental_health_emergency, title: "Where to get urgent help for mental health", publisher: NHS, url: "https://www.nhs.uk/nhs-services/mental-health-services/where-to-get-urgent-help-for-mental-health/", kind: triage}
+  - {id: nhs_necrotising_fasciitis, title: "Necrotising fasciitis", publisher: NHS, url: "https://www.nhs.uk/conditions/necrotising-fasciitis/", kind: triage}
+  - {id: nhs_numbness, title: "Numbness and tingling", publisher: NHS, url: "https://www.nhs.uk/symptoms/pins-and-needles/", kind: triage}
+  - {id: nhs_poisoning, title: "Poisoning", publisher: NHS, url: "https://www.nhs.uk/conditions/poisoning/", kind: triage}
+  - {id: nhs_postmenopausal_bleeding, title: "Post-menopausal bleeding", publisher: NHS, url: "https://www.nhs.uk/symptoms/post-menopausal-bleeding/", kind: triage}
+  - {id: nhs_pre_eclampsia, title: "Pre-eclampsia", publisher: NHS, url: "https://www.nhs.uk/conditions/pre-eclampsia/", kind: triage}
+  - {id: nhs_pregnancy_bleeding, title: "Vaginal bleeding in pregnancy", publisher: NHS, url: "https://www.nhs.uk/pregnancy/common-symptoms/vaginal-bleeding/", kind: triage}
+  - {id: nhs_psychosis, title: "Psychosis", publisher: NHS, url: "https://www.nhs.uk/mental-health/conditions/psychosis/overview/", kind: triage}
+  - {id: nhs_pulmonary_embolism, title: "Pulmonary embolism", publisher: NHS, url: "https://www.nhs.uk/conditions/pulmonary-embolism/", kind: triage}
+  - {id: nhs_rashes_babies_children, title: "Rashes in babies and children", publisher: NHS, url: "https://www.nhs.uk/symptoms/rashes-babies-and-children/", kind: triage}
+  - {id: nhs_rectal_bleeding, title: "Bleeding from the bottom (rectal bleeding)", publisher: NHS, url: "https://www.nhs.uk/symptoms/bleeding-from-the-bottom-rectal-bleeding/", kind: triage}
+  - {id: nhs_red_eye, title: "Red eye", publisher: NHS, url: "https://www.nhs.uk/symptoms/red-eye/", kind: triage}
+  - {id: nhs_retinal_detachment, title: "Detached retina (retinal detachment)", publisher: NHS, url: "https://www.nhs.uk/conditions/detached-retina-retinal-detachment/", kind: triage}
+  - {id: nhs_sciatica, title: "Sciatica", publisher: NHS, url: "https://www.nhs.uk/conditions/sciatica/", kind: triage}
+  - {id: nhs_sepsis, title: "Sepsis", publisher: NHS, url: "https://www.nhs.uk/conditions/sepsis/", kind: triage}
+  - {id: nhs_shortness_of_breath, title: "Shortness of breath", publisher: NHS, url: "https://www.nhs.uk/symptoms/shortness-of-breath/", kind: triage}
+  - {id: nhs_sjs, title: "Stevens-Johnson syndrome", publisher: NHS, url: "https://www.nhs.uk/conditions/stevens-johnson-syndrome/", kind: triage}
+  - {id: nhs_sore_throat, title: "Sore throat", publisher: NHS, url: "https://www.nhs.uk/symptoms/sore-throat/", kind: triage}
+  - {id: nhs_stomach_ache, title: "Stomach ache", publisher: NHS, url: "https://www.nhs.uk/symptoms/stomach-ache/", kind: triage}
+  - {id: nhs_stroke_symptoms, title: "Stroke - symptoms", publisher: NHS, url: "https://www.nhs.uk/conditions/stroke/symptoms/", kind: triage}
+  - {id: nhs_suicidal_thoughts, title: "Help for suicidal thoughts", publisher: NHS, url: "https://www.nhs.uk/mental-health/feelings-symptoms-behaviours/behaviours/help-for-suicidal-thoughts/", kind: triage}
+  - {id: nhs_swallowing_problems, title: "Swallowing problems (dysphagia)", publisher: NHS, url: "https://www.nhs.uk/symptoms/swallowing-problems-dysphagia/", kind: triage}
+  - {id: nhs_testicle_pain, title: "Testicle pain", publisher: NHS, url: "https://www.nhs.uk/symptoms/testicle-pain/", kind: triage}
+  - {id: nhs_tinnitus, title: "Tinnitus", publisher: NHS, url: "https://www.nhs.uk/conditions/tinnitus/", kind: triage}
+  - {id: nhs_vision_loss, title: "Vision loss", publisher: NHS, url: "https://www.nhs.uk/conditions/vision-loss/", kind: triage}
+  - {id: nhs_vomiting_adults, title: "Diarrhoea and vomiting", publisher: NHS, url: "https://www.nhs.uk/symptoms/diarrhoea-and-vomiting/", kind: triage}
+  - {id: nhs_vomiting_blood, title: "Vomiting blood (haematemesis)", publisher: NHS, url: "https://www.nhs.uk/symptoms/vomiting-blood/", kind: triage}
+  - {id: nhs_waters_breaking, title: "Signs that labour has begun", publisher: NHS, url: "https://www.nhs.uk/pregnancy/labour-and-birth/signs-that-labour-has-begun/", kind: triage}
+  - {id: nhs_weight_loss, title: "Unexplained weight loss", publisher: NHS, url: "https://www.nhs.uk/symptoms/unintentional-weight-loss/", kind: triage}

@@ -23,9 +23,11 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] Checkpoint after 1A (judged by the agent at your request; see decisions.md)
 
 ### 1B Clinical knowledge
-- [ ] 1B.1 Universal safety floor
-- [ ] 1B.2 Tinnitus pack v0
-- [ ] 1B.3 Knowledge loader, validator and merge
+- [x] 1B.1 Universal safety floor: 63 rules, every area and population, 96 resolved sources, held-out vignettes 40/40 after fixes (first runs 13/20 and 15/20)
+- [x] 1B.2 Tinnitus pack v0 (hand-built from NICE NG155/NG98 + NHS; 7 verified seed papers)
+- [x] 1B.3 Knowledge loader, validator, conditions and merge
+- [ ] Clinician review of the floor and the tinnitus pack (two reviewers, recorded in decisions.md)
+- [ ] `build_pack.py` after grounding (1C.3)
 
 ### 1C–1H
 - [ ] 1C Intake, safety, grounding, questions

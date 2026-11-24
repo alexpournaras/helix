@@ -39,8 +39,9 @@ def _key() -> str:
     return ProviderKeys().ncbi_api_key.strip()
 
 
-async def eutil(client: httpx.AsyncClient, endpoint: str, params: dict, *, retries: int = 2) -> httpx.Response:
-    """GET an E-utility, respecting the rate limit and retrying on 429 / 5xx."""
+async def eutil(client: httpx.AsyncClient, endpoint: str, params: dict, *, retries: int = 2,
+                method: str = "GET") -> httpx.Response:
+    """GET (or POST, for long ID lists) an E-utility, respecting the rate limit and retrying on 429 / 5xx."""
     key = _key()
     query = {**params, "tool": TOOL}
     if key:
@@ -48,7 +49,10 @@ async def eutil(client: httpx.AsyncClient, endpoint: str, params: dict, *, retri
     interval = 0.11 if key else 0.35
     for attempt in range(retries + 1):
         await _throttle.wait(interval)
-        response = await client.get(f"{EUTILS}/{endpoint}", params=query)
+        if method == "POST":
+            response = await client.post(f"{EUTILS}/{endpoint}", data=query)
+        else:
+            response = await client.get(f"{EUTILS}/{endpoint}", params=query)
         if response.status_code == 429 or response.status_code >= 500:
             if attempt < retries:
                 await asyncio.sleep(1.5 * (attempt + 1))

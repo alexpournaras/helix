@@ -13,7 +13,10 @@ from pathlib import Path
 from typing import Iterator
 
 from ..config import settings
+from . import text
 from .models import Article, Details, FetchRun, Literature, LiteratureFull, LiteraturePage, Tag
+
+TAG_ORIGINS = ("user", "ai")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS literature (
@@ -38,6 +41,8 @@ CREATE TABLE IF NOT EXISTS literature (
     publication_types TEXT NOT NULL DEFAULT '[]',
     language          TEXT NOT NULL DEFAULT '',
     open_access       INTEGER,
+    retracted         INTEGER NOT NULL DEFAULT 0,
+    concern           INTEGER NOT NULL DEFAULT 0,
     cited_by_count    INTEGER,
     has_full_text     INTEGER NOT NULL DEFAULT 0,
     reference_count   INTEGER NOT NULL DEFAULT 0,
@@ -136,6 +141,8 @@ class LiteratureDB:
             ("cited_by_count", "INTEGER"),
             ("has_full_text", "INTEGER NOT NULL DEFAULT 0"),
             ("reference_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("retracted", "INTEGER NOT NULL DEFAULT 0"),
+            ("concern", "INTEGER NOT NULL DEFAULT 0"),
         ):
             if col not in lit_cols:
                 conn.execute(f"ALTER TABLE literature ADD COLUMN {col} {ddl}")
@@ -143,11 +150,16 @@ class LiteratureDB:
     # ---------- literature ----------
 
     def save_article(
-        self, article: Article, run_id: int | None = None, rank: int = 0, tags: list[str] = (), details: Details | None = None
+        self, article: Article, run_id: int | None = None, rank: int = 0, tags: list[str] = (), details: Details | None = None,
+        tag_origin: str = "user",
     ) -> tuple[int, bool]:
-        """Insert or refresh one article, adding `tags` to it. Existing tags and created_at survive
-        a refresh. Returns (id, created)."""
+        """Insert or refresh one article, adding `tags` to it with `tag_origin` ("user" or "ai"). Existing tags
+        and created_at survive a refresh. Returns (id, created)."""
+        if tag_origin not in TAG_ORIGINS:
+            raise ValueError(f"tag_origin must be one of {TAG_ORIGINS}")
         values = article.model_dump()
+        for f in ("retracted", "concern"):
+            values[f] = int(values[f])
         for f in LIST_FIELDS:
             values[f] = json.dumps(values[f], ensure_ascii=False)
         if values["open_access"] is not None:
@@ -170,8 +182,8 @@ class LiteratureDB:
                     "INSERT OR IGNORE INTO fetch_hits (run_id, literature_id, rank) VALUES (?, ?, ?)", (run_id, row["id"], rank)
                 )
             conn.executemany(
-                "INSERT OR IGNORE INTO literature_tags (literature_id, name, origin, created_at) VALUES (?, ?, 'user', ?)",
-                [(row["id"], name, stamp) for name in tags],
+                "INSERT OR IGNORE INTO literature_tags (literature_id, name, origin, created_at) VALUES (?, ?, ?, ?)",
+                [(row["id"], name, tag_origin, stamp) for name in tags],
             )
             if details is not None:
                 conn.execute(
@@ -213,6 +225,21 @@ class LiteratureDB:
                 data["open_access"] = bool(data["open_access"])
             out.append(Literature(**data, tags=tags[r["id"]], terms=terms[r["id"]]))
         return out
+
+    def find_existing(self, pmid: str | None = None, pmcid: str | None = None, doi: str | None = None) -> Literature | None:
+        """The saved copy of a paper, matched by PMID, then PMCID, then DOI (PLAN B8.13 "library first").
+        Among copies from several sources, the one with full text wins, then the oldest."""
+        keys = [("pmid", text.pmid(pmid)), ("pmcid", text.pmcid(pmcid)), ("doi", text.doi(doi))]
+        with self._conn() as conn:
+            for column, value in keys:
+                if not value:
+                    continue
+                row = conn.execute(
+                    f"SELECT * FROM literature WHERE {column} = ? ORDER BY has_full_text DESC, id LIMIT 1", (value,)
+                ).fetchone()
+                if row:
+                    return self._hydrate(conn, [row])[0]
+        return None
 
     def get(self, literature_id: int) -> Literature | None:
         with self._conn() as conn:

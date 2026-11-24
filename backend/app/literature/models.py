@@ -32,6 +32,13 @@ class Article(BaseModel):
     publication_types: list[str] = []
     language: str = ""
     open_access: bool | None = None  # only Europe PMC reports this
+    retracted: bool = False  # "Retracted Publication" type, or a "Retraction in" notice
+    concern: bool = False  # an "Expression of concern in" notice points at this paper
+
+    @property
+    def full_text_likely(self) -> bool:
+        """An open-access PMCID (PLAN B8.8); PubMed doesn't report open access, so a PMCID alone counts there."""
+        return bool(self.pmcid) and self.open_access is not False
 
 
 class Ref(BaseModel):

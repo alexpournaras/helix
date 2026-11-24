@@ -6,10 +6,11 @@ import httpx
 
 from .. import text
 from ..models import Article, Details, Preview
-from .ncbi import esearch, esummary, eutil, find_one, summary_fields
+from .ncbi import _esearch, esearch, esummary, eutil, find_one, summary_fields
 
 ID = "pubmed"
 NAME = "PubMed"
+FETCH_BATCH = 200  # spike X5: one POST with 200 IDs parses in a few seconds
 
 
 # Helix sort key -> (label, E-utilities sort value). Without a sort value, E-utilities returns
@@ -52,6 +53,28 @@ async def fetch(client: httpx.AsyncClient, source_id: str) -> tuple[Article, Det
     return (parse(node), Details()) if node is not None else None
 
 
+async def fetch_many(client: httpx.AsyncClient, pmids: list[str]) -> list[Article]:
+    """Many PubMed records in few calls (efetch POST, 200 IDs each), in the order asked; IDs PubMed
+    doesn't return are left out."""
+    wanted = list(dict.fromkeys(p for p in (text.pmid(i) for i in pmids) if p))
+    found: dict[str, Article] = {}
+    for i in range(0, len(wanted), FETCH_BATCH):
+        batch = wanted[i:i + FETCH_BATCH]
+        response = await eutil(client, "efetch.fcgi", {"db": "pubmed", "id": ",".join(batch), "retmode": "xml"},
+                               method="POST")
+        for node in ET.fromstring(response.content).iter("PubmedArticle"):
+            article = parse(node)
+            if article.pmid:
+                found[article.pmid] = article
+    return [found[p] for p in wanted if p in found]
+
+
+async def count(client: httpx.AsyncClient, query: str) -> int:
+    """Hit count only (esearch retmax=0, C10). A query PubMed rejects raises ValueError."""
+    total, _ = await _esearch(client, "pubmed", query, 0, None)
+    return total
+
+
 def _text(node: ET.Element | None) -> str:
     return text.clean("".join(node.itertext())) if node is not None else ""
 
@@ -91,6 +114,8 @@ def parse(node: ET.Element) -> Article:
 
     pub_date = _date(issue.find("PubDate") if issue is not None else None) or _date(article.find("ArticleDate"))
     pmid = citation.findtext("PMID", "").strip()
+    publication_types = [_text(p) for p in article.findall("PublicationTypeList/PublicationType") if _text(p)]
+    corrections = {c.get("RefType") for c in citation.findall("CommentsCorrectionsList/CommentsCorrections")}
 
     return Article(
         source=ID,
@@ -110,6 +135,9 @@ def parse(node: ET.Element) -> Article:
         pages=(article.findtext("Pagination/MedlinePgn") or "").strip(),
         keywords=[_text(k) for k in citation.findall("KeywordList/Keyword") if _text(k)],
         mesh=[_text(m) for m in citation.findall("MeshHeadingList/MeshHeading/DescriptorName") if _text(m)],
-        publication_types=[_text(p) for p in article.findall("PublicationTypeList/PublicationType") if _text(p)],
+        publication_types=publication_types,
         language=(article.findtext("Language") or "").strip().lower(),
+        retracted="Retracted Publication" in publication_types or "RetractionIn" in corrections,
+        # Only "...In" marks the affected paper; "ExpressionOfConcernFor" is on the notice itself (spike X5).
+        concern="ExpressionOfConcernIn" in corrections,
     )

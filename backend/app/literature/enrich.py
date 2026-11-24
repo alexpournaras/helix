@@ -221,7 +221,9 @@ async def _quiet(coro, label: str, missing: list[str], why: str):
         return None
 
 
-async def enrich(client: httpx.AsyncClient, article: Article, details: Details) -> tuple[Article, Details]:
+async def enrich(client: httpx.AsyncClient, article: Article, details: Details, *,
+                 citations: bool = True) -> tuple[Article, Details]:
+    """`citations=False` skips the citing-works list (research fetches, PLAN B8.13); references are kept."""
     missing: list[str] = []
     key = _epmc_key(article)
     want_core = article.source != "europepmc"  # Europe PMC's own fetch already used the core record
@@ -231,13 +233,14 @@ async def enrich(client: httpx.AsyncClient, article: Article, details: Details) 
         return None
 
     # These don't depend on each other, so they run at the same time.
-    core, text_result, citations = await asyncio.gather(
+    core, text_result, cited = await asyncio.gather(
         _quiet(_core(client, article), f"Europe PMC record for {article.source_id}", missing,
                "Citation count, links, funding and affiliations: Europe PMC didn't answer") if want_core else nothing(),
         _quiet(_full_text(client, article.pmcid), f"Full text for {article.pmcid}", missing,
                "Full text: the download failed") if want_text else nothing(),
         _quiet(_ref_list(client, f"/{key[0]}/{key[1]}/citations", "citationList", "citation", MAX_CITATIONS),
-               f"Citations for {article.source_id}", missing, "Cited by: Europe PMC didn't answer") if key else nothing(),
+               f"Citations for {article.source_id}", missing, "Cited by: Europe PMC didn't answer")
+        if key and citations else nothing(),
     )
 
     if core:
@@ -249,10 +252,10 @@ async def enrich(client: httpx.AsyncClient, article: Article, details: Details) 
             "full_text": sections, "full_text_from": text_result[1],
             "figures": details.figures or figures, "references": details.references or refs,
         })
-    if citations is not None:
+    if cited is not None:
         details = details.model_copy(update={
-            "citations": citations,
-            "cited_by_count": details.cited_by_count if details.cited_by_count is not None else len(citations),
+            "citations": cited,
+            "cited_by_count": details.cited_by_count if details.cited_by_count is not None else len(cited),
         })
 
     # The full text's own reference list is the most complete; ask Europe PMC only without it.

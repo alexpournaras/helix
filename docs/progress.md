@@ -15,7 +15,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.6 Worker and pipeline (lock, guards, stage machine, controls; dummy-pipeline tests)
 - [x] Extra: `dev` profile (gpt-5.4-mini + Ollama) and Ollama structured adapter (pulled forward from M2 2.10)
 - [x] 1A.7 Segmentation and packing (`segment.py`, `packing.py`)
-- [ ] 1A.8 Literature additions
+- [x] 1A.8 Literature additions (flags, `search_records`, `count`, `fetch_many`, `enrich(citations=False)`, `find_existing`, `tag_origin`)
 - [ ] 1A.9 MeSH module
 - [ ] 1A.10 Notes basics, test infrastructure, eval runner, doctor, log canary
 - [ ] 1A.11 Feasibility X3, X7, X9, X6

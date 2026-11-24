@@ -82,6 +82,23 @@ async def _hits(client: httpx.AsyncClient, term: str, max_results: int, sort: st
     return total, list(hits.values())[:max_results]
 
 
+def scoped(query: str) -> str:
+    """Research queries cover PubMed and PMC records only (PLAN B8.7)."""
+    return f"({query}) AND (SRC:MED OR SRC:PMC)"
+
+
+async def search_records(client: httpx.AsyncClient, query: str, max_results: int,
+                         sort: str = DEFAULT_SORT) -> tuple[int, list[Article]]:
+    """(hit count, parsed core records) for a query: abstracts, IDs and flags without a fetch per paper (C11)."""
+    total, hits = await _hits(client, query, max_results, sort, "core")
+    return total, [parse(h, f"{h['source']}:{h['id']}") for h in hits]
+
+
+async def count(client: httpx.AsyncClient, query: str) -> int:
+    data = await _get(client, "/search", {"query": query, "resultType": "idlist", "pageSize": 1})
+    return int(data.get("hitCount") or 0)
+
+
 async def search(client: httpx.AsyncClient, term: str, max_results: int, sort: str) -> tuple[int, list[str]]:
     total, hits = await _hits(client, term, max_results, sort, "idlist")
     return total, [f"{h['source']}:{h['id']}" for h in hits]
@@ -139,6 +156,8 @@ def parse(r: dict, source_id: str) -> Article:
 
     src, _, ext_id = source_id.partition(":")
     oa = r.get("isOpenAccess")
+    pub_types = [p for p in _list(r, "pubTypeList", "pubType") if p]
+    corrections = {(c.get("type") or "").strip().lower() for c in _list(r, "commentCorrectionList", "commentCorrection")}
     return Article(
         source=ID,
         source_id=source_id,
@@ -157,7 +176,10 @@ def parse(r: dict, source_id: str) -> Article:
         pages=str(r.get("pageInfo") or ""),
         keywords=[text.clean(k) for k in _list(r, "keywordList", "keyword") if k],
         mesh=[m["descriptorName"] for m in _list(r, "meshHeadingList", "meshHeading") if m.get("descriptorName")],
-        publication_types=[p for p in _list(r, "pubTypeList", "pubType") if p],
+        publication_types=pub_types,
         language=(r.get("language") or "").lower(),
         open_access=None if oa is None else oa == "Y",
+        retracted="Retracted Publication" in pub_types or "retraction in" in corrections,
+        # Only "... in" marks the affected paper; "Expression of concern for" is on the notice (spike X4).
+        concern="expression of concern in" in corrections,
     )

@@ -1,0 +1,118 @@
+# Spike X9 gold list: red flags hand-listed from each guideline's own text (PLAN 1A.11).
+# Listed by the agent (2026-11-25) by reading the guideline snapshots (eval/spikes/results/x9/<pmcid>.json);
+# `ids` are the snapshot sentence or cell IDs the flag comes from, so each entry can be checked against the text.
+# Scoring (after `x9_knowledge run`): set `matched_by` on each flag to the extracted item that covers it (or leave
+# it empty), and fill `attestation_review` from results/x9/attestations.md. Pass: recall ≥ 90%, supported ≥ 95%.
+version: 1
+guidelines:
+  PMC6734476:
+    title: Aids to management of headache disorders in primary care (2nd edition), EHF / Lifting The Burden, 2019
+    system: neurology
+    source: Table 6 (warning features in the history) and Table 7 (warning features on examination)
+    red_flags:
+      - {flag: Thunderclap headache (explosive or abrupt onset), ids: [T6.r2.c1]}
+      - {flag: Headache with atypical aura (lasting more than 1 hour, or with motor weakness), ids: [T6.r3.c1]}
+      - {flag: Aura without headache without a prior history of migraine with aura, ids: [T6.r4.c1]}
+      - {flag: Aura for the first time during use of combined hormonal contraceptives, ids: [T6.r5.c1]}
+      - {flag: New headache within 3 months of head trauma, ids: [T6.r6.c1]}
+      - {flag: Progressive headache worsening over weeks or longer, ids: [T6.r7.c1]}
+      - {flag: Headache aggravated by postures or manoeuvres that raise intracranial pressure, ids: [T6.r8.c1]}
+      - {flag: Headache brought on by coughing, exercise or sexual activity, ids: [T6.r9.c1]}
+      - {flag: Progressive or recurrent headache with irritability, light-headedness, nausea, tiredness and confusion (carbon monoxide), ids: [T6.r10.c1]}
+      - {flag: Headache with unexplained focal neurological symptoms or epileptic seizures, ids: [T6.r11.c1]}
+      - {flag: Headache with a change in memory or personality, ids: [T6.r12.c1, T7.r6.c1]}
+      - {flag: Headache with weight loss, ids: [T6.r13.c1, T7.r7.c1]}
+      - {flag: New headache in a patient older than 50 years, ids: [T6.r14.c1]}
+      - {flag: New headache with a history of cancer or immunodeficiency (including HIV), ids: [T6.r15.c1]}
+      - {flag: New headache with a history of polymyalgia rheumatica, ids: [T6.r16.c1]}
+      - {flag: New headache with a family history of glaucoma, ids: [T6.r17.c1]}
+      - {flag: Otherwise unexplained fever (pyrexia), ids: [T7.r2.c1]}
+      - {flag: Neck stiffness, ids: [T7.r3.c1]}
+      - {flag: Focal neurological signs on examination, ids: [T7.r4.c1]}
+      - {flag: Disorders of consciousness or memory, ids: [T7.r5.c1]}
+  PMC13405573:
+    title: Approach to headache disorders and the management of migraine, Headache Society of Singapore, 2023
+    system: neurology
+    source: Table 3 (SNNOOP for secondary headaches)
+    red_flags:
+      - {flag: Systemic symptoms (fever, immunocompromised state, significant weight loss), ids: [T3.r2.c2]}
+      - {flag: History of malignancy or metastasis, ids: [T3.r3.c2]}
+      - {flag: Neurological deficits or altered mental status, ids: [T3.r4.c2]}
+      - {flag: New-onset or changed headache after age 50, ids: [T3.r5.c2]}
+      - {flag: Thunderclap onset, ids: [T3.r6.c2]}
+      - {flag: Pattern change or recent onset of headache, ids: [T3.r7.c2]}
+      - {flag: Papilloedema, ids: [T3.r8.c2]}
+      - {flag: Painful eye with autonomic features, ids: [T3.r9.c2]}
+      - {flag: Painkiller overuse, ids: [T3.r10.c2]}
+      - {flag: Positional headache, ids: [T3.r11.c2]}
+      - {flag: Post-traumatic headache (new headache after head injury), ids: [T3.r12.c2]}
+      - {flag: Headache precipitated by sneezing, coughing or exercise, ids: [T3.r13.c2]}
+      - {flag: Headache for the first time in pregnancy or the puerperium, ids: [T3.r14.c2]}
+  PMC8870422:
+    title: Etiology, risk factors and diagnosis of back pain in children and adolescents (German guideline), 2022
+    system: musculoskeletal
+    source: Table 1 (red flags for specific back pain); some cells are shifted into column 1 by the table layout
+    red_flags:
+      - {flag: Age under 10 years, ids: [T1.r2.c2]}
+      - {flag: Trauma (including respiratory arrest after trauma), ids: [T1.r3.c2]}
+      - {flag: Onset of back pain associated with exercise, ids: [T1.r4.c1]}
+      - {flag: Previous or current glucocorticoid therapy, ids: [T1.r5.c1]}
+      - {flag: Pre-existing or concomitant medical conditions, ids: [T1.r6.c1]}
+      - {flag: Motor or sensory disturbances of the limbs, ids: [T1.r7.c2]}
+      - {flag: Radicular pain, ids: [T1.r8.c1]}
+      - {flag: Bladder or bowel dysfunction, ids: [T1.r9.c1]}
+      - {flag: Fever, ids: [T1.r10.c2]}
+      - {flag: Local swelling, ids: [T1.r11.c1]}
+      - {flag: Lymph node enlargement, ids: [T1.r12.c1]}
+      - {flag: Visible structural changes of the spine, ids: [T1.r13.c1]}
+      - {flag: Palpable step deformity, ids: [T1.r14.c1]}
+      - {flag: Joint hypermobility, ids: [T1.r15.c1]}
+      - {flag: Inflammatory signs (arthritis, enthesitis, cutaneous vasculitis), ids: [T1.r16.c1]}
+      - {flag: Arterial hypertension, ids: [T1.r17.c1]}
+      - {flag: Compression pain or localised pressure pain, ids: [T1.r18.c2]}
+      - {flag: Pain in the head, thorax, abdomen, flanks, limbs, buttocks or pelvis, ids: [T1.r19.c1]}
+      - {flag: Arthralgia or myalgia, ids: [T1.r20.c1]}
+  PMC11364714:
+    title: Consensus paper on the management of acute isolated vertigo in the emergency department, 2024
+    system: ent_vestibular
+    source: neurological checklist for a central cause (S10.P1.s2), gait ataxia grades (Table 2), HINTS (S30)
+    red_flags:
+      - {flag: Language disorders (dysarthria, aphasia), ids: [S10.P1.s2]}
+      - {flag: Eye movement (ocular motility) disorders, ids: [S10.P1.s2]}
+      - {flag: Bulbar cranial nerve disorders (glossopharyngeal, vagus), ids: [S10.P1.s2]}
+      - {flag: Horner syndrome, ids: [S10.P1.s2]}
+      - {flag: Visual field defects, ids: [S10.P1.s2]}
+      - {flag: Motor deficits, ids: [S10.P1.s2]}
+      - {flag: Sensory deficits, ids: [S10.P1.s2]}
+      - {flag: Cerebellar deficits, ids: [S10.P1.s2]}
+      - {flag: Extensor plantar response (Babinski sign), ids: [S10.P1.s2]}
+      - {flag: Severe gait unsteadiness (high ataxia grade), ids: [T2.r4.c3, T2.r5.c3]}
+      - {flag: A central HINTS pattern (normal head impulse test, direction-changing nystagmus or skew deviation), ids: [S30.P4.s3]}
+  PMC9380508:
+    title: British Society of Gastroenterology guidelines on the management of functional dyspepsia, 2022
+    system: digestive
+    source: recommendations (S1, S28–S29) and the NICE referral criteria box (S24.P2–P15)
+    red_flags:
+      - {flag: Dysphagia at any age, ids: [S24.P3.s1]}
+      - {flag: Age 55 or over with weight loss and dyspepsia, upper abdominal pain or reflux (urgent endoscopy), ids: [S24.P4.s1, S28.P10.s1]}
+      - {flag: Haematemesis, ids: [S24.P9.s1]}
+      - {flag: Age 55 or over with treatment-resistant dyspepsia, ids: [S28.P10.s2]}
+      - {flag: Age 55 or over with dyspepsia and a raised platelet count or nausea or vomiting, ids: [S24.P12.s1, S28.P10.s2]}
+      - {flag: Age 55 or over with upper abdominal pain and low haemoglobin, ids: [S24.P13.s1]}
+      - {flag: Age 60 or over with abdominal pain and weight loss (urgent CT for pancreatic cancer), ids: [S28.P10.s3]}
+      - {flag: Over 40 from a high-risk area or with a family history of gastro-oesophageal cancer, ids: [S28.P10.s4]}
+  PMC8831363:
+    title: Evidence-based clinical practice guidelines for functional dyspepsia 2021 (Japanese Society of Gastroenterology)
+    system: digestive
+    source: alarm signs (S15.P2.s2)
+    red_flags:
+      - {flag: New onset of symptoms at an advanced age, ids: [S15.P2.s2]}
+      - {flag: Weight loss, ids: [S15.P2.s2]}
+      - {flag: Recurrent vomiting, ids: [S15.P2.s2]}
+      - {flag: Bleeding, ids: [S15.P2.s2]}
+      - {flag: Dysphagia, ids: [S15.P2.s2]}
+      - {flag: Painful swallowing, ids: [S15.P2.s2]}
+      - {flag: Abdominal mass, ids: [S15.P2.s2]}
+      - {flag: Fever, ids: [S15.P2.s2]}
+      - {flag: Family history of oesophageal or gastric cancer, ids: [S15.P2.s2]}
+attestation_review: null  # {judged: n, supported: n, notes: ...} after the run

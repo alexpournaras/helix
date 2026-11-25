@@ -70,6 +70,7 @@ class CallContext:
     sleep: Callable[[float], Any] = asyncio.sleep
     literature: Any = None  # LiteratureDB for fetches (None → the app's library); eval uses a temp one
     sources: Any = None  # research.sources.Sources override (tests)
+    cache: Any = None  # an object with cache_get/cache_put shared across runs (eval); None → db's own cache
 
     def is_available(self, ref: ModelRef) -> bool:
         if self.available is not None:
@@ -80,7 +81,7 @@ class CallContext:
     def with_task(self, *, task_id: int | None, step: str | None, investigation_id: int | None = None) -> "CallContext":
         return CallContext(self.db, self.settings, self.providers, self.limiters, self.prices,
                            investigation_id if investigation_id is not None else self.investigation_id,
-                           task_id, step, self.available, self.sleep, self.literature, self.sources)
+                           task_id, step, self.available, self.sleep, self.literature, self.sources, self.cache)
 
 
 @dataclass
@@ -178,7 +179,8 @@ async def complete_json_meta(ctx: CallContext, role: str, schema: type[T], syste
 
     # 3. Cache
     key = cache_key(ref, prompt_version, full_system, user, provider_schema)
-    cached_text = await asyncio.to_thread(ctx.db.cache_get, key)
+    store = ctx.cache or ctx.db
+    cached_text = await asyncio.to_thread(store.cache_get, key)
     if cached_text is not None:
         value, text, _ = parse(schema, [cached_text], validate)
         if value is not None:
@@ -215,7 +217,7 @@ async def complete_json_meta(ctx: CallContext, role: str, schema: type[T], syste
         if value is None:
             raise ModelError("format", f"{ref.model} output still invalid after repair: {error}")
 
-    await asyncio.to_thread(ctx.db.cache_put, key, text)
+    await asyncio.to_thread(store.cache_put, key, text)
     return CallResult(value=value, model=ref, cached=False, text=text)
 
 

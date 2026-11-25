@@ -233,6 +233,25 @@ class ModelLayerTests(ResearchTestCase):
         await llm.complete_json(ctx, "intake", Out, "s", "u", prompt_version="t.v2")
         self.assertEqual(len(self.a.requests), 2)  # prompt version is part of the key
 
+    async def test_shared_cache_spans_databases(self):
+        """Eval runs give each case its own database but share one cache (eval/results/llm_cache.sqlite3)."""
+        from app.research.db import ResearchDB
+        shared = ResearchDB(self.tmp / "shared.sqlite3")
+        shared.init()
+        first = self.ctx(lambda r: {"answer": "hi"})
+        first.cache = shared
+        await llm.complete_json(first, "intake", Out, "s", "u", prompt_version="t.v1")
+        other_db = ResearchDB(self.tmp / "other.sqlite3")
+        other_db.init()
+        second = self.ctx(lambda r: {"answer": "hi"})
+        second.db, second.cache = other_db, shared
+        await llm.complete_json(second.with_task(task_id=None, step="t"), "intake", Out, "s", "u",
+                                prompt_version="t.v1")
+        self.assertEqual(len(self.a.requests), 0)  # second context's provider was never called
+        self.assertEqual(other_db.one("SELECT attempt_kind FROM llm_calls")["attempt_kind"], "cache")
+        self.assertIsNone(self.db.cache_get(llm.cache_key(S.ModelRef(model="gpt-6.2-astra", effort="high"),
+                                                          "t.v1", "s", "u", {})))  # nothing in the case db
+
     async def test_repair_once_then_format_error(self):
         outputs = iter(['{"answer": 5}', '{"answer": "fixed"}'])
         ctx = self.ctx(lambda r: next(outputs))

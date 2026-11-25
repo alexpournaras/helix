@@ -199,7 +199,17 @@ def local_overrides(path: Path | None = None) -> dict:
     return {k: saved[k] for k in LOCAL_KEYS if k in saved}
 
 
-def _context(db: ResearchDB, mode: Mode, profile: str) -> llm.CallContext:
+SHARED_CACHE = RESULTS_DIR / "llm_cache.sqlite3"  # git-ignored; live runs reuse identical model answers
+
+
+def shared_cache(path: Path = SHARED_CACHE) -> ResearchDB:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cache = ResearchDB(path)
+    cache.init()
+    return cache
+
+
+def _context(db: ResearchDB, mode: Mode, profile: str, cache: ResearchDB | None = None) -> llm.CallContext:
     research = S.build(profile, local_overrides() if mode == "live" else None)
     if mode == "fake":
         providers = {f: FakeProvider(f) for f in ("openai", "anthropic", "ollama")}
@@ -211,7 +221,7 @@ def _context(db: ResearchDB, mode: Mode, profile: str) -> llm.CallContext:
     from app.literature.db import LiteratureDB
     library = LiteratureDB(Path(db.path).parent / "literature.db")  # each case gets its own library
     return llm.CallContext(db=db, settings=research, providers=providers, limiters=Limiters({}),
-                           prices=PriceTable(), available=available, literature=library)
+                           prices=PriceTable(), available=available, literature=library, cache=cache)
 
 
 def _transport(mode: Mode, recordings: Path):
@@ -236,13 +246,13 @@ DEFAULT_TIMEOUT = 3600.0  # per case; grounding on local models takes a while
 
 
 async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings: Path,
-                   timeout: float = DEFAULT_TIMEOUT, keep: bool = False) -> dict:
+                   timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None) -> dict:
     tmp = Path(tempfile.mkdtemp(prefix=f"helix-eval-{case.id}-"))
     worker = None
     try:
         db = ResearchDB(tmp / "research.sqlite3")
         db.init()
-        ctx = _context(db, mode, case.profile)
+        ctx = _context(db, mode, case.profile, cache)
         if mode == "live":
             pf = preflight.run(ctx.settings, ctx.providers, preflight.ProbeStore(tmp / "probes.json"),
                                synthetic=True, require_probes=False)
@@ -300,15 +310,16 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
 
 async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str,
               recordings_root: Path = RECORDINGS_DIR, results_dir: Path = RESULTS_DIR,
-              timeout: float = DEFAULT_TIMEOUT, keep: bool = False) -> dict:
-    """Runs the cases one by one; the results file is rewritten after each case, so a crash keeps the rest."""
+              timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None) -> dict:
+    """Runs the cases one by one; the results file is rewritten after each case, so a crash keeps the rest.
+    `cache`: a shared model-answer cache (live runs use eval/results/llm_cache.sqlite3 unless disabled)."""
     recordings = Path(recordings_root) / name
     results: list[dict] = []
     report: dict = {}
     for i, c in enumerate(cases, 1):
         print(f"[{i}/{len(cases)}] {c.id} …", flush=True)
         results.append(await run_case(c, mode=mode, factory=factory, recordings=recordings, timeout=timeout,
-                                      keep=keep))
+                                      keep=keep, cache=cache))
         print(f"[{i}/{len(cases)}] {c.id}: {results[-1]['status']} in {results[-1].get('seconds', 0)} s", flush=True)
         report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                   "cases": results, "summary": {
@@ -346,13 +357,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--compare", help="an earlier results JSON to compare against")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="seconds per case")
     parser.add_argument("--keep", action="store_true", help="keep each case's data folder for inspection")
+    parser.add_argument("--no-shared-cache", action="store_true",
+                        help="live runs: don't reuse model answers from earlier runs (eval/results/llm_cache.sqlite3)")
     args = parser.parse_args(argv)
     cases = load_cases(Path(args.cases), args.case)
     if not cases:
         print("No cases found.")
         return 1
     report = asyncio.run(run(cases, mode=args.mode, factory=load_factory(args.pipeline), name=args.name,
-                             timeout=args.timeout, keep=args.keep))
+                             timeout=args.timeout, keep=args.keep,
+                             cache=shared_cache() if args.mode == "live" and not args.no_shared_cache else None))
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     for case in report["cases"]:

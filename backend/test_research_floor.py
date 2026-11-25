@@ -81,3 +81,20 @@ class TinnitusPackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewSheetTests(unittest.TestCase):
+    def test_sheet_lists_every_rule_and_the_crisis_numbers(self):
+        from eval.tools import review_sheet
+        from app.research import safety_rules as R
+        text = review_sheet.render()
+        for r in L.floor().rules:
+            self.assertIn(f"`rule:{r.id}`", text)
+        for p in L.load_packs().values():
+            for r in p.red_flags:
+                self.assertIn(f"`pack:{p.complaint}:{r.id}`", text)
+        self.assertIn("1018", text)
+        self.assertIn("Example: a completed review (dummy data)", text)
+        self.assertNotIn("example.toothache_swelling", {r.id for r in L.floor().rules})  # the example isn't a rule
+        self.assertIn(R.TEMPLATES["emergency"], text)
+

@@ -8,3 +8,5 @@ Ideas that are out of scope for the current task (PLAN Part G.5).
 - Eval cases: grow to ≥ 15 across ≥ 5 systems for the M1 gate (E3.1), including an adversarial input and a special-population case per population.
 - Eval: a planted-fact case for the brief check (the scratch probe from 1C.1) as a recorded replay.
 - 1C.4 questions: the two safety panel members often ask near-duplicate rule-outs (e.g. "pulsatile sound" / "does tinnitus have a pulsatile quality"); the questions step should merge them before asking.
+- Grounding merge: measure duplicate merging on a labelled item list (the grouping judge merges about half of the obvious duplicates on dev_openai; e.g. "Avoid dietary supplements" / "Dietary supplements" stay apart). Two live runs of the same case gave 88 and 122 items, so also measure run-to-run variance.
+- Grounding speed on dev_openai: about 8–10 min per case (verification is ~half: 74 calls at ~30 s). Try larger verify batches and medium effort for verifiers.

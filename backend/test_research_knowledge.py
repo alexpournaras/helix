@@ -278,8 +278,27 @@ class MergeTests(unittest.TestCase):
         b = item(key="b", text="Refer for imaging", kind="evaluation", attributes={"age_threshold": 55})
         res = M.merge([a, b])
         self.assertEqual(len(res.items), 2)
-        self.assertEqual({i.disagreement for i in res.items}, {"evaluation:refer imaging"})
-        self.assertEqual(res.disagreements, ["evaluation:refer imaging"])
+        self.assertEqual({i.disagreement for i in res.items}, {"evaluation:imaging refer"})
+        self.assertEqual(res.disagreements, ["evaluation:imaging refer"])
+
+    def test_wording_differences_are_not_disagreements(self):
+        a = item(key="a", text="Pulsatile tinnitus", kind="red_flag", attributes={"urgency": "urgent", "question": "A?"})
+        b = item(key="b", text="Pulsatile tinnitus", kind="red_flag", attributes={"urgency": "urgent", "question": "B?"})
+        res = M.merge([a, b])
+        self.assertEqual((len(res.items), res.disagreements), (1, []))
+        c = item(key="c", text="Pulsatile tinnitus", kind="red_flag", attributes={"level": "routine_review"})
+        d = item(key="d", text="Pulsatile tinnitus", kind="red_flag", attributes={"urgency": "urgent"})
+        self.assertEqual(len(M.merge([c, d]).disagreements), 1)  # different urgency is a real disagreement
+        e = item(key="e", text="Pulsatile tinnitus", kind="red_flag", attributes={"urgency": "routine"})
+        self.assertEqual(M.merge([c, e]).disagreements, [])  # routine = routine_review
+
+    def test_judged_pairs_match_any_group_member(self):
+        a = item(key="a", text="Pulsatile tinnitus", kind="red_flag")
+        b = item(key="b", text="pulsatile  tinnitus", kind="red_flag")  # same as a by name
+        c = item(key="c", text="Pulse-synchronous sound", kind="red_flag")  # judged the same as b only
+        res = M.merge([a, b, c], same={frozenset(("b", "c"))})
+        self.assertEqual(len(res.items), 1)
+        self.assertEqual(sorted(res.items[0].merged_from), ["b", "c"])
 
     def test_curated_items_from_floor_and_packs(self):
         floor = L.Floor.model_validate({"version": 1, "review": {}, "rules": [RULE]})

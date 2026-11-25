@@ -48,7 +48,10 @@ def mesh_uis(inv: dict) -> list[str]:
     return [m["ui"] for c in inv.get("complaints") or [] for m in c.get("mesh") or []]
 
 
-def guideline_red_flags(conn: sqlite3.Connection, investigation_id: int, knowledge_version: int) -> list[dict]:
+def guideline_red_flags(conn: sqlite3.Connection, investigation_id: int, knowledge_version: int,
+                        populations: list[str] | None = None) -> list[dict]:
+    """Active guideline red flags at knowledge version ≤ k, for everyone or for one of the case's populations."""
+    allowed = {"all", *(populations or [])}
     rows = conn.execute(
         "SELECT * FROM knowledge_items WHERE investigation_id = ? AND kind = 'red_flag' AND origin = 'guideline' "
         "AND status = 'active' AND version <= ? ORDER BY id", (investigation_id, knowledge_version)).fetchall()
@@ -56,7 +59,10 @@ def guideline_red_flags(conn: sqlite3.Connection, investigation_id: int, knowled
     for r in rows:
         item = _decode(r)
         attrs = item.get("attributes") or {}
+        if (item.get("population") or "all") not in allowed:
+            continue
         out.append({"ref": f"K{item['id']}", "id": item["id"], "text": item["text"],
+                    "features": attrs.get("features") or [], "question": (attrs.get("question") or "").strip(),
                     "level": URGENCY_LEVEL.get(attrs.get("urgency"), "urgent"),
                     "population": item.get("population") or "all"})
     return out
@@ -85,8 +91,8 @@ def panel_material(segs: list[dict], brief: CaseBrief, rules: R.RuleOutcome, ite
         "rules_fired": [{"ref": h.ref, "level": h.level, "title": h.title} for h in rules.fired],
         "rules_unknown": [{"ref": h.ref, "level": h.level, "title": h.title, "question": h.question}
                           for h in rules.unknown],
-        "guideline_red_flags": [{"item": i["ref"], "text": i["text"], "level": i["level"],
-                                 "population": i["population"]} for i in items],
+        "guideline_red_flags": [{"item": i["ref"], "text": i["text"], "features": i.get("features") or [],
+                                 "level": i["level"], "population": i["population"]} for i in items],
     }
     return llm.material(json.dumps(body, ensure_ascii=False, indent=1), kind="safety")
 
@@ -127,8 +133,10 @@ def combine(rules: R.RuleOutcome, members: list[tuple[str, SafetyReview]], items
     for h in rules.unknown:
         questions.append({"key": f"ruleout.{h.ref}", "text": h.question, "why": h.title, "targets": [h.ref]})
     for i in unknown_items:
-        questions.append({"key": f"ruleout.{i['ref']}", "text": f"Does this apply to you: {i['text']}?",
-                          "why": i["text"], "targets": [i["ref"]], "item_id": i["id"]})
+        if not i.get("question", "").endswith("?"):
+            continue  # no plain question from the guideline extraction; the panel's own questions cover it
+        questions.append({"key": f"ruleout.{i['ref']}", "text": i["question"], "why": i["text"],
+                          "targets": [i["ref"]], "item_id": i["id"]})
     for _, review in members:
         for q in review.rule_out_questions:
             questions.append({"key": f"ruleout.panel.{q.key}", "text": q.text, "why": "safety panel",
@@ -150,7 +158,7 @@ async def run(tc) -> Any:
         found = current_brief(conn, inv["id"])
         segs = segments(conn, inv["id"])
         kv = int(inv["knowledge_version"])
-        items = guideline_red_flags(conn, inv["id"], kv)
+        items = guideline_red_flags(conn, inv["id"], kv, inv.get("special_populations") or [])
     if found is None:
         raise RuntimeError("safety needs a case brief")
     brief_version, brief = found

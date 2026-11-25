@@ -9,6 +9,7 @@ model of the family that didn't extract (its verdict is final). Every vote is ke
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
@@ -80,9 +81,9 @@ async def verify(ctx: llm.CallContext, role: str, pairs: list[Pair], *, system: 
     by_model: dict[str, list[Pair]] = {}
     for p in pairs:
         by_model.setdefault(p.extractor_model, []).append(p)
-    for model, group in by_model.items():
-        for start in range(0, len(group), BATCH):
-            await _verify_batch(ctx, role, group[start:start + BATCH], model, system, prompt_version, render)
+    # Batches run in parallel (the provider limiter caps concurrency).
+    await asyncio.gather(*[_verify_batch(ctx, role, group[start:start + BATCH], model, system, prompt_version, render)
+                           for model, group in by_model.items() for start in range(0, len(group), BATCH)])
     return pairs
 
 

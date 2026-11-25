@@ -37,16 +37,15 @@ from ..db import _decode, now
 from ..knowledge import loader, merge as M
 from ..packing import pack_snapshot
 from ..pipeline import StageContext, StageDef, StepDef
-from ..schemas import KnowledgeExtraction, MergeJudgement, ScreeningBatch
+from ..schemas import KnowledgeExtraction, MergeGroups, ScreeningBatch
 from ..segment import Snapshot, block_of, paper_snapshot, part_of, quote
 from ..sources import Fetched, sources_for
 
 SCREEN_VERSION = "grounding.screen.v1"
-EXTRACT_VERSION = "grounding.extract.v1"
+EXTRACT_VERSION = "grounding.extract.v2"
 VERIFY_VERSION = "grounding.verify.v1"
-MERGE_VERSION = "grounding.merge.v1"
+MERGE_VERSION = "grounding.merge.v2"
 SCREEN_BATCH = 8
-MAX_JUDGE_PAIRS = 40
 POP_TERMS = {
     "infant": (["infant", "newborn"], ['"infant"[mh]']),
     "child": (["child", "children", "paediatric", "pediatric"], ['"child"[mh]', '"adolescent"[mh]']),
@@ -262,11 +261,16 @@ async def read_sources(tc, chosen: list[Cand], cfg: dict) -> tuple[list[Read], l
     src = sources_for(tc.services)
     reused = existing_reads(tc.db, inv["id"])
     reads, failures = [], []
-    for c in chosen:
+
+    async def get(c: Cand):
         try:
-            fetched = await src.fetch(c.article, inv["id"])
+            return await src.fetch(c.article, inv["id"])
         except Exception as exc:  # noqa: BLE001 — one paper failing is skipped (B10)
-            failures.append(f"{c.local_id}: {exc.__class__.__name__}")
+            return exc
+    # Fetches run in parallel; results are kept in selection order.
+    for c, fetched in zip(chosen, await asyncio.gather(*[get(c) for c in chosen])):
+        if isinstance(fetched, Exception):
+            failures.append(f"{c.local_id}: {fetched.__class__.__name__}")
             continue
         old = reused.get(fetched.literature_id) if fetched.literature_id is not None else None
         if old is not None:
@@ -287,15 +291,32 @@ KINDS = {"red_flags": "red_flag", "differential": "differential", "history_items
 def _item_fields(kind: str, raw: dict) -> tuple[str, dict, str]:
     """(text, attributes, population) for one extracted item."""
     if kind == "red_flag":
-        return raw["condition"], {"features": raw.get("features") or [], "urgency": raw["urgency"]}, raw.get("population") or "all"
+        return raw["condition"], {"features": raw.get("features") or [], "urgency": raw["urgency"],
+                                  "question": raw.get("question") or ""}, raw.get("population") or "all"
+    pop = raw.get("population") or "all"
     if kind == "differential":
         return raw["condition"], {"key_features": raw.get("key_features") or [],
-                                  "typical_population": raw.get("typical_population") or ""}, "all"
+                                  "typical_population": raw.get("typical_population") or ""}, pop
     if kind == "history_item":
-        return raw["attribute"], {"why": raw.get("why") or ""}, "all"
+        return raw["attribute"], {"why": raw.get("why") or "", "question": raw.get("question") or ""}, pop
     if kind == "evaluation":
-        return raw["test"], {"indication": raw.get("indication") or ""}, "all"
-    return raw["topic"], {"context": raw.get("context") or ""}, "all"
+        return raw["test"], {"indication": raw.get("indication") or ""}, pop
+    return raw["topic"], {"context": raw.get("context") or ""}, pop
+
+
+EXAM_WORDS = re.compile(r"\b(exam\w*|imaging|scan\w*|test\w*|audiolog\w*|audiogram\w*|measure\w*|investigation\w*)\b",
+                        re.I)
+GENERIC_HISTORY = {"history", "clinical history", "targeted history", "medical history", "take history"}
+
+
+def history_kind(kind: str, text: str) -> str | None:
+    """History items are questions for the person: an examination or test becomes an evaluation, and a generic
+    "take a history" is dropped (None). Other kinds pass through."""
+    if kind != "history_item":
+        return kind
+    if " ".join(re.findall(r"[a-z]+", text.lower())) in GENERIC_HISTORY:
+        return None
+    return "evaluation" if EXAM_WORDS.search(text) else kind
 
 
 @dataclass
@@ -317,33 +338,40 @@ async def extract(ctx, complaint: dict, population: str, reads: list[Read], dual
     system = llm.base_system() + "\n\n" + llm.prompt(EXTRACT_VERSION)
     items: dict[tuple[str, str, str], Extracted] = {}
     dropped = 0
-    for ri, read in enumerate(reads):
-        for pack in read.packs:
-            material = extraction_material(complaint, population, pack)
-            if dual:
-                result = await ensemble.dual(ctx, "grounding.extract", KnowledgeExtraction, system, material,
-                                             prompt_version=EXTRACT_VERSION)
-                outs = [(m.model, m.value) for m in result.members if m.ok]
-            else:
-                m = await ensemble.single(ctx, "grounding.extract", KnowledgeExtraction, system, material,
-                                          prompt_version=EXTRACT_VERSION)
-                outs = [(m.model, m.value)]
-            allowed = set(pack.seg_ids) | {block_of(s) for s in pack.seg_ids if part_of(s).startswith("T")}
-            for ref, value in outs:
-                data = value.model_dump(mode="json")
-                for field_name, kind in KINDS.items():
-                    for raw in data[field_name]:
-                        ids = [s for s in dict.fromkeys(raw.get("sentence_ids") or []) if s in allowed][:4]
-                        if not ids:
-                            dropped += 1  # no ID from the pack shown: the attestation can't stand
-                            continue
-                        text, attrs, pop = _item_fields(kind, raw)
-                        key = (kind, M.normalise(text), pop)
-                        item = items.setdefault(key, Extracted(kind, text, attrs, pop))
-                        if any(a["read"] == ri and set(a["sentence_ids"]) == set(ids) for a in item.attestations):
-                            continue
-                        item.attestations.append({"read": ri, "sentence_ids": ids, "quote": quote(read.snapshot, ids),
-                                                  "model": ref.model, "family": ref.family})
+    jobs = [(ri, read, pack) for ri, read in enumerate(reads) for pack in read.packs]
+
+    async def one(pack) -> list:
+        material = extraction_material(complaint, population, pack)
+        if dual:
+            result = await ensemble.dual(ctx, "grounding.extract", KnowledgeExtraction, system, material,
+                                         prompt_version=EXTRACT_VERSION)
+            return [(m.model, m.value) for m in result.members if m.ok]
+        m = await ensemble.single(ctx, "grounding.extract", KnowledgeExtraction, system, material,
+                                  prompt_version=EXTRACT_VERSION)
+        return [(m.model, m.value)]
+
+    # Packs run in parallel (the provider limiter caps concurrency); results are combined in document order.
+    results = await asyncio.gather(*[one(pack) for _, _, pack in jobs])
+    for (ri, read, pack), outs in zip(jobs, results):
+        allowed = set(pack.seg_ids) | {block_of(s) for s in pack.seg_ids if part_of(s).startswith("T")}
+        for ref, value in outs:
+            data = value.model_dump(mode="json")
+            for field_name, kind in KINDS.items():
+                for raw in data[field_name]:
+                    ids = [s for s in dict.fromkeys(raw.get("sentence_ids") or []) if s in allowed][:4]
+                    if not ids:
+                        dropped += 1  # no ID from the pack shown: the attestation can't stand
+                        continue
+                    text, attrs, pop = _item_fields(kind, raw)
+                    kind = history_kind(kind, text)
+                    if kind is None:
+                        continue  # "take a clinical history": not a question for the person
+                    key = (kind, M.normalise(text), pop)
+                    item = items.setdefault(key, Extracted(kind, text, attrs, pop))
+                    if any(a["read"] == ri and set(a["sentence_ids"]) == set(ids) for a in item.attestations):
+                        continue
+                    item.attestations.append({"read": ri, "sentence_ids": ids, "quote": quote(read.snapshot, ids),
+                                              "model": ref.model, "family": ref.family})
     return list(items.values()), dropped
 
 
@@ -590,24 +618,42 @@ def _db_item(row: dict, attestations: list[dict]) -> M.Item:
                                 for a in attestations])
 
 
-def borderline_pairs(items: list[M.Item]) -> list[tuple[M.Item, M.Item]]:
-    out = []
-    for i, a in enumerate(items):
-        for b in items[i + 1:]:
-            if a.kind != b.kind or (a.population or "all") != (b.population or "all"):
-                continue
-            na, nb = M.normalise(a.text), M.normalise(b.text)
-            if na != nb and M._jaccard(na, nb) >= M.BORDERLINE_JACCARD and not (a.origin == b.origin == "curated"):
-                out.append((a, b))
-    return out[:MAX_JUDGE_PAIRS]
+def kind_lists(items: list[M.Item]) -> dict[str, list[M.Item]]:
+    """Items per kind, for kinds that have at least one guideline item (curated-only kinds need no merge)."""
+    out: dict[str, list[M.Item]] = {}
+    for item in items:
+        out.setdefault(item.kind, []).append(item)
+    return {k: v for k, v in out.items() if any(i.origin != "curated" for i in v) and len(v) > 1}
 
 
-def _pairs_validator(n: int):
-    def check(judgement: MergeJudgement) -> None:
-        got = [p.pair for p in judgement.pairs]
-        if sorted(got) != sorted(f"X{i}" for i in range(1, n + 1)):
-            raise ValueError("one entry per pair is required")
+def group_material(items: list[M.Item]) -> str:
+    lines = [f"X{n}: [{i.origin}; population {i.population or 'all'}] {i.text}" for n, i in enumerate(items, 1)]
+    return llm.material("\n".join(lines), kind="merge")
+
+
+def _groups_validator(n: int):
+    def check(result: MergeGroups) -> None:
+        seen: set[str] = set()
+        for g in result.groups:
+            for x in [g.keep, *g.same]:
+                if not re.fullmatch(r"X\d+", x) or not 1 <= int(x[1:]) <= n:
+                    raise ValueError(f"unknown item {x}")
+                if x in seen:
+                    raise ValueError(f"{x} appears in more than one group")
+                seen.add(x)
     return check
+
+
+def same_pairs(items: list[M.Item], result: MergeGroups) -> set[frozenset]:
+    """Every pair inside a judged group (same kind and population only)."""
+    out: set[frozenset] = set()
+    for g in result.groups:
+        members = [items[int(x[1:]) - 1] for x in [g.keep, *g.same]]
+        for i, a in enumerate(members):
+            for b in members[i + 1:]:
+                if (a.population or "all") == (b.population or "all"):
+                    out.add(frozenset((a.key, b.key)))
+    return out
 
 
 async def run_merge(tc) -> Any:
@@ -626,20 +672,21 @@ async def run_merge(tc) -> Any:
     mesh = [m["ui"] for c in inv.get("complaints") or [] for m in c.get("mesh") or []]
     curated = [i for i in M.from_floor_and_packs(loader.floor(), loader.packs_for(mesh)) if i.key not in stored_keys]
     pool = [_db_item(r, atts.get(r["id"], [])) for r in rows] + curated
-    pairs = borderline_pairs(pool)
+    lists = kind_lists(pool)
     same: set[frozenset] = set()
-    if pairs:
+    if lists:
         ctx = tc.services.with_task(task_id=tc.task["id"], step="ground_merge", investigation_id=inv["id"])
-        body = "\n".join(f"X{n}: ({a.kind}) {a.text}  <->  {b.text}" for n, (a, b) in enumerate(pairs, 1))
-        m = await ensemble.single(ctx, "grounding.merge", MergeJudgement,
-                                  llm.base_system() + "\n\n" + llm.prompt(MERGE_VERSION),
-                                  llm.material(body, kind="merge"), prompt_version=MERGE_VERSION,
-                                  validate=_pairs_validator(len(pairs)))
-        for p in m.value.pairs:  # type: ignore[union-attr]
-            if p.same:
-                a, b = pairs[int(p.pair[1:]) - 1]
-                same.add(frozenset((a.key, b.key)))
-    result = M.merge(pool, judge=lambda a, b: frozenset((a.key, b.key)) in same)
+        system = llm.base_system() + "\n\n" + llm.prompt(MERGE_VERSION)
+
+        async def judge(items: list[M.Item]) -> set[frozenset]:
+            m = await ensemble.single(ctx, "grounding.merge", MergeGroups, system, group_material(items),
+                                      prompt_version=MERGE_VERSION, validate=_groups_validator(len(items)))
+            return same_pairs(items, m.value)  # type: ignore[arg-type]
+
+        for found in await asyncio.gather(*[judge(items) for items in lists.values()]):
+            same |= found
+    pairs = sorted(same, key=sorted)
+    result = M.merge(pool, same=same)
     curated_by_key = {i.key: i for i in curated}
 
     def commit(conn: sqlite3.Connection) -> None:

@@ -66,15 +66,20 @@ class MergeResult:
 
 
 def normalise(name: str) -> str:
+    """Comparison key: bracketed parts dropped ("(CBT)"), stop words removed, plurals singular ("anomalies" →
+    "anomaly"), words sorted (so "self-harm risk" = "risk for self-harm")."""
+    name = re.sub(r"\([^)]*\)", " ", name)
     words = re.findall(r"[a-z0-9]+", name.casefold())
     out = []
     for w in words:
         if w in _STOP:
             continue
-        if len(w) > 4 and w.endswith("s") and not w.endswith("ss"):
+        if len(w) > 4 and w.endswith("ies"):
+            w = w[:-3] + "y"
+        elif len(w) > 4 and w.endswith("s") and not w.endswith("ss"):
             w = w[:-1]
         out.append(w)
-    return " ".join(out)
+    return " ".join(sorted(out))
 
 
 def _jaccard(a: str, b: str) -> float:
@@ -90,14 +95,31 @@ def _clean(item: Item) -> Item:
     return item
 
 
+# Attributes where two sources can genuinely disagree (B7.4: e.g. different age thresholds). Free-text attributes
+# (why, question, context, features, indication…) are wording and never make a disagreement.
+CLINICAL_KEYS = ("age_threshold", "threshold", "timeframe", "interval", "dose_free_limit")
+URGENCY = {"emergency": "emergency", "urgent": "urgent", "routine": "routine_review",
+           "routine_review": "routine_review"}
+
+
+def _level(item: Item) -> str | None:
+    raw = item.attributes.get("level") or item.attributes.get("urgency")
+    return URGENCY.get(raw) if raw else None
+
+
 def _conflicts(a: Item, b: Item) -> bool:
-    shared = set(a.attributes) & set(b.attributes)
+    la, lb = _level(a), _level(b)
+    if la and lb and la != lb:
+        return True  # e.g. one guideline says urgent, another emergency
+    shared = (set(a.attributes) & set(b.attributes)) & set(CLINICAL_KEYS)
     return any(a.attributes[k] != b.attributes[k] for k in shared)
 
 
-def _same(a: Item, b: Item, judge: Judge | None) -> bool:
+def _same(a: Item, b: Item, judge: Judge | None, same: set[frozenset] | None = None) -> bool:
     if a.kind != b.kind or (a.population or "all") != (b.population or "all"):
         return False
+    if same and frozenset((a.key, b.key)) in same:
+        return True  # decided by the grouping judge, whatever the wording
     if a.mesh_ui and a.mesh_ui == b.mesh_ui:
         return True
     na, nb = normalise(a.text), normalise(b.text)
@@ -122,7 +144,9 @@ def _combine(kept: Item, other: Item) -> Item:
     )
 
 
-def merge(items: Iterable[Item], judge: Judge | None = None) -> MergeResult:
+def merge(items: Iterable[Item], judge: Judge | None = None, same: set[frozenset] | None = None) -> MergeResult:
+    """`judge` decides borderline pairs (Jaccard ≥ BORDERLINE_JACCARD); `same` is a set of key pairs already
+    judged to be duplicates (e.g. by a grouping call), merged regardless of wording."""
     result = MergeResult(items=[])
     pool = [_clean(i) for i in items]
     result.rejected = [i.key for i in pool if i.status == "rejected"]
@@ -132,7 +156,9 @@ def merge(items: Iterable[Item], judge: Judge | None = None) -> MergeResult:
     groups: list[list[Item]] = []
     for item in active:
         for group in groups:
-            if _same(group[0], item, judge):
+            # A judged pair may name any member of a group, not only its first (kept) item.
+            if _same(group[0], item, judge, same) or (same and any(
+                    frozenset((m.key, item.key)) in same and _same(m, item, None, same) for m in group[1:])):
                 group.append(item)
                 break
         else:

@@ -67,6 +67,7 @@ class Models:
         self.verdicts = {}  # item text fragment → (verdict A, verdict B)
         self.adjudicated = []
         self.extract_extra = []  # extra raw red flags (e.g. with IDs outside the pack)
+        self.merge_words = []  # each entry: words; items containing any of them form one duplicate group
 
     def screen(self, request, family):
         return {"items": [{"paper_id": p, "relevance": 3, "hypothesis_keys": [], "design": "guideline",
@@ -92,6 +93,16 @@ class Models:
                         "context_needed": False, "reason": "r"})
         return {"items": out}
 
+    def groups(self, request):
+        """Group items whose text contains one of the `merge_words` sets (all words present)."""
+        lines = re.findall(r"(?m)^(X\d+): \[[^\]]*\] (.*)$", request.user)
+        out = []
+        for words in self.merge_words:
+            ids = [x for x, text in lines if any(w in text for w in words)]
+            if len(ids) > 1:
+                out.append({"keep": ids[0], "same": ids[1:]})
+        return {"groups": out}
+
     def handler(self, family):
         def h(request):
             name = request.schema_name
@@ -103,8 +114,8 @@ class Models:
                 if request.model in ("claude-fable-5-2", "gpt-6.2-astra") and "Context:" in request.user:
                     self.adjudicated.append(request.model)
                 return self.verify(request, family)
-            if name == "MergeJudgement":
-                return {"pairs": [{"pair": p, "same": True} for p in ids_in(request.user, r"(?m)^(X\d+): ")]}
+            if name == "MergeGroups":
+                return self.groups(request)
             if name == "SafetyReview":
                 return {"level": "none", "crisis": False, "flags": [], "guideline_checks": [
                     {"item": k, "state": "not_applicable", "seg_ids": []} for k in ids_in(request.user, r'"item": "(K\d+)"')],
@@ -326,6 +337,27 @@ class GroundingFlowTests(GroundingBase):
         self.assertEqual(sorted(f["status"] for f in flags), ["active", "superseded"])
         kept = next(f for f in flags if f["status"] == "active")
         self.assertEqual(len(self.db.query("SELECT * FROM knowledge_attestations WHERE item_id = ?", (kept["id"],))), 2)
+
+    async def test_grouping_judge_merges_different_wordings(self):
+        self.models.extract_extra = [{"condition": "Pulse-synchronous sound", "features": [], "urgency": "urgent",
+                                      "population": "all", "sentence_ids": ["S1.P1.s2"]},
+                                     {"condition": "Pulsatile tinnitus heard with the heartbeat", "features": [],
+                                      "urgency": "urgent", "population": "all", "sentence_ids": ["S1.P1.s2"]}]
+        self.models.merge_words = [("Pulse-synchronous", "heard with the heartbeat")]
+        inv_id = self.seed()
+        await self.run_inv(inv_id)
+        rows = {r["text"]: r["status"] for r in self.items(inv_id, origin="guideline", kind="red_flag")}
+        self.assertEqual(sorted([rows["Pulse-synchronous sound"], rows["Pulsatile tinnitus heard with the heartbeat"]]),
+                         ["active", "superseded"])
+        merges = self.db.one("SELECT data FROM events WHERE kind = 'knowledge'")["data"]
+        self.assertGreaterEqual(merges["merges"], 1)
+
+    def test_history_items_are_questions(self):
+        self.assertEqual(G.history_kind("history_item", "Duration of tinnitus"), "history_item")
+        self.assertEqual(G.history_kind("history_item", "Physical and neurological examination"), "evaluation")
+        self.assertEqual(G.history_kind("history_item", "Audiological testing"), "evaluation")
+        self.assertIsNone(G.history_kind("history_item", "Clinical history"))
+        self.assertEqual(G.history_kind("red_flag", "Clinical history"), "red_flag")
 
     async def test_a_new_complaint_grounds_only_itself(self):
         inv_id = self.seed()

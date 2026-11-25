@@ -268,26 +268,40 @@ class SafetyStepTests(SafetyStepBase):
                 "trust": "verified", "status": "active"})
             unk = self.db.insert(conn, "knowledge_items", {
                 "investigation_id": inv_id, "version": 0, "kind": "red_flag", "key": "fever", "text": "Fever with "
-                "the rash", "attributes": {"urgency": "emergency"}, "population": "all", "origin": "guideline",
+                "the rash", "attributes": {"urgency": "emergency", "question": "Do you have a fever with the rash?"},
+                "population": "all", "origin": "guideline", "trust": "verified", "status": "active"})
+            vague = self.db.insert(conn, "knowledge_items", {
+                "investigation_id": inv_id, "version": 0, "kind": "red_flag", "key": "other", "text": "Other signs",
+                "attributes": {"urgency": "urgent"}, "population": "all", "origin": "guideline",
+                "trust": "verified", "status": "active"})
+            pregnant = self.db.insert(conn, "knowledge_items", {
+                "investigation_id": inv_id, "version": 0, "kind": "red_flag", "key": "preg", "text": "Rash in "
+                "pregnancy", "attributes": {"urgency": "urgent"}, "population": "pregnancy", "origin": "guideline",
                 "trust": "verified", "status": "active"})
         calls = []
 
         def a(request):
             calls.append(1)
-            checks = [{"item": f"K{fire}", "state": "fires", "seg_ids": ["U2"]}]
+            checks = [{"item": f"K{fire}", "state": "fires", "seg_ids": ["U2"]},
+                      {"item": f"K{vague}", "state": "unknown", "seg_ids": []}]
             if len(calls) > 1:  # the first answer misses an item → one repair call
                 checks.append({"item": f"K{unk}", "state": "not_applicable", "seg_ids": []})
             return review("none", guideline_checks=checks)
 
         def b(request):
             return review("none", guideline_checks=[{"item": f"K{fire}", "state": "not_applicable", "seg_ids": []},
-                                                    {"item": f"K{unk}", "state": "unknown", "seg_ids": []}])
+                                                    {"item": f"K{unk}", "state": "unknown", "seg_ids": []},
+                                                    {"item": f"K{vague}", "state": "unknown", "seg_ids": []}])
         inv = await self.run_inv(inv_id, a, b)
         self.assertEqual(len(calls), 2)
         self.assertIn(f"K{fire}", self.a.requests[0].user)
         self.assertEqual(inv["safety_level"], "urgent")  # the item that fires sets the level
         q = self.db.one("SELECT * FROM clarifying_questions WHERE key = ?", (f"ruleout.K{unk}",))
-        self.assertEqual((q["item_id"], q["priority"]), (unk, 0))
+        self.assertEqual((q["item_id"], q["priority"], q["text"]), (unk, 0, "Do you have a fever with the rash?"))
+        # Without a plain question from the guideline, an unknown item asks nothing; another population's flag
+        # isn't shown to the panel at all.
+        self.assertIsNone(self.db.one("SELECT * FROM clarifying_questions WHERE key = ?", (f"ruleout.K{vague}",)))
+        self.assertNotIn(f'"K{pregnant}"', self.a.requests[0].user)
 
     async def test_panel_rule_out_questions_are_saved(self):
         inv_id = self.seed("Synthetic case. A mild itch on my arm for a week.")

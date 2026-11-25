@@ -211,6 +211,7 @@ class KRedFlag(_Out):
     features: list[str] = Field(default_factory=list, max_length=10)
     urgency: Literal["emergency", "urgent", "routine"]
     population: POPULATION = "all"
+    question: str = Field(default="", max_length=300)  # how to ask the person about it (B8.2 rule-out)
     sentence_ids: list[str] = Field(default_factory=list)
 
 
@@ -218,24 +219,29 @@ class KDifferential(_Out):
     condition: str = Field(min_length=3, max_length=200)
     key_features: list[str] = Field(default_factory=list, max_length=10)
     typical_population: str = Field(default="", max_length=200)
+    population: POPULATION = "all"
     sentence_ids: list[str] = Field(default_factory=list)
 
 
 class KHistoryItem(_Out):
     attribute: str = Field(min_length=3, max_length=200)
+    question: str = Field(default="", max_length=300)  # the question to the person
     why: str = Field(default="", max_length=300)
+    population: POPULATION = "all"
     sentence_ids: list[str] = Field(default_factory=list)
 
 
 class KEvaluation(_Out):
     test: str = Field(min_length=2, max_length=200)
     indication: str = Field(default="", max_length=300)
+    population: POPULATION = "all"
     sentence_ids: list[str] = Field(default_factory=list)
 
 
 class KManagementTopic(_Out):
     topic: str = Field(min_length=3, max_length=200)
     context: str = Field(default="", max_length=300)
+    population: POPULATION = "all"
     sentence_ids: list[str] = Field(default_factory=list)
 
 
@@ -269,3 +275,12 @@ class SamePair(_Out):
 
 class MergeJudgement(_Out):
     pairs: list[SamePair] = Field(default_factory=list)
+
+
+class DuplicateGroup(_Out):
+    keep: str  # `X{n}` of the item to keep (the clearest wording)
+    same: list[str] = Field(default_factory=list)  # `X{n}` of items that mean the same thing
+
+
+class MergeGroups(_Out):
+    groups: list[DuplicateGroup] = Field(default_factory=list)

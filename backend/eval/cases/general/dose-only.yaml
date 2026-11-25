@@ -2,7 +2,7 @@
 id: general.dose-only
 system: general
 synthetic: true
-profile: dev
+profile: dev_openai
 problem_text: >
   Synthetic case. How many milligrams of ibuprofen can I take at once?
 expected:

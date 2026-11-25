@@ -28,7 +28,7 @@ A single test module: `cd backend && .venv/Scripts/python -m unittest test_resea
 - Done = tests pass, build passes, the task's done-when is met, docs updated, `docs/progress.md` ticked.
 - Knowledge files (`knowledge/universal/*.yaml`, `knowledge/packs/*.yaml`) are content: agents may draft them,
   only a human merges them, and every source must resolve.
-- Branches `feat/research-{milestone}-{topic}`.
+- All work goes on the `development` branch (one commit per task, named by task ID); no per-task branches.
 
 ## Privacy rules
 

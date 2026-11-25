@@ -63,6 +63,25 @@ class ProfileTests(unittest.TestCase):
             S.build("nope")
 
 
+class DevOpenAITests(unittest.TestCase):
+    def test_every_role_is_gpt_5_4_mini_and_panels_keep_two_members(self):
+        st = S.build("dev_openai")
+        self.assertEqual({m.model for r in st.roles.values() for m in r.members}, {"gpt-5.4-mini"})
+        for name, role in st.roles.items():
+            if len(role.members) == 2:
+                res = S.resolve_role(st, name, lambda ref: True)
+                self.assertEqual(len(res.members), 2, name)  # same model, two efforts → two members
+                self.assertEqual(res.independence, "same_family", name)
+        self.assertEqual([m.effort for m in st.roles["safety"].members], ["high", "medium"])
+        self.assertEqual(st.roles["brief_check"].members[0].effort, "medium")  # a family-B role
+        self.assertFalse(st.providers.ollama["enabled"])
+
+    def test_same_model_same_effort_still_counts_once(self):
+        a = S.ModelRef(model="m", effort="high")
+        self.assertTrue(S._same_member(a, S.ModelRef(model="m", effort="high")))
+        self.assertFalse(S._same_member(a, S.ModelRef(model="m", effort="medium")))
+
+
 class ResolutionTests(unittest.TestCase):
     def setUp(self):
         self.s = S.build("quality")

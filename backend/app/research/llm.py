@@ -68,6 +68,8 @@ class CallContext:
     step: str | None = None
     available: Callable[[ModelRef], bool] | None = None
     sleep: Callable[[float], Any] = asyncio.sleep
+    literature: Any = None  # LiteratureDB for fetches (None → the app's library); eval uses a temp one
+    sources: Any = None  # research.sources.Sources override (tests)
 
     def is_available(self, ref: ModelRef) -> bool:
         if self.available is not None:
@@ -78,7 +80,7 @@ class CallContext:
     def with_task(self, *, task_id: int | None, step: str | None, investigation_id: int | None = None) -> "CallContext":
         return CallContext(self.db, self.settings, self.providers, self.limiters, self.prices,
                            investigation_id if investigation_id is not None else self.investigation_id,
-                           task_id, step, self.available, self.sleep)
+                           task_id, step, self.available, self.sleep, self.literature, self.sources)
 
 
 @dataclass

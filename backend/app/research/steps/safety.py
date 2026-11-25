@@ -202,10 +202,13 @@ def _questions_cfg(sc: StageContext) -> dict:
 
 
 def grounding_needed(sc: StageContext) -> bool:
-    pop = B.population_key(sc.inv.get("special_populations") or [])
-    for c in sc.inv.get("complaints") or []:
+    """A covered complaint has no grounding run (ok, gap or failed) for the current population key."""
+    from .grounding import _cfg, wanted
+    if not _cfg(sc.settings).get("enabled", True):
+        return False
+    for key, pop in wanted(sc.inv, sc.settings):
         if not sc.conn.execute("SELECT 1 FROM grounding_runs WHERE investigation_id = ? AND complaint_key = ? AND "
-                               "population = ?", (sc.id, c["key"], pop)).fetchone():
+                               "population = ?", (sc.id, key, pop)).fetchone():
             return True
     return False
 

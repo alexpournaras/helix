@@ -207,7 +207,7 @@ def run(settings: ResearchSettings, providers: dict[str, Any], probes: ProbeStor
         except LookupError:
             errors.append("No strongest model is available for adjudication and confirmation.")
             break
-    if settings.profile == "dev":
+    if settings.profile in ("dev", "dev_openai"):
         warnings.append("Development profile: not for real cases (models have not passed the E3 evaluation).")
     if "ollama" in used:
         critical = [r for r in ("safety", "verify", "brief_check", "synthesis", "critic.safety")

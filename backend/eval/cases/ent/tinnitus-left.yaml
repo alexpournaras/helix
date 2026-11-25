@@ -2,7 +2,7 @@
 id: ent.tinnitus-left
 system: ent
 synthetic: true
-profile: dev
+profile: dev_openai
 problem_text: >
   Synthetic case. For about three weeks I have had a high-pitched ringing in my left ear. It is worse at night
   when the room is quiet. I also feel some pressure in my head. I am 52 and take no regular medicines.

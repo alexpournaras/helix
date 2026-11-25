@@ -1,5 +1,6 @@
 """1A.10 eval runner (Part E, G.3–4): case loading, fake / replay / live modes, waits, E1 checks, compare."""
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -131,6 +132,18 @@ class RunTests(ResearchTestCase):
         report = await ev.run([ev.EvalCase(**CASE)], mode="live", factory=factory(), name="t",
                               recordings_root=self.tmp / "rec", results_dir=self.tmp / "results")
         self.assertNotEqual(report["cases"][0]["status"], "preflight_failed")
+
+    async def test_a_slow_case_is_reported_as_a_timeout(self):
+        def slow_factory(ctx):
+            async def step(tc):
+                await asyncio.sleep(5)
+            stages = {"intake": StageDef("intake", on_enter=lambda sc: sc.queue("intake", "intake:1"),
+                                         on_complete=lambda sc: Complete("findings"))}
+            return Pipeline(stages=stages, steps={"intake": StepDef("intake", step)}), {}
+        report = await ev.run([ev.EvalCase(**CASE)], mode="fake", factory=slow_factory, name="t",
+                              recordings_root=self.tmp / "rec", results_dir=self.tmp / "results", timeout=0.3)
+        self.assertEqual(report["cases"][0]["status"], "timeout")
+        self.assertTrue((self.tmp / "results" / "t-fake.json").exists())
 
     def test_compare(self):
         old = {"cases": [{"id": "a", "status": "complete", "outcome": "findings", "e1_ok": True},

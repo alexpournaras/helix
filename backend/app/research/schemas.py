@@ -180,3 +180,92 @@ class SafetyReview(_Out):
     guideline_checks: list[GuidelineCheck] = Field(default_factory=list)
     recommendation: str = Field(max_length=600)
     rule_out_questions: list[RuleOutQuestion] = Field(default_factory=list, max_length=3)
+
+
+# ---------- screening (B8.11; grounding uses it with its own prompt) ----------
+
+DESIGN = Literal["guideline", "systematic_review", "rct", "cohort", "diagnostic_accuracy", "case_control",
+                 "cross_sectional", "narrative_review", "mechanistic", "case_series", "case_report", "opinion",
+                 "other"]
+POPULATION = Literal["all", "infant", "child", "pregnancy", "older", "immunocompromised"]
+
+
+class ScreenItem(_Out):
+    paper_id: str
+    relevance: int = Field(ge=0, le=3)
+    hypothesis_keys: list[str] = Field(default_factory=list)
+    design: DESIGN
+    population_note: str = Field(default="", max_length=200)
+    decision: Literal["include", "exclude"]
+    reason: str = Field(max_length=300)
+
+
+class ScreeningBatch(_Out):
+    items: list[ScreenItem] = Field(default_factory=list)
+
+
+# ---------- knowledge extraction (B8.3a step 5) ----------
+
+class KRedFlag(_Out):
+    condition: str = Field(min_length=3, max_length=300)
+    features: list[str] = Field(default_factory=list, max_length=10)
+    urgency: Literal["emergency", "urgent", "routine"]
+    population: POPULATION = "all"
+    sentence_ids: list[str] = Field(default_factory=list)
+
+
+class KDifferential(_Out):
+    condition: str = Field(min_length=3, max_length=200)
+    key_features: list[str] = Field(default_factory=list, max_length=10)
+    typical_population: str = Field(default="", max_length=200)
+    sentence_ids: list[str] = Field(default_factory=list)
+
+
+class KHistoryItem(_Out):
+    attribute: str = Field(min_length=3, max_length=200)
+    why: str = Field(default="", max_length=300)
+    sentence_ids: list[str] = Field(default_factory=list)
+
+
+class KEvaluation(_Out):
+    test: str = Field(min_length=2, max_length=200)
+    indication: str = Field(default="", max_length=300)
+    sentence_ids: list[str] = Field(default_factory=list)
+
+
+class KManagementTopic(_Out):
+    topic: str = Field(min_length=3, max_length=200)
+    context: str = Field(default="", max_length=300)
+    sentence_ids: list[str] = Field(default_factory=list)
+
+
+class KnowledgeExtraction(_Out):
+    red_flags: list[KRedFlag] = Field(default_factory=list)
+    differential: list[KDifferential] = Field(default_factory=list)
+    history_items: list[KHistoryItem] = Field(default_factory=list)
+    evaluations: list[KEvaluation] = Field(default_factory=list)
+    management_topics: list[KManagementTopic] = Field(default_factory=list)
+
+
+# ---------- attestation verification (B8.3a step 6, B8.15 rules) ----------
+
+class AttestationVote(_Out):
+    pair: str  # `X{n}` from the material
+    verdict: Literal["supported", "partial", "unsupported"]
+    population_check: Literal["same", "broader", "different", "not_stated"]
+    overgeneralization: bool
+    context_needed: bool
+    reason: str = Field(max_length=300)
+
+
+class AttestationBatch(_Out):
+    items: list[AttestationVote] = Field(default_factory=list)
+
+
+class SamePair(_Out):
+    pair: str
+    same: bool
+
+
+class MergeJudgement(_Out):
+    pairs: list[SamePair] = Field(default_factory=list)

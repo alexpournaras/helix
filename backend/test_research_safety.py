@@ -137,7 +137,10 @@ class SafetyStepTests(SafetyStepBase):
     async def test_grounding_comes_first_when_a_complaint_is_not_grounded(self):
         inv_id = self.seed("Synthetic case. A mild itch on my arm for a week.", grounded=False)
         await self.run_inv(inv_id)
-        self.assertIn("grounding", self.reason(inv_id))
+        # Grounding ran for the complaint (a gap here: no network in tests), then safety again on k1.
+        self.assertEqual([r["complaint_key"] for r in self.db.query("SELECT * FROM grounding_runs")], ["c"])
+        self.assertEqual([r["knowledge_version"] for r in self.reviews(inv_id)], [0, 1])
+        self.assertIn("planning", self.reason(inv_id))
 
     async def test_unknown_rule_becomes_a_priority_zero_rule_out_question(self):
         inv_id = self.seed("Synthetic case. I have had abdominal pain for two days.")

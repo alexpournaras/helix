@@ -2,7 +2,7 @@
 id: digestive.abdominal-pain-pregnancy-unknown
 system: digestive
 synthetic: true
-profile: dev
+profile: dev_openai
 problem_text: >
   Synthetic case. I am a 27-year-old woman. Since yesterday I have had pain in the lower right side of my
   belly. It comes and goes.

@@ -705,7 +705,7 @@ Note: `final_report`.
 
 ### B8.3a grounding (one task per complaint × population key, then merge)
 
-**1. Queries (code + A sol).** The query terms are the complaint's verified MeSH descriptor and its entry terms ✔, plus population terms (infant, child, pregnancy, aged).
+**1. Queries (code).** The query terms are the complaint's verified MeSH descriptor and up to 3 entry terms ✔, plus population terms (infant, child, pregnancy, aged). Without a verified descriptor, the complaint text is searched in titles and abstracts (decision 2026-11-25).
 
 | Source | Queries |
 |---|---|
@@ -1850,7 +1850,7 @@ All the points adopted in v5 and v6 remain.
 
 # Part G: Execution protocol for AI coding agents
 
-1. **One task per branch or PR,** named by ID. Read the task, its B-sections and the related Part C facts before coding.
+1. **One task per commit on the `development` branch,** named by ID (decision 2026-11-25). Read the task, its B-sections and the related Part C facts before coding.
 2. **Tests first for deterministic code.** Never weaken a test.
 3. **No real network calls in tests.** Live checks go through `eval/run.py --mode live`.
 4. **Version prompts and thresholds.** Every change needs a version bump and an `eval replay` comparison in the PR.

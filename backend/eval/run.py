@@ -56,7 +56,7 @@ class EvalCase(BaseModel):
     system: str
     synthetic: Literal[True]  # real cases never go into eval (B16.8)
     problem_text: str = Field(min_length=1)
-    profile: str = "dev"
+    profile: str = "dev_openai"
     answers: dict[str, str] = Field(default_factory=dict)  # question key or pattern → scripted answer
     approve: bool = True  # approve plans and selections
     acknowledge: bool = True  # acknowledge urgent/emergency safety waits
@@ -123,7 +123,28 @@ def intake_summary(db: ResearchDB, inv: dict) -> dict | None:
             "mesh_dropped": [t for c in inv["complaints"] for t in c["mesh_dropped"]],
             "systems": inv["systems"], "populations": inv["special_populations"],
             "unknowns": [u["key"] for u in brief.get("unknowns", [])], "check": check.get("counts"),
-            **safety_summary(db, inv)}
+            **safety_summary(db, inv), **grounding_summary(db, inv)}
+
+
+def grounding_summary(db: ResearchDB, inv: dict) -> dict:
+    """Per complaint: status, counts and the kept guideline items (vocabulary only)."""
+    runs = []
+    for ev in db.query("SELECT data FROM events WHERE investigation_id = ? AND kind = 'grounding' ORDER BY id",
+                       (inv["id"],)):
+        d = ev["data"] or {}
+        runs.append({k: d.get(k) for k in ("complaint", "population", "candidates", "screened", "selected", "reads",
+                                           "items", "failed_queries", "dropped_attestations")})
+    for r in db.query("SELECT complaint_key, status, gap_reason FROM grounding_runs WHERE investigation_id = ?",
+                      (inv["id"],)):
+        match = next((x for x in runs if x["complaint"] == r["complaint_key"]), None)
+        if match is None:
+            runs.append({"complaint": r["complaint_key"]})
+            match = runs[-1]
+        match.update(status=r["status"], gap_reason=r["gap_reason"])
+    items = db.query("SELECT kind, text, trust FROM knowledge_items WHERE investigation_id = ? AND origin = 'guideline' "
+                     "AND status = 'active' ORDER BY kind, id", (inv["id"],))
+    return {"knowledge_version": inv["knowledge_version"], "grounding": runs,
+            "guideline_items": [f"{i['kind']}: {i['text']} ({i['trust']})" for i in items]}
 
 
 def safety_summary(db: ResearchDB, inv: dict) -> dict:
@@ -187,8 +208,10 @@ def _context(db: ResearchDB, mode: Mode, profile: str) -> llm.CallContext:
         providers = default_providers(research)
         # Replay needs no keys: auth headers aren't part of a recording's key.
         available = (lambda ref: True) if mode == "replay" else None
+    from app.literature.db import LiteratureDB
+    library = LiteratureDB(Path(db.path).parent / "literature.db")  # each case gets its own library
     return llm.CallContext(db=db, settings=research, providers=providers, limiters=Limiters({}),
-                           prices=PriceTable(), available=available)
+                           prices=PriceTable(), available=available, literature=library)
 
 
 def _transport(mode: Mode, recordings: Path):
@@ -209,9 +232,13 @@ def load_factory(spec: str) -> Callable:
         raise SystemExit(f"Pipeline factory {spec} isn't available yet ({exc}).")
 
 
+DEFAULT_TIMEOUT = 3600.0  # per case; grounding on local models takes a while
+
+
 async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings: Path,
-                   timeout: float = 600.0) -> dict:
+                   timeout: float = DEFAULT_TIMEOUT, keep: bool = False) -> dict:
     tmp = Path(tempfile.mkdtemp(prefix=f"helix-eval-{case.id}-"))
+    worker = None
     try:
         db = ResearchDB(tmp / "research.sqlite3")
         db.init()
@@ -230,8 +257,13 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
                                              title=case.id)
             await worker.machine.advance(inv_id)
             waits: list[str] = []
+            timed_out = False
             for _ in range(MAX_WAITS + 1):
-                await worker.run_until_idle(timeout=timeout)
+                try:
+                    await worker.run_until_idle(timeout=timeout)
+                except (TimeoutError, asyncio.TimeoutError):
+                    timed_out = True
+                    break
                 inv = db.investigation(inv_id)
                 if inv["status"] != "waiting_user":
                     break
@@ -247,7 +279,8 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
         checks = [check(db, inv) for check in E1_CHECKS]
         summary = intake_summary(db, inv)
         return {
-            "id": case.id, "system": case.system, "status": inv["status"], "outcome": inv["outcome"],
+            "id": case.id, "system": case.system, "status": "timeout" if timed_out else inv["status"],
+            "outcome": inv["outcome"],
             "stage": inv["stage"], "error": (inv.get("error") or "")[:800] or None,
             "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
             "waits": waits, "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
@@ -257,19 +290,32 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
                                             inv["outcome"]),
         }
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        if worker is not None:
+            await worker.stop()
+        if keep:
+            print(f"  kept {tmp}", flush=True)
+        else:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str,
-              recordings_root: Path = RECORDINGS_DIR, results_dir: Path = RESULTS_DIR) -> dict:
+              recordings_root: Path = RECORDINGS_DIR, results_dir: Path = RESULTS_DIR,
+              timeout: float = DEFAULT_TIMEOUT, keep: bool = False) -> dict:
+    """Runs the cases one by one; the results file is rewritten after each case, so a crash keeps the rest."""
     recordings = Path(recordings_root) / name
-    results = [await run_case(c, mode=mode, factory=factory, recordings=recordings) for c in cases]
-    report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-              "cases": results, "summary": {
-                  "cases": len(results), "complete": sum(r["status"] == "complete" for r in results),
-                  "e1_failures": sum(not r.get("e1_ok", False) for r in results)}}
-    Path(results_dir).mkdir(parents=True, exist_ok=True)
-    (Path(results_dir) / f"{name}-{mode}.json").write_text(json.dumps(report, indent=2), "utf-8")
+    results: list[dict] = []
+    report: dict = {}
+    for i, c in enumerate(cases, 1):
+        print(f"[{i}/{len(cases)}] {c.id} …", flush=True)
+        results.append(await run_case(c, mode=mode, factory=factory, recordings=recordings, timeout=timeout,
+                                      keep=keep))
+        print(f"[{i}/{len(cases)}] {c.id}: {results[-1]['status']} in {results[-1].get('seconds', 0)} s", flush=True)
+        report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                  "cases": results, "summary": {
+                      "cases": len(results), "complete": sum(r["status"] == "complete" for r in results),
+                      "e1_failures": sum(not r.get("e1_ok", False) for r in results)}}
+        Path(results_dir).mkdir(parents=True, exist_ok=True)
+        (Path(results_dir) / f"{name}-{mode}.json").write_text(json.dumps(report, indent=2), "utf-8")
     return report
 
 
@@ -298,12 +344,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", default="default", help="recordings and results name")
     parser.add_argument("--pipeline", default=DEFAULT_FACTORY, help="module:function pipeline factory")
     parser.add_argument("--compare", help="an earlier results JSON to compare against")
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="seconds per case")
+    parser.add_argument("--keep", action="store_true", help="keep each case's data folder for inspection")
     args = parser.parse_args(argv)
     cases = load_cases(Path(args.cases), args.case)
     if not cases:
         print("No cases found.")
         return 1
-    report = asyncio.run(run(cases, mode=args.mode, factory=load_factory(args.pipeline), name=args.name))
+    report = asyncio.run(run(cases, mode=args.mode, factory=load_factory(args.pipeline), name=args.name,
+                             timeout=args.timeout, keep=args.keep))
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     for case in report["cases"]:

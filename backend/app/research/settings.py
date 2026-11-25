@@ -129,7 +129,9 @@ QUALITY: dict[str, Any] = {
                   "dual_knowledge_extraction": True},
     "scope": {"readiness_min_cases": 10},
     "grounding": {"enabled": True, "max_complaints": 5, "max_sources_per_complaint": 6, "years": 10,
-                  "kinds": ["guideline", "systematic_review", "narrative_review"], "max_per_organisation": 2},
+                  "kinds": ["guideline", "systematic_review", "narrative_review"], "max_per_organisation": 2,
+                  "max_results_per_query": 25, "max_screened": 40, "pack_tokens": 32000,
+                  "max_packs_per_source": None},
     "knowledge": {"curated_packs": "auto", "universal_floor_version": "latest"},
     "privacy": {"openai_project_shares_data": None, "store_prompts": False, "purge_payloads_after_days": None},
     "autonomy": "review_plan",
@@ -252,16 +254,47 @@ def _dev() -> dict:
         "providers": {"ollama": {"enabled": True, "num_ctx": 32768, "max_output_tokens": 8192,
                                  "idle_timeout_seconds": 300, "deadline_seconds": 1800}},
         "concurrency": {"ollama": 1, "openai": 8},
+        # Ollama's 32k context and speed: smaller packs, fewer sources (development only).
+        "grounding": {"max_sources_per_complaint": 3, "pack_tokens": 12000, "max_packs_per_source": 3,
+                      "max_results_per_query": 15, "max_screened": 24},
+    }
+
+
+def _dev_openai() -> dict:
+    """OpenAI-only development setup (decision 2026-11-25): every role on gpt-5.4-mini, family-A members at
+    `high` effort and family-B members at `medium`, so panels and cross-checks keep two distinct members
+    (independence `same_family`). Ollama returns in a later cycle. Not for real cases."""
+    def swap(ref: dict, side: str) -> dict:
+        return _m(DEV_OPENAI, "high" if side == "a" else "medium")
+
+    roles: dict[str, dict] = {}
+    for name, spec in QUALITY_ROLES.items():
+        members = [swap(m, "a" if provider_of(m["model"]) == "openai" else "b") for m in spec["members"]]
+        if len(members) == 2 and members[0] == members[1]:
+            members[1] = _m(DEV_OPENAI, "medium" if members[0]["effort"] == "high" else "high")
+        fallback: list[dict] = []
+        for ref in (swap(m, "a" if provider_of(m["model"]) == "openai" else "b") for m in spec.get("fallback", [])):
+            if ref not in fallback and ref not in members:
+                fallback.append(ref)
+        roles[name] = {"members": members, "fallback": fallback}
+    return {
+        "roles": roles,
+        "strongest": {"openai": _m(DEV_OPENAI, "high")},
+        "providers": {"ollama": {"enabled": False, "num_ctx": 32768}},
+        "concurrency": {"openai": 8},
+        "grounding": {"max_sources_per_complaint": 3, "max_packs_per_source": 4, "max_results_per_query": 15,
+                      "max_screened": 24},
     }
 
 
 PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy,
-                                                   "dev": _dev}
+                                                   "dev": _dev, "dev_openai": _dev_openai}
 PROFILE_DESCRIPTIONS = {
     "quality": "Strongest model for every judgment, full ensembles, up to 5 rounds (default).",
     "balanced": "sol and opus for most roles, single extraction, one critic, 3 rounds, 15 papers per round.",
     "economy": "One efficient model per role, no ensembles except the safety panel, 1 round, 10 papers.",
     "dev": "Development only: gpt-5.4-mini (family A) + a local Ollama model (family B), quality structure.",
+    "dev_openai": "Development only: gpt-5.4-mini everywhere (high effort for family-A roles, medium for family-B roles), quality structure.",
 }
 
 
@@ -332,7 +365,7 @@ class GuardsCfg(Strict):
 
 
 class ResearchSettings(Strict):
-    profile: Literal["quality", "balanced", "economy", "dev"]
+    profile: Literal["quality", "balanced", "economy", "dev", "dev_openai"]
     roles: dict[str, RoleSpec]
     strongest: dict[str, ModelRef]
     providers: ProvidersCfg
@@ -420,6 +453,11 @@ class ResolvedRole(BaseModel):
     substitutions: list[str] = []
 
 
+def _same_member(a: ModelRef, b: ModelRef) -> bool:
+    """Two members are the same when model and effort match (one model at two efforts counts twice: dev_openai)."""
+    return a.model == b.model and (a.effort or None) == (b.effort or None)
+
+
 def resolve_role(settings: ResearchSettings, role: str, available: Callable[[ModelRef], bool]) -> ResolvedRole:
     """Pick models for a role: each unavailable member is replaced by the next unused available fallback.
 
@@ -431,13 +469,13 @@ def resolve_role(settings: ResearchSettings, role: str, available: Callable[[Mod
     pool = [m for m in spec.fallback]
     lost = 0
     for member in spec.members:
-        if available(member) and not any(c.model == member.model for c in chosen):
+        if available(member) and not any(_same_member(c, member) for c in chosen):
             chosen.append(member)
             continue
         replacement = None
         while pool:
             candidate = pool.pop(0)
-            if available(candidate) and not any(c.model == candidate.model for c in chosen):
+            if available(candidate) and not any(_same_member(c, candidate) for c in chosen):
                 replacement = candidate
                 break
         if replacement is None:

@@ -96,9 +96,10 @@ class IntakeStepTests(IntakeBase):
     async def test_accepted_case_saves_brief_complaints_systems(self):
         inv_id = await self.run_case(EN_TEXT, lambda r: intake_output(proposed_systems=["ent", "musculoskeletal"]))
         inv = self.db.investigation(inv_id)
-        # Intake → safety → grounding (a stub until 1C.3) → incomplete.
+        # Intake → safety → grounding (a gap: no network in tests) → safety → questions (a stub until 1C.4).
         self.assertEqual((inv["status"], inv["outcome"]), ("complete", "incomplete"))
-        self.assertIn("1C.3", self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'complete'",
+        self.assertEqual(self.db.one("SELECT status FROM grounding_runs")["status"], "gap")
+        self.assertIn("1C.4", self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'complete'",
                                           (inv_id,))["data"]["reason"])
         segs = self.db.query("SELECT seg_id, origin FROM user_segments WHERE investigation_id = ? ORDER BY seg_id",
                              (inv_id,))

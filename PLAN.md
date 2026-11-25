@@ -683,12 +683,13 @@ Each step lists its input, output, checks, what it saves, and how it fails (B10)
 - **Unknowns:** an `unknown` attribute produces a rule-out question.
 - **Guideline red flags:** these don't have structured conditions, so the panel evaluates each one explicitly: fires / unknown / doesn't apply, citing segments.
 
-**Panel.** A and B each return `SafetyReview {level, flags[{flag, rule_ref, reason, seg_ids}], recommendation, rule_out_questions[]}`.
+**Panel.** A and B each return `SafetyReview {level, crisis, flags[{flag, rule_ref, reason, seg_ids}], guideline_checks[{item, state, seg_ids}], recommendation, rule_out_questions[{key, text}]}`. `crisis` (thoughts of suicide or self-harm, or risk to others) from any member adds the crisis resources.
 
 **Combining.**
 - `level = max(rule level, every panel level)`.
 - All flags are kept; flags with invalid segment IDs are marked `unverified`.
-- The displayed text is the fixed template for that level, followed by the panel's recommendations.
+- The displayed text is the fixed template for that level, followed by the panel's recommendations (for `urgent` and `routine_review`; an emergency shows only the fixed text).
+- A crisis rule is recorded as soon as the safety stage starts, before the panel, so crisis resources show at once.
 
 **Saves.** Review, plus rule-out questions with priority 0. Note: `safety_review`.
 

@@ -55,14 +55,25 @@ def all_stated(request):
     return {"items": [{"path": f["path"], "verdict": "stated", "reason": "said"} for f in json.loads(body)]}
 
 
+SAFE = {"level": "none", "crisis": False, "flags": [], "guideline_checks": [], "recommendation": "",
+        "rule_out_questions": []}
+
+
+def with_safety(handler):
+    """Intake tests: the safety panel (1C.2) that follows intake answers `none`."""
+    def wrapped(request):
+        return SAFE if request.schema_name == "SafetyReview" else handler(request)
+    return wrapped
+
+
 class IntakeBase(ResearchTestCase):
     def setUp(self):
         super().setUp()
         mesh._store(self.db, "Tinnitus", TINNITUS)
 
     def ctx(self, a, b=all_stated):
-        self.a = FakeProvider("openai", a)
-        self.b = FakeProvider("anthropic", b)
+        self.a = FakeProvider("openai", with_safety(a))
+        self.b = FakeProvider("anthropic", with_safety(b))
         return llm.CallContext(db=self.db, settings=S.build("quality"),
                                providers={"openai": self.a, "anthropic": self.b},
                                limiters=Limiters({}), prices=PriceTable())
@@ -85,9 +96,9 @@ class IntakeStepTests(IntakeBase):
     async def test_accepted_case_saves_brief_complaints_systems(self):
         inv_id = await self.run_case(EN_TEXT, lambda r: intake_output(proposed_systems=["ent", "musculoskeletal"]))
         inv = self.db.investigation(inv_id)
-        # Intake → safety (a stub until 1C.2) → incomplete.
+        # Intake → safety → grounding (a stub until 1C.3) → incomplete.
         self.assertEqual((inv["status"], inv["outcome"]), ("complete", "incomplete"))
-        self.assertIn("1C.2", self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'complete'",
+        self.assertIn("1C.3", self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'complete'",
                                           (inv_id,))["data"]["reason"])
         segs = self.db.query("SELECT seg_id, origin FROM user_segments WHERE investigation_id = ? ORDER BY seg_id",
                              (inv_id,))
@@ -105,7 +116,7 @@ class IntakeStepTests(IntakeBase):
         self.assertEqual(row["check_results"]["counts"]["not_stated"], 0)
         self.assertEqual(len(self.db.query("SELECT * FROM note_outbox WHERE kind = 'case_brief'")), 1)
         # The brief check saw the cited segments.
-        self.assertIn("U2: I have had ringing", self.b.requests[0].user)
+        self.assertIn("U2: I have had ringing", next(r.user for r in self.b.requests if r.schema_name == "BriefCheck"))
 
     async def test_invalid_segment_ids_become_unknowns(self):
         out = intake_output()
@@ -197,7 +208,7 @@ class IntakeStepTests(IntakeBase):
                           (inv_id,))
         self.assertTrue(row["text"].startswith("Έχω"))
         self.assertTrue(row["text_en"].startswith("I have had"))
-        self.assertIn("U2 (English): I have had", self.b.requests[0].user)
+        self.assertIn("U2 (English): I have had", next(r.user for r in self.b.requests if r.schema_name == "BriefCheck"))
 
     async def test_not_human_waits_for_rewrite_then_restarts_intake(self):
         answers = [intake_output(is_human=False, not_accepted_reason="not_human", complaints=[], brief={}),

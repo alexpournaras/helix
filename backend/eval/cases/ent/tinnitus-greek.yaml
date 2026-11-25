@@ -11,3 +11,4 @@ expected:
   complaints: [tinnitus]
   systems_include: [ent]
   populations: [older]
+  safety_level_in: [none, routine_review]

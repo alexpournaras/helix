@@ -59,6 +59,7 @@ class EvalCase(BaseModel):
     profile: str = "dev"
     answers: dict[str, str] = Field(default_factory=dict)  # question key or pattern → scripted answer
     approve: bool = True  # approve plans and selections
+    acknowledge: bool = True  # acknowledge urgent/emergency safety waits
     rewrite: str | None = None  # new problem text if intake asks for a rewrite (synthetic too)
     expected: dict[str, Any] = Field(default_factory=dict)  # safety level, red flags, hypothesis families …
     notes: str = ""
@@ -121,24 +122,47 @@ def intake_summary(db: ResearchDB, inv: dict) -> dict | None:
             "mesh": [m["name"] for c in inv["complaints"] for m in c["mesh"]],
             "mesh_dropped": [t for c in inv["complaints"] for t in c["mesh_dropped"]],
             "systems": inv["systems"], "populations": inv["special_populations"],
-            "unknowns": [u["key"] for u in brief.get("unknowns", [])], "check": check.get("counts")}
+            "unknowns": [u["key"] for u in brief.get("unknowns", [])], "check": check.get("counts"),
+            **safety_summary(db, inv)}
 
 
-def intake_misses(case: EvalCase, summary: dict | None, waits: list[str]) -> list[str]:
+def safety_summary(db: ResearchDB, inv: dict) -> dict:
+    """The latest safety review: level, rule hits (refs), rule-out question keys, crisis, panel votes."""
+    rev = db.one("SELECT * FROM safety_reviews WHERE investigation_id = ? ORDER BY id DESC LIMIT 1", (inv["id"],))
+    if rev is None:
+        return {}
+    panel = rev["panel"] or {}
+    return {"safety_level": rev["level"], "rule_level": rev["rule_level"],
+            "fired": [h["ref"] for h in rev["rule_hits"] if h.get("state") == "true"],
+            "rule_outs": panel.get("questions", []), "crisis": panel.get("crisis", False),
+            "panel_levels": [m.get("value", {}).get("level") if m.get("ok") else "failed"
+                             for m in panel.get("members", [])]}
+
+
+def intake_misses(case: EvalCase, summary: dict | None, waits: list[str], outcome: str | None = None) -> list[str]:
     """Expectations from the case file that intake didn't meet (information; not an E1 check).
     `waits` includes the wait the run ended in, if any."""
     exp, out = case.expected, []
     if "first_wait" in exp and (waits[:1] or [None])[0] != exp["first_wait"]:
         out.append(f"first wait {waits[:1]} != {exp['first_wait']}")
+    if "outcome" in exp and outcome != exp["outcome"]:
+        out.append(f"outcome {outcome} != {exp['outcome']}")
     if summary is None:
         return out
     if "language" in exp and summary["language"] != exp["language"]:
         out.append(f"language {summary['language']} != {exp['language']}")
-    names = {n.lower() for n in summary["mesh"]} | set(summary["complaints"])
-    out += [f"complaint {c} missing" for c in exp.get("complaints", []) if c not in names]
+    norm = lambda t: t.lower().replace("_", " ")
+    names = {norm(n) for n in summary["mesh"] + summary["complaints"]}
+    out += [f"complaint {c} missing" for c in exp.get("complaints", []) if norm(c) not in names]
     out += [f"system {s} missing" for s in exp.get("systems_include", []) if s not in summary["systems"]]
     if "populations" in exp and sorted(summary["populations"]) != sorted(exp["populations"]):
         out.append(f"populations {summary['populations']} != {exp['populations']}")
+    if "safety_level_in" in exp and summary.get("safety_level") not in exp["safety_level_in"]:
+        out.append(f"safety level {summary.get('safety_level')} not in {exp['safety_level_in']}")
+    out += [f"rule {r} didn't fire" for r in exp.get("rules_fire", []) if r not in summary.get("fired", [])]
+    out += [f"rule-out {q} not asked" for q in exp.get("rule_outs", []) if q not in summary.get("rule_outs", [])]
+    if exp.get("crisis") and not summary.get("crisis"):
+        out.append("crisis not recognised")
     return out
 
 
@@ -229,7 +253,8 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
             "waits": waits, "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
             "usage": db.usage(inv_id), "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
             "intake": summary,
-            "expected_misses": intake_misses(case, summary, waits + ([inv["waiting_for"]] if inv["waiting_for"] else [])),
+            "expected_misses": intake_misses(case, summary, waits + ([inv["waiting_for"]] if inv["waiting_for"] else []),
+                                            inv["outcome"]),
         }
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

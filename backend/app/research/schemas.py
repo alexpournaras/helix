@@ -148,3 +148,35 @@ class CheckItem(_Out):
 
 class BriefCheck(_Out):
     items: list[CheckItem] = Field(default_factory=list)
+
+
+# ---------- safety (B8.2) ----------
+
+LEVEL = Literal["none", "routine_review", "urgent", "emergency"]
+
+
+class SafetyFlag(_Out):
+    flag: str = Field(min_length=1, max_length=200)
+    rule_ref: str | None = None  # `rule:{id}`, `pack:{pack}:{id}` or `K{id}` when it matches a listed rule or item
+    reason: str = Field(max_length=400)
+    seg_ids: list[str] = Field(default_factory=list)
+
+
+class GuidelineCheck(_Out):
+    item: str  # `K{id}` of a guideline red flag shown in the material
+    state: Literal["fires", "unknown", "not_applicable"]
+    seg_ids: list[str] = Field(default_factory=list)
+
+
+class RuleOutQuestion(_Out):
+    key: str = Field(pattern=SLUG, max_length=60)
+    text: str = Field(min_length=5, max_length=300)
+
+
+class SafetyReview(_Out):
+    level: LEVEL
+    crisis: bool  # the text suggests thoughts of suicide or self-harm
+    flags: list[SafetyFlag] = Field(default_factory=list)
+    guideline_checks: list[GuidelineCheck] = Field(default_factory=list)
+    recommendation: str = Field(max_length=600)
+    rule_out_questions: list[RuleOutQuestion] = Field(default_factory=list, max_length=3)

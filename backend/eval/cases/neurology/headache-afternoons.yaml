@@ -10,3 +10,4 @@ expected:
   complaints: [headache]
   systems_include: [neurology]
   populations: []
+  safety_level_in: [none, routine_review]

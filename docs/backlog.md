@@ -7,3 +7,4 @@ Ideas that are out of scope for the current task (PLAN Part G.5).
 - Eval fake mode: per-step fake handlers so a fake run passes intake (the fake provider's minimal answer is "not a health problem, no reason" and fails validation).
 - Eval cases: grow to ≥ 15 across ≥ 5 systems for the M1 gate (E3.1), including an adversarial input and a special-population case per population.
 - Eval: a planted-fact case for the brief check (the scratch probe from 1C.1) as a recorded replay.
+- 1C.4 questions: the two safety panel members often ask near-duplicate rule-outs (e.g. "pulsatile sound" / "does tinnitus have a pulsatile quality"); the questions step should merge them before asking.

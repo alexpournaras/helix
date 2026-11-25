@@ -11,7 +11,7 @@
 # DRAFTED BY AN AGENT (2026-11-24) from NHS and NICE guidance. Not yet reviewed by clinicians (PLAN Part G.6:
 # two reviewers, recorded in docs/decisions.md). Until then `review.status` stays `unreviewed` and pre-flight
 # warns. The rules err on the side of asking or escalating.
-version: 1
+version: 2
 review:
   status: unreviewed
   reviewers: []
@@ -704,7 +704,7 @@ rules:
             - pain in (?:my|the) (?:stomach|abdomen|belly|tummy|lower belly|pelvis)
             - pain (?:on|in) (?:one|my left|my right) side
             - shoulder tip pain
-            - '(?:pain|ache|cramps?|hurts?)\W+(?:\w+\W+){0,4}(?:stomach|abdomen|belly|tummy|pelvis)'
+            - '(?:pain|ache|cramps?|hurts?)\W+(?:\w+\W+){0,7}(?:stomach|abdomen|belly|tummy|pelvis)'
             - cramps? in (?:my |the )?(?:lower )?(?:stomach|belly|tummy|abdomen|pelvis)
         - fact: sex
           ne: male
@@ -733,6 +733,8 @@ rules:
       unknown:
         - text: I have pain in my lower belly.
           facts: {sex: female, age_years: 25}
+        - text: Since yesterday I have had pain in the lower right side of my belly.
+          facts: {sex: female, age_years: 27}
 
   - id: gut.persistent_vomiting
     area: abdomen_gut
@@ -1258,9 +1260,9 @@ rules:
       text:
         - suicid\w*
         - kill\w* (?:my ?self|me)
-        - end (?:my|it all|my own) life
-        - end it all
-        - take my (?:own )?life
+        - end(?:ing)? (?:my|my own) life
+        - end(?:ing)? it all
+        - (?:take|taking) my (?:own )?life
         - (?:do ?n'?t|do not) want to (?:live|be alive|be here|wake up)
         - better off dead
         - (?:want|wanted|wanting) to die
@@ -1274,6 +1276,8 @@ rules:
         - text: Lately I feel like I would be better off dead.
         - text: I have been cutting myself again.
         - text: I'm not sure, but I want to die.
+        - text: Lately I keep thinking about ending my life.
+        - text: Some nights I think about ending it all.
       no_fire:
         - text: I don't want to die, I just want to sleep better.
         - text: I am not suicidal and I have never harmed myself.

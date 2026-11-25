@@ -1,0 +1,11 @@
+# Synthetic only (PLAN B16.8). Pregnancy status unknown → rule-out question.
+id: digestive.abdominal-pain-pregnancy-unknown
+system: digestive
+synthetic: true
+profile: dev
+problem_text: >
+  Synthetic case. I am a 27-year-old woman. Since yesterday I have had pain in the lower right side of my
+  belly. It comes and goes.
+expected:
+  complaints: [abdominal_pain]
+  rule_outs: [ruleout.rule:gut.abdominal_pain_possible_pregnancy]

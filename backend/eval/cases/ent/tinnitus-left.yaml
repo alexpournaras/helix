@@ -6,6 +6,14 @@ profile: dev_openai
 problem_text: >
   Synthetic case. For about three weeks I have had a high-pitched ringing in my left ear. It is worse at night
   when the room is quiet. I also feel some pressure in my head. I am 52 and take no regular medicines.
+answers:
+  hearing: "My hearing seems normal."
+  pulsatile: "No, it is a steady high-pitched tone."
+  heartbeat: "No, it doesn't beat with my heartbeat."
+  dizz: "No dizziness."
+  face: "No weakness or numbness in my face."
+  noise: "I go to loud concerts a few times a year."
+  sex: "Male."
 expected:
   complaints: [tinnitus]
   systems_include: [ent]

@@ -738,13 +738,14 @@ Note: `final_report`.
 
 **Input:** unknowns; open history items (priority, then attestation count); rule-outs; gap questions; questions already asked.
 
-**Output:** `QuestionSet {questions[{key, text, why, answer_type, options, priority, expected_impact, targets, item_id}]}`.
+**Output:** `QuestionSet {questions[{key, text, why, answer_type, options, priority, expected_impact, targets, item_id}], merge_rule_outs[{keep, drop[]}]}` (duplicate panel rule-outs are merged; the rules' rule-outs are never dropped).
 
 **Checks.**
 - Keys are unique and never reused.
 - Choice questions have 2–8 options.
 - Every rule-out and every open priority-1 history item is present; code adds missing ones with the knowledge item's wording.
-- At most `max_per_round`, ordered safety first, then priority, then expected impact.
+- At most `max_per_round`, ordered safety first, then priority, then expected impact. Questions not asked stay open for a later round.
+- Safety rules read only the person's answer in an `A{id}` segment, never the question's words.
 
 **Saves.** Wait `answers`. Note: `clarifications`.
 

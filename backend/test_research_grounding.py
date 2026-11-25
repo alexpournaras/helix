@@ -116,6 +116,8 @@ class Models:
                 return self.verify(request, family)
             if name == "MergeGroups":
                 return self.groups(request)
+            if name == "QuestionSet":
+                return {"questions": [], "merge_rule_outs": []}
             if name == "SafetyReview":
                 return {"level": "none", "crisis": False, "flags": [], "guideline_checks": [
                     {"item": k, "state": "not_applicable", "seg_ids": []} for k in ids_in(request.user, r'"item": "(K\d+)"')],
@@ -246,8 +248,8 @@ class GroundingFlowTests(GroundingBase):
         inv_id = self.seed()
         inv = await self.run_inv(inv_id)
         self.assertEqual(inv["knowledge_version"], 1)
-        # The pack's unknown rule asks a rule-out question, so the run goes on to questions (1C.4).
-        self.assertIn("1C.4", self.db.one("SELECT data FROM events WHERE kind = 'complete'")["data"]["reason"])
+        # The pack's unknown rule asks a rule-out question, so the run waits for answers.
+        self.assertEqual(inv["waiting_for"], "answers")
         [run] = self.db.query("SELECT * FROM grounding_runs")
         self.assertEqual((run["status"], run["complaint_key"], run["population"], run["knowledge_version"]),
                          ("ok", "tinnitus", "general", 1))

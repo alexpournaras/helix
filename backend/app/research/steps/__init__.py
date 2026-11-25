@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..pipeline import Complete, Pipeline, StageDef
-from . import grounding, intake, safety
+from . import brief_update, grounding, intake, questions, safety
 
-NOT_BUILT = {"questions": "1C.4", "brief_update": "1C.4", "planning": "1D"}
+NOT_BUILT = {"planning": "1D"}
 
 
 def not_built(name: str) -> StageDef:
@@ -23,12 +23,15 @@ def build_pipeline(ctx: Any = None) -> tuple[Pipeline, dict[str, Callable]]:
     """(Pipeline, resolvers). A resolver maps a `waiting_for` value to fn(case, investigation) → apply
     (or None when the case has no scripted answer)."""
     stages = {"intake": intake.stage("safety"), "safety": safety.stage(),
-              "safety_finalize": safety.finalize_stage(), "grounding": grounding.stage()}
+              "safety_finalize": safety.finalize_stage(), "grounding": grounding.stage(),
+              "questions": questions.stage(), "brief_update": brief_update.stage()}
     stages.update({name: not_built(name) for name in NOT_BUILT})
     steps = {"intake": intake.STEP, "safety": safety.STEP, "safety_finalize": safety.FINALIZE_STEP,
-             "ground": grounding.STEP, "ground_merge": grounding.MERGE_STEP}
+             "ground": grounding.STEP, "ground_merge": grounding.MERGE_STEP,
+             "questions": questions.STEP, "brief_update": brief_update.STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,
+        "answers": lambda case, inv: questions.scripted(getattr(case, "answers", {}) or {})(case, inv),
     }
     return Pipeline(stages=stages, steps=steps, first_stage="intake"), resolvers

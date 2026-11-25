@@ -62,7 +62,11 @@ SAFE = {"level": "none", "crisis": False, "flags": [], "guideline_checks": [], "
 def with_safety(handler):
     """Intake tests: the safety panel (1C.2) that follows intake answers `none`."""
     def wrapped(request):
-        return SAFE if request.schema_name == "SafetyReview" else handler(request)
+        if request.schema_name == "SafetyReview":
+            return SAFE
+        if request.schema_name == "QuestionSet":  # questions (1C.4): none proposed; code adds the required ones
+            return {"questions": [], "merge_rule_outs": []}
+        return handler(request)
     return wrapped
 
 
@@ -96,11 +100,11 @@ class IntakeStepTests(IntakeBase):
     async def test_accepted_case_saves_brief_complaints_systems(self):
         inv_id = await self.run_case(EN_TEXT, lambda r: intake_output(proposed_systems=["ent", "musculoskeletal"]))
         inv = self.db.investigation(inv_id)
-        # Intake → safety → grounding (a gap: no network in tests) → safety → questions (a stub until 1C.4).
-        self.assertEqual((inv["status"], inv["outcome"]), ("complete", "incomplete"))
+        # Intake → safety → grounding (a gap: no network in tests) → safety → questions → wait for answers.
+        self.assertEqual((inv["status"], inv["waiting_for"]), ("waiting_user", "answers"))
         self.assertEqual(self.db.one("SELECT status FROM grounding_runs")["status"], "gap")
-        self.assertIn("1C.4", self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'complete'",
-                                          (inv_id,))["data"]["reason"])
+        asked = {r["key"] for r in self.db.query("SELECT key FROM clarifying_questions WHERE qround = 1")}
+        self.assertIn("age", asked)  # a priority-1 unknown added by code
         segs = self.db.query("SELECT seg_id, origin FROM user_segments WHERE investigation_id = ? ORDER BY seg_id",
                              (inv_id,))
         self.assertEqual([s["seg_id"] for s in segs], ["U1", "U2", "U3", "U4"])
@@ -183,7 +187,7 @@ class IntakeStepTests(IntakeBase):
             return {"items": items[1:] if len(calls) == 1 else items}  # first answer misses one path
         inv_id = await self.run_case(EN_TEXT, lambda r: intake_output(), check)
         self.assertEqual(len(calls), 2)  # one repair call
-        self.assertEqual(self.db.investigation(inv_id)["outcome"], "incomplete")
+        self.assertEqual(self.db.investigation(inv_id)["waiting_for"], "answers")  # the run went on
         self.assertIsNotNone(self.brief(inv_id).chief_complaint)
 
     async def test_greek_translations_are_required_and_stored(self):
@@ -225,7 +229,7 @@ class IntakeStepTests(IntakeBase):
         await self.worker.machine.resolve_wait(inv_id, "problem_rewrite", intake.rewrite(EN_TEXT))
         await self.worker.run_until_idle()
         inv = self.db.investigation(inv_id)
-        self.assertEqual((inv["problem_version"], inv["outcome"]), (2, "incomplete"))
+        self.assertEqual((inv["problem_version"], inv["waiting_for"]), (2, "answers"))
         self.assertEqual(self.db.one("SELECT source FROM case_briefs")["source"], "intake:p2")
         self.assertEqual(len(self.db.tasks(inv_id, step="intake")), 2)
 

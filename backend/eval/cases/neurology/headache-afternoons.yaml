@@ -6,6 +6,13 @@ profile: dev_openai
 problem_text: >
   Synthetic case. A 34-year-old woman reports a dull headache on both sides most afternoons for three weeks,
   worse after long screen work. No fever, no weakness, no vision changes.
+answers:
+  sudden: "No, it builds up slowly over the afternoon."
+  worst: "No, it is not the worst headache I have had."
+  neck: "No stiff neck."
+  vision: "No vision changes."
+  sleep: "About six hours a night."
+  medic: "I take paracetamol about twice a week."
 expected:
   complaints: [headache]
   systems_include: [neurology]

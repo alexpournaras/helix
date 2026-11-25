@@ -34,7 +34,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
 - [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 prepared (6 guidelines, 80 gold red flags), live run pending
-- [ ] 1C.4 Questions and brief update
+- [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
 - [ ] 1D Search
 - [ ] 1E Reading and evidence
 - [ ] 1F Report

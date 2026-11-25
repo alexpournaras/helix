@@ -284,3 +284,40 @@ class DuplicateGroup(_Out):
 
 class MergeGroups(_Out):
     groups: list[DuplicateGroup] = Field(default_factory=list)
+
+
+# ---------- questions (B8.4) and brief update (B8.5) ----------
+
+class Question(_Out):
+    key: str = Field(pattern=SLUG, max_length=60)
+    text: str = Field(min_length=5, max_length=300)
+    why: str = Field(default="", max_length=300)
+    answer_type: Literal["text", "yes_no", "choice", "number"]
+    options: list[str] = Field(default_factory=list, max_length=8)
+    priority: int = Field(ge=0, le=3)
+    expected_impact: float = Field(ge=0, le=1)
+    targets: list[str] = Field(default_factory=list)  # unknown keys, `K{id}` items or rule-out keys it covers
+    item_id: str | None = None  # `K{id}` when it asks about one knowledge item
+
+
+class MergeRuleOut(_Out):
+    keep: str  # a rule-out key shown in the material
+    drop: list[str] = Field(default_factory=list)  # panel rule-outs that ask the same thing
+
+
+class QuestionSet(_Out):
+    questions: list[Question] = Field(default_factory=list)
+    merge_rule_outs: list[MergeRuleOut] = Field(default_factory=list)
+
+
+class RemovedFeature(_Out):
+    key: str  # the previous brief's fact path (e.g. `symptoms[0].duration`)
+    seg_ids: list[str] = Field(default_factory=list)  # the segments that contradict it
+
+
+class BriefUpdate(_Out):
+    translations: list[Translation] = Field(default_factory=list)
+    complaints: list[Complaint] = Field(default_factory=list)
+    proposed_systems: list[SYSTEMS] = Field(default_factory=list)
+    brief: CaseBrief
+    removed_features: list[RemovedFeature] = Field(default_factory=list)

@@ -6,6 +6,12 @@ profile: dev_openai
 problem_text: >
   Synthetic case. I am a 27-year-old woman. Since yesterday I have had pain in the lower right side of my
   belly. It comes and goes.
+answers:
+  pregnant: "No, my period ended last week and the test was negative."
+  fever: "No fever."
+  vomit: "I vomited once."
+  bleed: "No bleeding."
+  faint: "No fainting."
 expected:
   complaints: [abdominal_pain]
   rule_outs: [ruleout.rule:gut.abdominal_pain_possible_pregnancy]

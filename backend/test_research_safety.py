@@ -76,10 +76,19 @@ class SafetyRuleTests(ResearchTestCase):
         self.assertEqual(R.most_cautious([]), "none")
 
 
+def no_questions(handler):
+    """The questions step (1C.4) that follows safety proposes nothing; code adds the required rule-outs."""
+    def wrapped(request):
+        if request.schema_name == "QuestionSet":
+            return {"questions": [], "merge_rule_outs": []}
+        return handler(request)
+    return wrapped
+
+
 class SafetyStepBase(ResearchTestCase):
     def ctx(self, a, b):
-        self.a = FakeProvider("openai", a)
-        self.b = FakeProvider("anthropic", b)
+        self.a = FakeProvider("openai", no_questions(a))
+        self.b = FakeProvider("anthropic", no_questions(b))
         return llm.CallContext(db=self.db, settings=S.build("quality"),
                                providers={"openai": self.a, "anthropic": self.b},
                                limiters=Limiters({}), prices=PriceTable())
@@ -146,14 +155,15 @@ class SafetyStepTests(SafetyStepBase):
         inv_id = self.seed("Synthetic case. I have had abdominal pain for two days.")
         await self.run_inv(inv_id)
         q = self.db.one("SELECT * FROM clarifying_questions WHERE key = 'ruleout.rule:gut.abdominal_pain_possible_pregnancy'")
-        self.assertEqual((q["priority"], q["origin"], q["status"]), (0, "safety", "open"))
-        self.assertIn("questions", self.reason(inv_id))  # an unanswered rule-out → questions
+        self.assertEqual((q["priority"], q["origin"], q["status"], q["qround"]), (0, "safety", "open", 1))
+        self.assertEqual(self.db.investigation(inv_id)["waiting_for"], "answers")  # unanswered rule-out → asked
 
     async def test_priority_one_unknown_leads_to_questions(self):
         brief = {**ADULT, "unknowns": [{"key": "onset", "text": "When it started", "priority": 1}]}
         inv_id = self.seed("Synthetic case. A mild itch on my arm.", brief)
         await self.run_inv(inv_id)
-        self.assertIn("questions", self.reason(inv_id))
+        self.assertEqual(self.db.investigation(inv_id)["waiting_for"], "answers")
+        self.assertEqual(self.db.one("SELECT qround FROM clarifying_questions WHERE key = 'onset'")["qround"], 1)
 
     async def test_most_cautious_level_wins_and_panel_cannot_lower_rules(self):
         inv_id = self.seed("Synthetic case. A mild itch on my arm for a week.")

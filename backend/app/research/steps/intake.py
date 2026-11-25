@@ -114,12 +114,20 @@ async def generate(ctx: llm.CallContext, problem_text: str) -> IntakeOutcome:
         s.text_en = english.get(s.seg_id)
     if not accepted(result):
         return IntakeOutcome(segments, result, stats={"segments": len(segments)})
+    return await checked(ctx, segments, english, result.brief, result.complaints, result.proposed_systems,
+                         result=result, model_label=member.model.label())
 
-    valid = set(seg_ids)
-    brief, bad_ids, removed = B.clean_segments(result.brief, valid)
-    complaints, complaints_dropped = clean_complaints(result.complaints, valid)
 
-    check: dict = {"model": member.model.label(), "counts": {}, "paths": 0}
+async def checked(ctx: llm.CallContext, segments: list[UserSegment], english: dict[str, str], brief: CaseBrief,
+                  raw_complaints: list[Complaint], proposed_systems: list[str], *, result,
+                  model_label: str) -> IntakeOutcome:
+    """The code checks shared by intake and brief_update: segment IDs, brief check, unknowns, MeSH, systems,
+    populations."""
+    valid = {s.seg_id for s in segments}
+    brief, bad_ids, removed = B.clean_segments(brief, valid)
+    complaints, complaints_dropped = clean_complaints(raw_complaints, valid)
+
+    check: dict = {"model": model_label, "counts": {}, "paths": 0}
     paths = B.fact_paths(brief)
     if paths:
         material, paths = check_material(brief, segments, english)
@@ -139,7 +147,7 @@ async def generate(ctx: llm.CallContext, problem_text: str) -> IntakeOutcome:
                       "mesh": [{"ui": d.ui, "name": d.name, "tree_numbers": d.tree_numbers, "systems": d.systems}
                                for d in verified],
                       "mesh_dropped": dropped})
-    systems = mesh.union_systems(descriptors, result.proposed_systems)
+    systems = mesh.union_systems(descriptors, proposed_systems)
     stats = {"segments": len(segments), "invalid_seg_ids": bad_ids, "facts_removed_uncited": removed,
              "complaints": len(saved), "complaints_dropped": complaints_dropped,
              "mesh_verified": len(descriptors), "mesh_dropped": sum(len(c["mesh_dropped"]) for c in saved),

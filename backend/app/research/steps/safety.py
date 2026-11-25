@@ -40,8 +40,18 @@ def segments(conn: sqlite3.Connection, investigation_id: int) -> list[dict]:
     return [dict(r) for r in sorted(rows, key=key)]
 
 
+def person_text(seg: dict) -> str:
+    """What the person wrote. An answer segment is "Q: … A: …": only the answer is theirs. The question's words
+    ("Could you be pregnant?") must never trigger a rule."""
+    text = seg["text_en"] or seg["text"]
+    if seg.get("origin") == "answer" and " A: " in text:
+        return text.split(" A: ", 1)[1]
+    return text
+
+
 def english(segs: list[dict]) -> list[tuple[str, str]]:
-    return [(s["seg_id"], s["text_en"] or s["text"]) for s in segs]
+    """(seg_id, English text) for the rules: the person's own words only."""
+    return [(s["seg_id"], person_text(s)) for s in segs]
 
 
 def mesh_uis(inv: dict) -> list[str]:
@@ -86,7 +96,7 @@ def current_brief(conn: sqlite3.Connection, investigation_id: int) -> tuple[int,
 
 def panel_material(segs: list[dict], brief: CaseBrief, rules: R.RuleOutcome, items: list[dict]) -> str:
     body = {
-        "segments": [{"seg_id": i, "text": t} for i, t in english(segs)],
+        "segments": [{"seg_id": s["seg_id"], "text": s["text_en"] or s["text"]} for s in segs],  # with the questions
         "brief": brief.model_dump(mode="json", exclude_none=True),
         "rules_fired": [{"ref": h.ref, "level": h.level, "title": h.title} for h in rules.fired],
         "rules_unknown": [{"ref": h.ref, "level": h.level, "title": h.title, "question": h.question}
@@ -186,7 +196,7 @@ async def run(tc) -> Any:
             tc.db.insert(conn, "clarifying_questions", {
                 "investigation_id": inv["id"], "research_round": inv["round"], "origin": "safety",
                 "item_id": q.get("item_id"), "key": q["key"], "text": q["text"], "why": q["why"],
-                "priority": 0, "targets": q["targets"]}, or_ignore=True)
+                "priority": 0, "qround": 0, "targets": q["targets"]}, or_ignore=True)
         tc.db.update_investigation(inv["id"], conn=conn, safety_level=combined["level"])
         tc.db.insert(conn, "note_outbox", {"investigation_id": inv["id"], "kind": "safety_review",
                                            "artifact_key": f"safety:b{brief_version}:k{kv}", "created_at": now()},

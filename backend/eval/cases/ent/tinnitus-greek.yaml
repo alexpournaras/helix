@@ -6,6 +6,12 @@ profile: dev_openai
 problem_text: >
   Συνθετική περίπτωση. Εδώ και δύο μήνες ακούω βουητό και στα δύο αυτιά. Είμαι 71 ετών και παίρνω
   βαρφαρίνη για την καρδιά μου.
+answers:
+  hearing: "Η ακοή μου έχει μειωθεί λίγο."
+  pulsatile: "Όχι, είναι σταθερός ήχος."
+  heartbeat: "Όχι."
+  dizz: "Όχι ζάλη."
+  sex: "Άνδρας."
 expected:
   language: el
   complaints: [tinnitus]

@@ -232,7 +232,8 @@ class Machine:
     def _finish(self, sc: StageContext, decision: Decision) -> None:
         if isinstance(decision, Wait):
             sc.update(**status_values(sc.inv, "waiting_user"), waiting_for=decision.waiting_for)
-            sc.event("waiting", decision.waiting_for)
+            sc.event("waiting", decision.waiting_for,
+                     data={"message": decision.message} if decision.message else None)
         elif isinstance(decision, Complete):
             sc.update(**status_values(sc.inv, "complete"), outcome=decision.outcome, waiting_for=None)
             sc.event("complete", decision.outcome, data={"reason": decision.reason} if decision.reason else None)

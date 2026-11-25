@@ -1,0 +1,11 @@
+# Synthetic only (PLAN B16.8). Not a human: intake asks for a rewrite.
+id: general.not-human-dog
+system: general
+synthetic: true
+profile: dev
+problem_text: >
+  Synthetic case. My dog keeps scratching his left ear and shaking his head since last week.
+rewrite: >
+  Synthetic case. I am 29 and have had an itchy left ear for a week, with no pain and no discharge.
+expected:
+  first_wait: problem_rewrite

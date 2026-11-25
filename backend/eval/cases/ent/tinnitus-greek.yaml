@@ -1,0 +1,13 @@
+# Synthetic only (PLAN B16.8). Greek input: translations must cover every segment.
+id: ent.tinnitus-greek
+system: ent
+synthetic: true
+profile: dev
+problem_text: >
+  Συνθετική περίπτωση. Εδώ και δύο μήνες ακούω βουητό και στα δύο αυτιά. Είμαι 71 ετών και παίρνω
+  βαρφαρίνη για την καρδιά μου.
+expected:
+  language: el
+  complaints: [tinnitus]
+  systems_include: [ent]
+  populations: [older]

@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import importlib
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -58,6 +59,7 @@ class EvalCase(BaseModel):
     profile: str = "dev"
     answers: dict[str, str] = Field(default_factory=dict)  # question key or pattern → scripted answer
     approve: bool = True  # approve plans and selections
+    rewrite: str | None = None  # new problem text if intake asks for a rewrite (synthetic too)
     expected: dict[str, Any] = Field(default_factory=dict)  # safety level, red flags, hypothesis families …
     notes: str = ""
 
@@ -108,8 +110,52 @@ E1_CHECKS: list[Callable[[ResearchDB, dict], CheckResult]] = [_e1_8_no_open_task
 
 # ---------- running ----------
 
+def intake_summary(db: ResearchDB, inv: dict) -> dict | None:
+    """What intake decided (vocabulary and counts only), for comparing runs and expectations."""
+    row = db.one("SELECT data, check_results FROM case_briefs WHERE investigation_id = ? ORDER BY version DESC "
+                 "LIMIT 1", (inv["id"],))
+    if row is None:
+        return None
+    brief, check = row["data"] or {}, row["check_results"] or {}
+    return {"language": inv["problem_lang"], "complaints": [c["key"] for c in inv["complaints"]],
+            "mesh": [m["name"] for c in inv["complaints"] for m in c["mesh"]],
+            "mesh_dropped": [t for c in inv["complaints"] for t in c["mesh_dropped"]],
+            "systems": inv["systems"], "populations": inv["special_populations"],
+            "unknowns": [u["key"] for u in brief.get("unknowns", [])], "check": check.get("counts")}
+
+
+def intake_misses(case: EvalCase, summary: dict | None, waits: list[str]) -> list[str]:
+    """Expectations from the case file that intake didn't meet (information; not an E1 check).
+    `waits` includes the wait the run ended in, if any."""
+    exp, out = case.expected, []
+    if "first_wait" in exp and (waits[:1] or [None])[0] != exp["first_wait"]:
+        out.append(f"first wait {waits[:1]} != {exp['first_wait']}")
+    if summary is None:
+        return out
+    if "language" in exp and summary["language"] != exp["language"]:
+        out.append(f"language {summary['language']} != {exp['language']}")
+    names = {n.lower() for n in summary["mesh"]} | set(summary["complaints"])
+    out += [f"complaint {c} missing" for c in exp.get("complaints", []) if c not in names]
+    out += [f"system {s} missing" for s in exp.get("systems_include", []) if s not in summary["systems"]]
+    if "populations" in exp and sorted(summary["populations"]) != sorted(exp["populations"]):
+        out.append(f"populations {summary['populations']} != {exp['populations']}")
+    return out
+
+
+LOCAL_KEYS = ("privacy", "providers")  # machine settings a live run inherits; the case picks the profile
+
+
+def local_overrides(path: Path | None = None) -> dict:
+    """Your saved privacy answer and provider settings (data/research.json), so the privacy gate sees them."""
+    if path is None:  # resolved per call, so tests (HELIX_DATA_DIR → a temp folder) never see the real file
+        from app.config import settings as app_settings
+        path = Path(os.environ.get("HELIX_DATA_DIR") or app_settings.data_dir) / "research.json"
+    saved = S.SettingsStore(path).raw().get("overrides") or {}
+    return {k: saved[k] for k in LOCAL_KEYS if k in saved}
+
+
 def _context(db: ResearchDB, mode: Mode, profile: str) -> llm.CallContext:
-    research = S.build(profile)
+    research = S.build(profile, local_overrides() if mode == "live" else None)
     if mode == "fake":
         providers = {f: FakeProvider(f) for f in ("openai", "anthropic", "ollama")}
         available = None
@@ -136,7 +182,7 @@ def load_factory(spec: str) -> Callable:
     try:
         return getattr(importlib.import_module(module), name)
     except (ImportError, AttributeError) as exc:
-        raise SystemExit(f"Pipeline factory {spec} isn't available yet ({exc}). The research steps arrive in 1C.")
+        raise SystemExit(f"Pipeline factory {spec} isn't available yet ({exc}).")
 
 
 async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings: Path,
@@ -168,15 +214,22 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
                 resolver = resolvers.get(inv["waiting_for"])
                 if resolver is None or len(waits) >= MAX_WAITS:
                     break
+                apply = resolver(case, inv)
+                if apply is None:  # the case has no scripted answer for this wait
+                    break
                 waits.append(inv["waiting_for"])
-                await worker.machine.resolve_wait(inv_id, inv["waiting_for"], resolver(case, inv))
+                await worker.machine.resolve_wait(inv_id, inv["waiting_for"], apply)
             inv = db.investigation(inv_id)
         checks = [check(db, inv) for check in E1_CHECKS]
+        summary = intake_summary(db, inv)
         return {
             "id": case.id, "system": case.system, "status": inv["status"], "outcome": inv["outcome"],
-            "stage": inv["stage"], "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
+            "stage": inv["stage"], "error": (inv.get("error") or "")[:800] or None,
+            "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
             "waits": waits, "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
             "usage": db.usage(inv_id), "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
+            "intake": summary,
+            "expected_misses": intake_misses(case, summary, waits + ([inv["waiting_for"]] if inv["waiting_for"] else [])),
         }
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -30,7 +30,11 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [ ] `build_pack.py` after grounding (1C.3)
 
 ### 1C–1H
-- [ ] 1C Intake, safety, grounding, questions
+### 1C Intake, safety, grounding, questions
+- [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
+- [ ] 1C.2 Safety
+- [ ] 1C.3 Grounding (+ X9, `build_pack.py`)
+- [ ] 1C.4 Questions and brief update
 - [ ] 1D Search
 - [ ] 1E Reading and evidence
 - [ ] 1F Report

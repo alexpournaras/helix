@@ -1,0 +1,12 @@
+# Synthetic only (PLAN B16.8).
+id: neurology.headache-afternoons
+system: neurology
+synthetic: true
+profile: dev
+problem_text: >
+  Synthetic case. A 34-year-old woman reports a dull headache on both sides most afternoons for three weeks,
+  worse after long screen work. No fever, no weakness, no vision changes.
+expected:
+  complaints: [headache]
+  systems_include: [neurology]
+  populations: []

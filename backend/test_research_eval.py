@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 
 from research_testkit import ResearchTestCase
-from app.research import transport
+from app.research import settings as S, transport
 from app.research.pipeline import Complete, Pipeline, StageDef, StepDef, Wait
 from eval import run as ev
 
@@ -125,6 +125,13 @@ class RunTests(ResearchTestCase):
         self.assertEqual(case["status"], "preflight_failed")
         self.assertTrue(any("privacy question" in e for e in case["errors"]))
 
+    async def test_live_mode_uses_the_saved_privacy_answer(self):
+        S.SettingsStore(self.tmp / "research.json").save("dev", {"privacy": {"openai_project_shares_data": True}})
+        self.assertEqual(ev.local_overrides(), {"privacy": {"openai_project_shares_data": True}})
+        report = await ev.run([ev.EvalCase(**CASE)], mode="live", factory=factory(), name="t",
+                              recordings_root=self.tmp / "rec", results_dir=self.tmp / "results")
+        self.assertNotEqual(report["cases"][0]["status"], "preflight_failed")
+
     def test_compare(self):
         old = {"cases": [{"id": "a", "status": "complete", "outcome": "findings", "e1_ok": True},
                          {"id": "gone", "status": "complete"}]}
@@ -135,5 +142,10 @@ class RunTests(ResearchTestCase):
 
     def test_missing_factory_explains_itself(self):
         with self.assertRaises(SystemExit) as caught:
-            ev.load_factory("app.research.steps:build_pipeline")
-        self.assertIn("1C", str(caught.exception))
+            ev.load_factory("app.research.steps:no_such_factory")
+        self.assertIn("isn't available", str(caught.exception))
+
+    def test_default_factory_loads(self):
+        pipeline, resolvers = ev.load_factory(ev.DEFAULT_FACTORY)(None)
+        self.assertEqual(pipeline.first_stage, "intake")
+        self.assertIn("problem_rewrite", resolvers)

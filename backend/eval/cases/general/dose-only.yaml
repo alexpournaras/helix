@@ -1,0 +1,9 @@
+# Synthetic only (PLAN B16.8). Only a dose question: intake asks for a rewrite.
+id: general.dose-only
+system: general
+synthetic: true
+profile: dev
+problem_text: >
+  Synthetic case. How many milligrams of ibuprofen can I take at once?
+expected:
+  first_wait: problem_rewrite

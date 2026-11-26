@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..pipeline import Complete, Pipeline, StageDef
-from . import assess, brief_update, evidence, grounding, intake, plan, queries, questions, read, safety, screen, search, verification
+from . import assess, brief_update, evidence, gaps, grounding, intake, plan, queries, questions, read, safety, screen, search, verification
 
-NOT_BUILT = {"gaps": "1E.6"}
+NOT_BUILT = {"synthesis": "1F"}
 
 
 def not_built(name: str) -> StageDef:
@@ -36,7 +36,7 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
               "verifying": verification.stage(),
               "mapping": evidence.mapping_stage(), "grouping": evidence.grouping_stage(),
               "confirming": evidence.confirming_stage(), "matrix": assess.matrix_stage(),
-              "fitting": assess.fitting_stage(), "analyzing": assess.analyzing_stage()}
+              "fitting": assess.fitting_stage(), "analyzing": assess.analyzing_stage(), "gaps": gaps.stage()}
     stages.update({name: not_built(name) for name in NOT_BUILT})
     if stop_at is not None:
         stages[stop_at] = stop_stage(stop_at)
@@ -47,7 +47,7 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
              "screen": screen.SCREEN_STEP, "select": screen.SELECT_STEP, "fetch": screen.FETCH_STEP, "read": read.STEP,
              "verify": verification.VERIFY_STEP, "reread": verification.REREAD_STEP,
              "map": evidence.MAP_STEP, "group": evidence.GROUP_STEP, "confirm": evidence.CONFIRM_STEP, "matrix": assess.MATRIX_STEP, "fit": assess.FIT_STEP,
-             "analysis": assess.ANALYSIS_STEP}
+             "analysis": assess.ANALYSIS_STEP, "gaps": gaps.STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,

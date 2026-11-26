@@ -533,3 +533,44 @@ class HypothesisAnalysis(_Out):
     strongest_support: list[str] = Field(default_factory=list, max_length=5)  # `C{n}`
     strongest_contra: list[str] = Field(default_factory=list, max_length=5)
     open_questions: list[str] = Field(default_factory=list, max_length=6)
+
+
+# ---------- gaps (B8.22) ----------
+
+class GapContradiction(_Out):
+    claim_ids: list[str] = Field(min_length=2, max_length=4)  # `C{n}`
+    note: str = Field(min_length=1, max_length=300)
+
+
+class GapConcept(_Out):
+    term: str = Field(min_length=2, max_length=100)
+    reason: str = Field(default="", max_length=300)
+    claim_ids: list[str] = Field(default_factory=list, max_length=4)
+
+
+class GapMissing(_Out):
+    text: str = Field(min_length=3, max_length=300)  # what the case doesn't say
+    reason: str = Field(default="", max_length=300)
+
+
+class GapHypothesis(_Out):
+    key: str = Field(pattern=SLUG, max_length=60)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=600)
+    claim_ids: list[str] = Field(default_factory=list, max_length=4)
+
+
+class GapQuery(_Out):
+    hypothesis_key: str
+    source: Literal["europepmc", "pubmed", "openalex", "semantic_scholar"]
+    query: str = Field(min_length=3, max_length=1000)
+    query_type: QUERY_TYPES
+    rationale: str = Field(default="", max_length=300)
+
+
+class GapReport(_Out):
+    contradictions: list[GapContradiction] = Field(default_factory=list, max_length=10)
+    new_concepts: list[GapConcept] = Field(default_factory=list, max_length=10)
+    missing_information: list[GapMissing] = Field(default_factory=list, max_length=10)
+    new_hypotheses: list[GapHypothesis] = Field(default_factory=list, max_length=6)
+    follow_up_queries: list[GapQuery] = Field(default_factory=list, max_length=12)

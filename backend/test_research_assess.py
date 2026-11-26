@@ -97,7 +97,7 @@ class AssessBase(ResearchTestCase):
 
     async def run_inv(self, inv_id):
         ctx = self.ctx()
-        pipeline, _ = build_pipeline(ctx)
+        pipeline, _ = build_pipeline(ctx, stop_at="gaps")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()
@@ -117,7 +117,7 @@ class FitAndAnalysisTests(AssessBase):
     async def test_fit_then_analysis(self):
         inv_id = self.seed()
         await self.run_inv(inv_id)
-        self.assertIn("1E.6", self.reason(inv_id))  # the gaps panel is next
+        self.assertIn("gaps", self.reason(inv_id))
         f = self.fits(inv_id)
         self.assertEqual(set(f), {"left_tinnitus", "after_concert", "age_40"})  # exactly one per feature
         self.assertEqual((f["left_tinnitus"]["fit"], f["left_tinnitus"]["claim_ids"]), ("explains", [self.claim]))

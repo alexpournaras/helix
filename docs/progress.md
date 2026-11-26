@@ -39,13 +39,13 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (fake-model tests; live check pending)
   - [x] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement (fake-model tests; live check pending)
   - [x] 1D.3 Search and seed, prefilter, dual screening, select, fetch
-- [ ] 1E Reading and evidence
+- [x] 1E Reading and evidence (fake-model tests; live check pending)
   - [x] 1E.1 Reading: profile, appraisal panel, study identity, dual extraction, whole-paper pass, reconciliation, applicability (fake-model tests)
   - [x] 1E.2 Verification panel, escalation, adjudication, re-read (fake-model tests)
   - [x] 1E.3 Map, group, confirm (fake-model tests)
   - [x] 1E.4 Matrix (code; unit tests for every B8.19 rule)
   - [x] 1E.5 Fit and analysis (fake-model tests)
-  - [ ] 1E.6 Gaps panel (reporting only)
+  - [x] 1E.6 Gaps panel (reporting only; fake-model tests)
 - [ ] 1F Report
 - [ ] 1G UI and privacy
 - [ ] 1H M1 gate
@@ -56,4 +56,4 @@ One full X9 run uses about a day's OpenAI limit, so these go one per day, in thi
 1. X9 run 2 (`python -m eval.spikes.x9_knowledge run`, then `score`): extraction v3 + verify v2. Pass: ≥ 90% recall.
 2. X9 attestation hand review (`results/x9/attestations.md` → `attestation_review` in `x9_gold.yaml`). Pass: ≥ 95%.
 3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update on the synthetic cases. Without `--stop-at` it also runs planning (1D.1), which is the next check.
-4. Live check of 1D on `dev_openai`: `eval.run --mode live --stop-at reading` runs intake → fetch (planning, queries, real searches, screening). Start with one case (`--case`) to see the cost.
+4. Live check of 1D and 1E on `dev_openai`: `eval.run --mode live --case <one case> --stop-at synthesis` runs intake → gaps. Start with `--stop-at reading` (1D only) to see the cost; reading and verification make many calls per paper.

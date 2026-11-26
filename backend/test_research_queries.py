@@ -96,7 +96,7 @@ class QueryBase(ResearchTestCase):
 
     async def run_inv(self, inv_id):
         ctx = self.ctx()
-        pipeline, _ = build_pipeline(ctx)
+        pipeline, _ = build_pipeline(ctx, stop_at="searching")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()
@@ -142,7 +142,7 @@ class QueryFlowTests(QueryBase):
         inv_id = self.seed(hyps=("noise_damage", "ear_wax"))
         inv = await self.run_inv(inv_id)
         self.assertEqual(self.models.n["QuerySet"], 2)
-        self.assertIn("1D.3", self.reason(inv_id))  # on to searching (built in 1D.3)
+        self.assertIn("searching", self.reason(inv_id))
         first = self.models.users["QuerySet"][0] + self.models.users["QuerySet"][1]
         for term in ("Ringing-Buzzing Tinnitus", "Noise-induced hearing loss", "noise exposure",
                      "pulsatile tinnitus", "required_query_types"):  # MeSH entry terms, item, pack synonyms
@@ -266,7 +266,7 @@ class QueryFlowTests(QueryBase):
         tasks = {t["key"]: t["status"] for t in self.db.query(
             "SELECT key, status FROM research_tasks WHERE investigation_id = ? AND step = 'queries'", (inv_id,))}
         self.assertEqual(tasks["queries:r1:ear_wax"], "skipped")
-        self.assertIn("1D.3", self.reason(inv_id))  # 1 of 3 skipped: the run goes on
+        self.assertIn("searching", self.reason(inv_id))  # 1 of 3 skipped: the run goes on
 
     async def test_retired_hypotheses_get_no_queries(self):
         inv_id = self.seed(hyps=("noise_damage", "ear_wax"))

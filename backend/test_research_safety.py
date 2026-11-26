@@ -117,7 +117,7 @@ class SafetyStepBase(ResearchTestCase):
 
     async def run_inv(self, inv_id, a=lambda r: review(), b=lambda r: review()):
         ctx = self.ctx(a, b)
-        pipeline, self.resolvers = build_pipeline(ctx)
+        pipeline, self.resolvers = build_pipeline(ctx, stop_at="planning")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()

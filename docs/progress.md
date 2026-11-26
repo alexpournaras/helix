@@ -36,6 +36,9 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2, run 2 pending
 - [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
 - [ ] 1D Search
+  - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (fake-model tests; live check pending)
+  - [ ] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement
+  - [ ] 1D.3 Search and seed, prefilter, dual screening, select, fetch
 - [ ] 1E Reading and evidence
 - [ ] 1F Report
 - [ ] 1G UI and privacy
@@ -46,5 +49,5 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 One full X9 run uses about a day's OpenAI limit, so these go one per day, in this order:
 1. X9 run 2 (`python -m eval.spikes.x9_knowledge run`, then `score`): extraction v3 + verify v2. Pass: ≥ 90% recall.
 2. X9 attestation hand review (`results/x9/attestations.md` → `attestation_review` in `x9_gold.yaml`). Pass: ≥ 95%.
-3. Live eval for 1C.4 (`python -m eval.run --mode live`): questions, answers and the brief update on the synthetic cases.
+3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update on the synthetic cases. Without `--stop-at` it also runs planning (1D.1), which is the next check.
 4. Live checks for 1D once built (planning, queries, screening on `dev_openai`).

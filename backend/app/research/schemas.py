@@ -321,3 +321,42 @@ class BriefUpdate(_Out):
     proposed_systems: list[SYSTEMS] = Field(default_factory=list)
     brief: CaseBrief
     removed_features: list[RemovedFeature] = Field(default_factory=list)
+
+
+# ---------- plan (B8.6) ----------
+
+class Hypothesis(_Out):
+    key: str = Field(pattern=SLUG, max_length=60)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=1000)
+    mechanism: str = Field(default="", max_length=1000)
+    kind: Literal["red_flag", "common", "less_common"]  # red_flag: serious, must be ruled out
+    item_id: str | None = None  # `K{id}` of the differential knowledge item it comes from
+    features_explained: list[str] = Field(default_factory=list)  # case feature keys
+    features_unexplained: list[str] = Field(default_factory=list)
+    discriminators: list[str] = Field(default_factory=list, max_length=8)  # what would tell it apart
+    prior: Literal["high", "moderate", "low"]
+    prior_reason: str = Field(default="", max_length=500)
+
+
+class UncoveredFeature(_Out):
+    key: str  # a case feature key that no hypothesis explains
+    reason: str = Field(min_length=1, max_length=300)
+
+
+class Plan(_Out):
+    research_questions: list[str] = Field(default_factory=list, max_length=20)
+    hypotheses: list[Hypothesis] = Field(default_factory=list)
+    uncovered_features: list[UncoveredFeature] = Field(default_factory=list)
+
+
+class CoverageDecision(_Out):
+    item_id: str  # `K{id}`
+    decision: Literal["hypothesis", "excluded"]
+    hypothesis_key: str | None = None
+    reason: str = Field(default="", max_length=500)
+    seg_ids: list[str] = Field(default_factory=list)  # case segments that justify an exclusion
+
+
+class ConsolidatedPlan(Plan):
+    knowledge_coverage: list[CoverageDecision] = Field(default_factory=list)

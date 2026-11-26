@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..pipeline import Complete, Pipeline, StageDef
-from . import brief_update, grounding, intake, questions, safety
+from . import brief_update, grounding, intake, plan, questions, safety
 
-NOT_BUILT = {"planning": "1D"}
+NOT_BUILT = {"querying": "1D.2"}
 
 
 def not_built(name: str) -> StageDef:
@@ -19,19 +19,27 @@ def not_built(name: str) -> StageDef:
     return StageDef(name, on_complete=lambda sc: Complete("incomplete", f"Stage {name} is not built yet ({task})."))
 
 
-def build_pipeline(ctx: Any = None) -> tuple[Pipeline, dict[str, Callable]]:
+def stop_stage(name: str) -> StageDef:
+    return StageDef(name, on_complete=lambda sc: Complete("incomplete", f"Stopped at stage {name} (stop_at)."))
+
+
+def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipeline, dict[str, Callable]]:
     """(Pipeline, resolvers). A resolver maps a `waiting_for` value to fn(case, investigation) → apply
-    (or None when the case has no scripted answer)."""
+    (or None when the case has no scripted answer). `stop_at` ends the run as `incomplete` on entering that
+    stage, before it queues anything (tests and evals that check how far a run gets)."""
     stages = {"intake": intake.stage("safety"), "safety": safety.stage(),
               "safety_finalize": safety.finalize_stage(), "grounding": grounding.stage(),
-              "questions": questions.stage(), "brief_update": brief_update.stage()}
+              "questions": questions.stage(), "brief_update": brief_update.stage(), "planning": plan.stage()}
     stages.update({name: not_built(name) for name in NOT_BUILT})
+    if stop_at is not None:
+        stages[stop_at] = stop_stage(stop_at)
     steps = {"intake": intake.STEP, "safety": safety.STEP, "safety_finalize": safety.FINALIZE_STEP,
              "ground": grounding.STEP, "ground_merge": grounding.MERGE_STEP,
-             "questions": questions.STEP, "brief_update": brief_update.STEP}
+             "questions": questions.STEP, "brief_update": brief_update.STEP, "plan": plan.STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,
         "answers": lambda case, inv: questions.scripted(getattr(case, "answers", {}) or {})(case, inv),
+        "plan_approval": lambda case, inv: plan.approve() if getattr(case, "approve_plan", True) else None,
     }
     return Pipeline(stages=stages, steps=steps, first_stage="intake"), resolvers

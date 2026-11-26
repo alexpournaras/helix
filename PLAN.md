@@ -773,7 +773,9 @@ Note: `final_report`.
 
 **Saves.** Hypotheses, coverage, uncovered features. Note: `research_plan`.
 
-**Approval (`PUT /plan`).** The user may edit, add or retire hypotheses. The same checks apply, and removing the last red-flag hypothesis needs confirmation.
+**Hypothesis fields.** `kind`: `red_flag` (serious, must be ruled out), `common` or `less_common`; `prior`: `high`, `moderate` or `low`; `item_id` is a differential item's `K{id}`. Origin: `knowledge` (from an item, named by the hypothesis or by its coverage decision), `proposed` (no item) or `user`.
+
+**Approval (`PUT /plan`).** The user may edit, add or retire hypotheses. The same checks apply (count, unique keys never reused, feature references), and removing the last red-flag hypothesis needs confirmation. A case feature that only a retired hypothesis explained becomes uncovered, and the retired hypothesis's knowledge items become `excluded` (by the user).
 
 ### B8.7 queries (one task per hypothesis)
 

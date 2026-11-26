@@ -97,7 +97,7 @@ class QuestionBase(ResearchTestCase):
 
     async def start(self, inv_id):
         ctx = self.ctx()
-        pipeline, self.resolvers = build_pipeline(ctx)
+        pipeline, self.resolvers = build_pipeline(ctx, stop_at="planning")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()
@@ -250,9 +250,9 @@ class AnswerAndUpdateTests(QuestionBase):
         brief = CaseBrief.model_validate(v2["data"])
         self.assertEqual(brief.demographics.pregnancy.status, "not_pregnant")
         self.assertNotIn("fever", {u.key for u in brief.unknowns})
-        # Safety ran on brief v2: the pregnancy rule is no longer unknown, so research goes on (planning: 1D).
+        # Safety ran on brief v2: the pregnancy rule is no longer unknown, so research goes on (stops at planning).
         self.assertEqual([r["brief_version"] for r in self.db.query("SELECT * FROM safety_reviews ORDER BY id")], [1, 2])
-        self.assertIn("1D", self.reason(inv_id))
+        self.assertIn("planning", self.reason(inv_id))
         self.assertEqual(inv["outcome"], "incomplete")
 
     async def test_all_skipped_goes_on_without_a_brief_update(self):
@@ -263,7 +263,7 @@ class AnswerAndUpdateTests(QuestionBase):
         self.assertTrue(all(r["status"] == "skipped" for r in rows.values() if r["qround"] == 1))
         self.assertEqual(len(self.db.query("SELECT * FROM case_briefs")), 1)
         self.assertNotIn("BriefUpdate", self.models.seen)
-        self.assertIn("1D", self.reason(inv_id))  # rounds used up → return stage
+        self.assertIn("planning", self.reason(inv_id))  # rounds used up → return stage
 
     async def test_a_fact_dropped_without_a_contradicting_segment_needs_a_repair(self):
         calls = []

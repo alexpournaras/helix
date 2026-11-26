@@ -1,6 +1,6 @@
 """Eval runner (PLAN Part E, Part G.3–4, 1A.10).
 
-    .venv/Scripts/python -m eval.run --mode fake|replay|live [--case ID] [--name NAME] [--compare OLD.json]
+    .venv/Scripts/python -m eval.run --mode fake|replay|live [--case ID] [--name NAME] [--compare OLD.json] [--stop-at STAGE]
 
 Modes:
 - fake: fake model providers, network blocked. Checks the pipeline mechanics.
@@ -234,6 +234,13 @@ def _transport(mode: Mode, recordings: Path):
     return transport.RecordTransport(recordings)
 
 
+def stopping(factory: Callable, stop_at: str | None) -> Callable:
+    """The factory with `stop_at` passed on (live checks of the early stages without paying for the later ones)."""
+    if not stop_at:
+        return factory
+    return lambda ctx: factory(ctx, stop_at=stop_at)
+
+
 def load_factory(spec: str) -> Callable:
     module, _, name = spec.partition(":")
     try:
@@ -355,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", default="default", help="recordings and results name")
     parser.add_argument("--pipeline", default=DEFAULT_FACTORY, help="module:function pipeline factory")
     parser.add_argument("--compare", help="an earlier results JSON to compare against")
+    parser.add_argument("--stop-at", help="end each run when it reaches this stage (e.g. planning)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="seconds per case")
     parser.add_argument("--keep", action="store_true", help="keep each case's data folder for inspection")
     parser.add_argument("--no-shared-cache", action="store_true",
@@ -364,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
     if not cases:
         print("No cases found.")
         return 1
-    report = asyncio.run(run(cases, mode=args.mode, factory=load_factory(args.pipeline), name=args.name,
+    report = asyncio.run(run(cases, mode=args.mode, factory=stopping(load_factory(args.pipeline), args.stop_at), name=args.name,
                              timeout=args.timeout, keep=args.keep,
                              cache=shared_cache() if args.mode == "live" and not args.no_shared_cache else None))
     if hasattr(sys.stdout, "reconfigure"):

@@ -495,3 +495,14 @@ class ClaimVote(_Out):
 
 class ClaimVoteBatch(_Out):
     items: list[ClaimVote] = Field(default_factory=list)
+
+
+# ---------- map (B8.16) ----------
+
+class MapItem(_Out):
+    claim: str  # `C{n}` from the material
+    links: list[ClaimLink] = Field(default_factory=list)  # one per hypothesis it bears on; `neutral` cancels
+
+
+class MapBatch(_Out):
+    items: list[MapItem] = Field(default_factory=list)

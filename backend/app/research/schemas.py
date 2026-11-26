@@ -506,3 +506,30 @@ class MapItem(_Out):
 
 class MapBatch(_Out):
     items: list[MapItem] = Field(default_factory=list)
+
+
+# ---------- fit and analysis (B8.20, B8.21) ----------
+
+class FitItem(_Out):
+    feature_key: str
+    fit: Literal["explains", "compatible", "against", "unknown"]
+    claim_ids: list[str] = Field(default_factory=list, max_length=6)  # `C{n}` from the material
+    reason: str = Field(default="", max_length=300)
+
+
+class FitSet(_Out):
+    items: list[FitItem] = Field(default_factory=list)
+
+
+class AnalysisStatement(_Out):
+    text: str = Field(min_length=5, max_length=600)
+    kind: Literal["evidence", "inference", "case_fact", "recommendation", "general", "caveat"]
+    claim_ids: list[str] = Field(default_factory=list, max_length=8)  # `C{n}`
+    seg_ids: list[str] = Field(default_factory=list, max_length=6)  # the person's segments
+
+
+class HypothesisAnalysis(_Out):
+    statements: list[AnalysisStatement] = Field(default_factory=list, max_length=12)
+    strongest_support: list[str] = Field(default_factory=list, max_length=5)  # `C{n}`
+    strongest_contra: list[str] = Field(default_factory=list, max_length=5)
+    open_questions: list[str] = Field(default_factory=list, max_length=6)

@@ -44,7 +44,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1E.2 Verification panel, escalation, adjudication, re-read (fake-model tests)
   - [x] 1E.3 Map, group, confirm (fake-model tests)
   - [x] 1E.4 Matrix (code; unit tests for every B8.19 rule)
-  - [ ] 1E.5 Fit and analysis
+  - [x] 1E.5 Fit and analysis (fake-model tests)
   - [ ] 1E.6 Gaps panel (reporting only)
 - [ ] 1F Report
 - [ ] 1G UI and privacy

@@ -146,6 +146,7 @@ def score() -> None:
 
 
 def main(argv: list[str]) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")  # the Windows console can't print ≥
     cmd = argv[0] if argv else "score"
     if cmd == "fetch":
         asyncio.run(fetch())

@@ -42,8 +42,8 @@ from ..segment import Snapshot, block_of, paper_snapshot, part_of, quote
 from ..sources import Fetched, sources_for
 
 SCREEN_VERSION = "grounding.screen.v1"
-EXTRACT_VERSION = "grounding.extract.v2"
-VERIFY_VERSION = "grounding.verify.v1"
+EXTRACT_VERSION = "grounding.extract.v3"
+VERIFY_VERSION = "grounding.verify.v2"
 MERGE_VERSION = "grounding.merge.v2"
 SCREEN_BATCH = 8
 POP_TERMS = {
@@ -413,8 +413,7 @@ async def verify_items(ctx, complaint: dict, items: list[Extracted], reads: list
         label = item.kind.replace("_", " ")
         extra = item.attributes.get("features") or item.attributes.get("key_features") or []
         text = f"[{label}] {item.text}" + (f" (features: {', '.join(extra)})" if extra else "")
-        if item.kind == "red_flag":
-            text += f" — urgency: {item.attributes['urgency']}"
+        # The urgency is the extractor's classification, not a guideline claim: it isn't verified (verify.v2).
         if item.population != "all":
             text += f" — population: {item.population}"
         for att in item.attestations:

@@ -237,6 +237,30 @@ class QueryAndSelectionTests(GroundingBase):
         self.assertIsNone(V.combine([vote("supported"), vote("partial")]))
         self.assertIsNone(V.combine([vote("supported"), vote("supported", ctx=True)]))
 
+    async def test_red_flag_urgency_is_not_verified(self):
+        # verify.v2: the urgency is the extractor's label, not a guideline claim (X9 run 1 marked 68% partial).
+        seen = []
+
+        async def fake_verify(ctx, role, pairs, **kw):
+            seen.extend(pairs)
+            for p in pairs:
+                p.verdict = "supported"
+        snap = G.paper_snapshot("Sudden hearing loss needs urgent referral.", None)
+        read = G.Read(G.Cand(Article(source="pubmed", source_id="1", title="T"), [], [], 0), None, snap, [], "full")
+        item = G.Extracted("red_flag", "Sudden hearing loss", {"features": ["one ear"], "urgency": "urgent"}, "all",
+                           [{"read": 0, "sentence_ids": [snap.segments[0].seg_id], "quote": "q", "model": "m",
+                             "family": "f"}])
+        original = G.V.verify
+        G.V.verify = fake_verify
+        try:
+            await G.verify_items(None, {"text": "Tinnitus"}, [item], [read])
+        finally:
+            G.V.verify = original
+        self.assertEqual(len(seen), 1)
+        self.assertIn("Sudden hearing loss (features: one ear)", seen[0].text)
+        self.assertNotIn("urgen", seen[0].text)
+        self.assertEqual(item.attestations[0]["verdict"], "supported")
+
 
 class GroundingFlowTests(GroundingBase):
     async def test_full_flow_to_knowledge_version_one(self):

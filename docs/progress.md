@@ -33,10 +33,18 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 ### 1C Intake, safety, grounding, questions
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
-- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 prepared (6 guidelines, 80 gold red flags), live run pending
+- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2, run 2 pending
 - [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
 - [ ] 1D Search
 - [ ] 1E Reading and evidence
 - [ ] 1F Report
 - [ ] 1G UI and privacy
 - [ ] 1H M1 gate
+
+## Waiting for live runs
+
+One full X9 run uses about a day's OpenAI limit, so these go one per day, in this order:
+1. X9 run 2 (`python -m eval.spikes.x9_knowledge run`, then `score`): extraction v3 + verify v2. Pass: ≥ 90% recall.
+2. X9 attestation hand review (`results/x9/attestations.md` → `attestation_review` in `x9_gold.yaml`). Pass: ≥ 95%.
+3. Live eval for 1C.4 (`python -m eval.run --mode live`): questions, answers and the brief update on the synthetic cases.
+4. Live checks for 1D once built (planning, queries, screening on `dev_openai`).

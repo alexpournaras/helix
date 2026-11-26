@@ -40,6 +40,12 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement (fake-model tests; live check pending)
   - [x] 1D.3 Search and seed, prefilter, dual screening, select, fetch
 - [ ] 1E Reading and evidence
+  - [x] 1E.1 Reading: profile, appraisal panel, study identity, dual extraction, whole-paper pass, reconciliation, applicability (fake-model tests)
+  - [ ] 1E.2 Verification panel, escalation, adjudication, re-read
+  - [ ] 1E.3 Map, group, confirm
+  - [ ] 1E.4 Matrix
+  - [ ] 1E.5 Fit and analysis
+  - [ ] 1E.6 Gaps panel (reporting only)
 - [ ] 1F Report
 - [ ] 1G UI and privacy
 - [ ] 1H M1 gate

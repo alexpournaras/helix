@@ -382,3 +382,98 @@ class QuerySet(_Out):
 class QueryRefinement(_Out):
     query: str = Field(min_length=3, max_length=1000)
     rationale: str = Field(default="", max_length=300)
+
+
+# ---------- read (B8.14) ----------
+
+class ProfileField(_Out):
+    value: str | None = Field(default=None, max_length=600)
+    sentence_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
+class PaperProfile(_Out):
+    question: ProfileField
+    design: ProfileField
+    setting: ProfileField
+    population: ProfileField
+    inclusion_criteria: ProfileField
+    n: ProfileField
+    exposure: ProfileField
+    comparator: ProfileField
+    outcomes: ProfileField
+    follow_up: ProfileField
+    funding: ProfileField
+    conflicts: ProfileField
+    review_included_designs: ProfileField
+    dataset_or_cohort: ProfileField  # study identity (B8.14): a named cohort, registry or dataset
+    secondary_analysis: ProfileField  # "yes" when the paper re-analyses data published elsewhere
+
+
+RISK = Literal["low", "some", "high", "unclear"]
+
+
+class Criterion(_Out):
+    criterion: str = Field(min_length=1, max_length=60)
+    rating: RISK
+    reason: str = Field(default="", max_length=300)
+    sentence_ids: list[str] = Field(default_factory=list, max_length=4)
+
+
+class Appraisal(_Out):
+    criteria: list[Criterion] = Field(default_factory=list)
+    overall_risk: RISK
+
+
+class Effect(_Out):
+    measure: str = Field(min_length=1, max_length=40)  # OR, RR, HR, MD, sensitivity, …
+    value: float | None = None
+    ci_low: float | None = None
+    ci_high: float | None = None
+    p: str | None = Field(default=None, max_length=20)  # as written: "0.03", "<0.001"
+
+
+class ClaimLink(_Out):
+    hypothesis_key: str
+    direction: Literal["supports", "contradicts", "neutral"]
+    strength: Literal["weak", "moderate", "strong"]
+    case_match: Literal["high", "partial", "low", "unknown"]
+    reason: str = Field(default="", max_length=300)
+
+
+class Claim(_Out):
+    claim: str = Field(min_length=5, max_length=400)
+    sentence_ids: list[str] = Field(min_length=1, max_length=4)
+    evidence_type: Literal["finding", "mechanism", "guideline_recommendation", "epidemiology",
+                           "diagnostic_accuracy", "background"]
+    population: str = Field(default="", max_length=200)
+    design: DESIGN
+    n: int | None = Field(default=None, ge=1)
+    effect: Effect | None = None
+    limitations: str = Field(default="", max_length=300)
+    links: list[ClaimLink] = Field(default_factory=list)
+
+
+class ClaimSet(_Out):
+    claims: list[Claim] = Field(default_factory=list)
+
+
+class SameJudgement(_Out):
+    pair: str  # `M{n}`
+    same: bool
+    reason: str = Field(default="", max_length=200)
+
+
+class SameClaims(_Out):
+    pairs: list[SameJudgement] = Field(default_factory=list)
+
+
+MATCH = Literal["high", "partial", "low", "unknown"]
+
+
+class Applicability(_Out):
+    population_match: MATCH
+    symptom_match: MATCH
+    setting_match: MATCH
+    special_population_fit: Literal["match", "partial", "mismatch", "not_applicable"]
+    overall: Literal["high", "partial", "low"]
+    reason: str = Field(min_length=1, max_length=400)

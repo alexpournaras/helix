@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..pipeline import Complete, Pipeline, StageDef
-from . import brief_update, grounding, intake, plan, queries, questions, safety, screen, search
+from . import brief_update, grounding, intake, plan, queries, questions, read, safety, screen, search
 
-NOT_BUILT = {"reading": "1E"}
+NOT_BUILT = {"verifying": "1E.2"}
 
 
 def not_built(name: str) -> StageDef:
@@ -32,7 +32,7 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
               "questions": questions.stage(), "brief_update": brief_update.stage(), "planning": plan.stage(), "querying": queries.stage(),
               "searching": search.searching_stage(), "prefiltering": search.prefilter_stage(),
               "screening": screen.screening_stage(), "selecting": screen.selecting_stage(),
-              "fetching": screen.fetching_stage()}
+              "fetching": screen.fetching_stage(), "reading": read.stage()}
     stages.update({name: not_built(name) for name in NOT_BUILT})
     if stop_at is not None:
         stages[stop_at] = stop_stage(stop_at)
@@ -40,7 +40,7 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
              "ground": grounding.STEP, "ground_merge": grounding.MERGE_STEP,
              "questions": questions.STEP, "brief_update": brief_update.STEP, "plan": plan.STEP, "queries": queries.STEP,
              "search": search.SEARCH_STEP, "seed": search.SEED_STEP, "prefilter": search.PREFILTER_STEP,
-             "screen": screen.SCREEN_STEP, "select": screen.SELECT_STEP, "fetch": screen.FETCH_STEP}
+             "screen": screen.SCREEN_STEP, "select": screen.SELECT_STEP, "fetch": screen.FETCH_STEP, "read": read.STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,

@@ -32,6 +32,7 @@ class Fetched:
 class Sources(Protocol):
     async def search(self, source: str, query: str, max_results: int) -> tuple[int, list[Article]]: ...
     async def count(self, source: str, query: str) -> int: ...
+    async def load(self, literature_id: int) -> Fetched: ...
     async def fetch(self, article: Article, investigation_id: int) -> Fetched: ...
 
 
@@ -72,6 +73,13 @@ class LiteratureSources:
             if source == "pubmed":
                 return await pubmed.count(client, query)
         raise ValueError(f"unknown source {source!r}")
+
+    async def load(self, literature_id: int) -> Fetched:
+        """A paper already in the library (fetched earlier), with its full text, for reading (B8.14)."""
+        full = self._lib().get_full(literature_id)
+        if full is None:
+            raise LookupError(f"literature item {literature_id} is not in the library")
+        return Fetched(literature_id, full, full.details, from_library=True)
 
     async def fetch(self, article: Article, investigation_id: int) -> Fetched:
         from app.literature.enrich import enrich

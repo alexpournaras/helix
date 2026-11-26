@@ -304,7 +304,7 @@ class SelectionTests(SearchBase):
         self.sources.fail_fetch = {"1"}
         inv_id = self.seed(pack=False, queries=(("europepmc", "q1"),),
                            settings={"selection": {"max_fulltext_papers_per_round": 4}})
-        await self.run_inv(inv_id)
+        await self.run_inv(inv_id, stop_at="reading")
         c = self.cands(inv_id)
         statuses = {p: r["status"] for p, r in c.items()}
         self.assertEqual(statuses["1"], "replaced")
@@ -312,7 +312,7 @@ class SelectionTests(SearchBase):
         replacement = [r for r in c.values() if (r["selected_reason"] or "").startswith("replacement")]
         self.assertEqual(len(replacement), 1)
         self.assertEqual(replacement[0]["literature_id"], 1000 + int(replacement[0]["pmid"]))
-        self.assertIn("1E", self.reason(inv_id))  # reading is built in 1E
+        self.assertIn("reading", self.reason(inv_id))
         ev = self.db.one("SELECT data FROM events WHERE investigation_id = ? AND kind = 'select'", (inv_id,))
         self.assertEqual(ev["data"]["selected"], 4)
 

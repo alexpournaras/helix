@@ -101,7 +101,7 @@ class PlanBase(ResearchTestCase):
     async def start(self, inv_id=None):
         inv_id = inv_id or self.inv_id
         ctx = self.ctx()
-        pipeline, self.resolvers = build_pipeline(ctx)
+        pipeline, self.resolvers = build_pipeline(ctx, stop_at="querying")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()
@@ -149,7 +149,7 @@ class PlanFlowTests(PlanBase):
         ok, inv = await self.approve()
         self.assertTrue(ok)
         self.assertEqual(inv["outcome"], "incomplete")
-        self.assertIn("1D.2", self.reason())  # querying is built in 1D.2
+        self.assertIn("querying", self.reason())
 
     async def test_coverage_names_the_hypothesis_without_the_hypothesis_naming_the_item(self):
         def cons(request):
@@ -220,8 +220,8 @@ class PlanFlowTests(PlanBase):
         self.models = Models([f"K{i}" for i in self.item_ids])
         inv = await self.start(inv_id)
         self.assertEqual(self.models.calls["Plan"], 1)
-        self.assertEqual(inv["outcome"], "incomplete")  # no approval wait: straight on to querying (1D.2)
-        self.assertIn("1D.2", self.reason())
+        self.assertEqual(inv["outcome"], "incomplete")  # no approval wait: straight on to querying
+        self.assertIn("querying", self.reason())
 
 
 class ApprovalTests(PlanBase):

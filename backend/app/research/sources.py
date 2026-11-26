@@ -1,6 +1,7 @@
 """Search and fetch for research steps (PLAN B8.8, B8.13), over the literature module.
 
 Steps use `services.sources` when set (tests pass a fake), else `LiteratureSources(services.literature)`.
+- count: hit counts for query checks (B8.7).
 - search: Europe PMC `search_records` (core records, PubMed and PMC only) or PubMed esearch + `fetch_many`.
 - fetch: library first (`find_existing`), else the source's fetch + `enrich(citations=False)` +
   `save_article(tag_origin="ai")`; the paper is tagged `inv:{id}` either way.
@@ -30,6 +31,7 @@ class Fetched:
 
 class Sources(Protocol):
     async def search(self, source: str, query: str, max_results: int) -> tuple[int, list[Article]]: ...
+    async def count(self, source: str, query: str) -> int: ...
     async def fetch(self, article: Article, investigation_id: int) -> Fetched: ...
 
 
@@ -58,6 +60,17 @@ class LiteratureSources:
             if source == "pubmed":
                 total, ids = await ncbi.esearch(client, "pubmed", query, max_results, None)
                 return total, (await pubmed.fetch_many(client, ids) if ids else [])
+        raise ValueError(f"unknown source {source!r}")
+
+    async def count(self, source: str, query: str) -> int:
+        """Hit count only (B8.7): Europe PMC idlist with pageSize 1 (scoped), PubMed esearch with retmax 0.
+        A query the source rejects raises ValueError."""
+        from app.literature.sources import europepmc, pubmed
+        async with transport.client(timeout=SEARCH_TIMEOUT) as client:
+            if source == "europepmc":
+                return await europepmc.count(client, europepmc.scoped(query))
+            if source == "pubmed":
+                return await pubmed.count(client, query)
         raise ValueError(f"unknown source {source!r}")
 
     async def fetch(self, article: Article, investigation_id: int) -> Fetched:

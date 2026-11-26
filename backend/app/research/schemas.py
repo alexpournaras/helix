@@ -360,3 +360,25 @@ class CoverageDecision(_Out):
 
 class ConsolidatedPlan(Plan):
     knowledge_coverage: list[CoverageDecision] = Field(default_factory=list)
+
+
+# ---------- queries (B8.7) ----------
+
+QUERY_TYPES = Literal["guideline", "systematic_review", "review", "rct", "observational", "diagnostic",
+                      "mechanism", "other"]
+
+
+class SearchQuery(_Out):
+    source: Literal["europepmc", "pubmed", "openalex", "semantic_scholar"]
+    query: str = Field(min_length=3, max_length=1000)
+    query_type: QUERY_TYPES
+    rationale: str = Field(default="", max_length=300)
+
+
+class QuerySet(_Out):
+    queries: list[SearchQuery] = Field(default_factory=list)
+
+
+class QueryRefinement(_Out):
+    query: str = Field(min_length=3, max_length=1000)
+    rationale: str = Field(default="", max_length=300)

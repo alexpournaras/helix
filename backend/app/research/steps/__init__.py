@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..pipeline import Complete, Pipeline, StageDef
-from . import brief_update, grounding, intake, plan, questions, safety
+from . import brief_update, grounding, intake, plan, queries, questions, safety
 
-NOT_BUILT = {"querying": "1D.2"}
+NOT_BUILT = {"searching": "1D.3"}
 
 
 def not_built(name: str) -> StageDef:
@@ -29,13 +29,13 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
     stage, before it queues anything (tests and evals that check how far a run gets)."""
     stages = {"intake": intake.stage("safety"), "safety": safety.stage(),
               "safety_finalize": safety.finalize_stage(), "grounding": grounding.stage(),
-              "questions": questions.stage(), "brief_update": brief_update.stage(), "planning": plan.stage()}
+              "questions": questions.stage(), "brief_update": brief_update.stage(), "planning": plan.stage(), "querying": queries.stage()}
     stages.update({name: not_built(name) for name in NOT_BUILT})
     if stop_at is not None:
         stages[stop_at] = stop_stage(stop_at)
     steps = {"intake": intake.STEP, "safety": safety.STEP, "safety_finalize": safety.FINALIZE_STEP,
              "ground": grounding.STEP, "ground_merge": grounding.MERGE_STEP,
-             "questions": questions.STEP, "brief_update": brief_update.STEP, "plan": plan.STEP}
+             "questions": questions.STEP, "brief_update": brief_update.STEP, "plan": plan.STEP, "queries": queries.STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,

@@ -802,6 +802,8 @@ The prompt includes the MeSH entry terms and knowledge vocabulary for the hypoth
 - Europe PMC queries are wrapped as `({q}) AND (SRC:MED OR SRC:PMC)`.
 - Hit counts: Europe PMC `idlist` with `pageSize=1`; PubMed `_esearch` with `retmax=0`; OpenAlex `meta.count`.
 - 0 hits or too many hits → refine, up to 3 times.
+- After the last refinement: still 0 hits or rejected by the source → the query is `dropped`; still too many → kept (the search takes the top `results_per_query`). A failed count (network) leaves the query `ready` for the search to retry.
+- `query_type`: `guideline`, `systematic_review`, `review`, `rct`, `observational`, `diagnostic`, `mechanism`, `other`. Field and balance problems are repaired once; other sources (M2), duplicates, repeats and queries past the limit are dropped by code.
 
 Note: `search_log`.
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sqlite3
+from dataclasses import dataclass
 from typing import Any
 
 from .. import claims as C, ensemble, llm
@@ -163,6 +164,118 @@ def claims_validator(limit: int):
     return check
 
 
+# ---------- extraction (also used by the re-read, 1E.2) ----------
+
+def _system(version: str) -> str:
+    return llm.base_system() + "\n\n" + llm.prompt(version)
+
+
+@dataclass
+class Extraction:
+    checked: list  # [(extractor label, model ref, pack no, pass, claims.Checked)]
+    rejected: list  # [(raw claim JSON, reason)]
+    clusters: list  # [claims.Cluster]
+    borderline: int = 0
+
+
+async def extract_claims(ctx, *, snap: Snapshot, packs: list, summary: dict, hyps: list[dict], design: str,
+                         limit: int, profile_n: str | None, dual: bool, whole: bool,
+                         version: str = CLAIMS_VERSION) -> Extraction:
+    """Stage B and reconciliation: dual extraction per pack, the whole-paper pass, code checks, the judge for
+    borderline pairs."""
+    keys = {h["key"] for h in hyps}
+
+    async def per_pack(pack):
+        text = claims_material(summary, hyps, design, pack.text, limit, "paper_part")
+        if dual:
+            r = await ensemble.dual(ctx, "read.claims", ClaimSet, _system(version), text, prompt_version=version,
+                                    validate=claims_validator(limit))
+            return [(f"m{i}", m.model, m.value) for i, m in enumerate(r.members) if m.ok]
+        m = await ensemble.single(ctx, "read.claims", ClaimSet, _system(version), text, prompt_version=version,
+                                  validate=claims_validator(limit))
+        return [("m0", m.model, m.value)]
+    results = await asyncio.gather(*[per_pack(p) for p in packs])
+    checked: list = []
+    rejected: list = []
+    for pack, members in zip(packs, results):
+        for label, ref, value in members:
+            for claim in value.claims:
+                ok, why = C.check_claim(claim, allowed=pack.seg_ids, snapshot=snap, profile_n=profile_n,
+                                        hypothesis_keys=keys)
+                if ok is None:
+                    rejected.append((claim.model_dump_json(), why))
+                else:
+                    checked.append((label, ref, pack.no, "pack", ok))
+    if whole:
+        text = "\n\n".join(p.text for p in packs)
+        m = await ensemble.single(ctx, "read.whole_paper", ClaimSet, _system(WHOLE_VERSION),
+                                  claims_material(summary, hyps, design, text, limit, "paper",
+                                                  existing=[c[4].claim.claim for c in checked]),
+                                  prompt_version=WHOLE_VERSION, validate=claims_validator(limit))
+        for claim in m.value.claims:  # type: ignore[union-attr]
+            ok, why = C.check_claim(claim, allowed=None, snapshot=snap, profile_n=profile_n, hypothesis_keys=keys)
+            if ok is None:
+                rejected.append((claim.model_dump_json(), why))
+            else:
+                checked.append(("whole", m.model, None, "whole", ok))
+    pairs_in = [(c[0], c[4]) for c in checked]
+    clusters, unjudged = C.reconcile(pairs_in)
+    if unjudged:
+        lines = [f"M{n}: A: {pairs_in[i][1].claim.claim}\n    B: {pairs_in[j][1].claim.claim}"
+                 for n, (i, j) in enumerate(unjudged, 1)]
+        wanted = {f"M{n}" for n in range(1, len(unjudged) + 1)}
+
+        def check_pairs(s: SameClaims) -> None:
+            if {p.pair for p in s.pairs} != wanted:
+                raise ValueError("one entry per pair is required")
+        m = await ensemble.single(ctx, "read.reconcile", SameClaims, _system(RECONCILE_VERSION),
+                                  llm.material("\n".join(lines), kind="claim_pairs"),
+                                  prompt_version=RECONCILE_VERSION, validate=check_pairs)
+        answers = {p.pair: p.same for p in m.value.pairs}  # type: ignore[union-attr]
+        clusters, _ = C.reconcile(pairs_in, {pair: answers[f"M{n}"] for n, pair in enumerate(unjudged, 1)})
+    return Extraction(checked, rejected, clusters, len(unjudged))
+
+
+def save_claims(db, conn: sqlite3.Connection, investigation_id: int, read_id: int, literature_id: int | None,
+                rnd: int, ext: Extraction, snap: Snapshot, by_key: dict[str, int], *, pass_suffix: str = "") -> dict:
+    """Write the clusters: kept claims `pending` (agreement 1 or 2), members `superseded`, with extraction links;
+    rejected claims go to rejected_items. Returns counts and the kept claim IDs (`ids`)."""
+    meta = {id(c[4]): c for c in ext.checked}
+    counts: dict = {"claims": 0, "agreement_2": 0, "superseded": 0, "ids": []}
+
+    def save(entry, status: str, agreement: int | None, cluster: int | None) -> int:
+        label, ref, pack_no, pass_, ck = meta[id(entry[1])]
+        c = ck.claim
+        claim_id = db.insert(conn, "evidence_claims", {
+            "investigation_id": investigation_id, "read_id": read_id, "literature_id": literature_id,
+            "pass": pass_ + pass_suffix, "extractor_model": ref.model, "cluster_id": cluster, "agreement": agreement,
+            "pack_no": pack_no, "claim": c.claim, "sentence_ids": ck.sentence_ids, "quote": ck.quote,
+            "section_title": section_of(snap, ck.sentence_ids[0]),
+            "evidence_type": c.evidence_type, "population": c.population, "design": c.design, "n": c.n,
+            "effect": c.effect.model_dump(mode="json") if c.effect else None, "limitations": c.limitations,
+            "status": status, "checks": {**ck.checks, "extractor": label, "extractor_family": ref.family},
+            "round": rnd})
+        for link in c.links:
+            conn.execute("INSERT OR IGNORE INTO claim_links (claim_id, hypothesis_id, origin, direction, strength, "
+                         "case_match, reason) VALUES (?, ?, 'extract', ?, ?, ?, ?)",
+                         (claim_id, by_key[link.hypothesis_key], link.direction, link.strength, link.case_match,
+                          link.reason))
+        return claim_id
+    for cl in ext.clusters:
+        kept = save(cl.kept, "pending", cl.agreement, None)
+        conn.execute("UPDATE evidence_claims SET cluster_id = ? WHERE id = ?", (kept, kept))
+        counts["claims"] += 1
+        counts["agreement_2"] += cl.agreement == 2
+        counts["ids"].append(kept)
+        for member in cl.members:
+            save(member, "superseded", None, kept)
+            counts["superseded"] += 1
+    for raw, why in ext.rejected:
+        db.insert(conn, "rejected_items", {"investigation_id": investigation_id, "step": "read", "ref": f"r{read_id}",
+                                           "raw": raw, "reason": why, "created_at": now()})
+    return counts
+
+
 # ---------- the step ----------
 
 async def run(tc) -> Any:
@@ -199,11 +312,8 @@ async def run(tc) -> Any:
     keys = {h["key"] for h in hyps}
     ctx = tc.services.with_task(task_id=tc.task["id"], step="read", investigation_id=inv["id"])
 
-    def system(version: str) -> str:
-        return llm.base_system() + "\n\n" + llm.prompt(version)
-
     async def profile():
-        m = await ensemble.single(ctx, "read.profile", PaperProfile, system(PROFILE_VERSION),
+        m = await ensemble.single(ctx, "read.profile", PaperProfile, _system(PROFILE_VERSION),
                                   llm.material(packs[0].text, kind="paper"), prompt_version=PROFILE_VERSION)
         return m.value
 
@@ -211,68 +321,18 @@ async def run(tc) -> Any:
         text = appraisal_material(design, packs[0].text)
         check = appraisal_validator(design)
         if ens["appraisal_panel"]:
-            r = await ensemble.panel(ctx, "read.appraisal", Appraisal, system(APPRAISAL_VERSION), text,
+            r = await ensemble.panel(ctx, "read.appraisal", Appraisal, _system(APPRAISAL_VERSION), text,
                                      prompt_version=APPRAISAL_VERSION, validate=check)
             return r.votes(), r.values
-        m = await ensemble.single(ctx, "read.appraisal", Appraisal, system(APPRAISAL_VERSION), text,
+        m = await ensemble.single(ctx, "read.appraisal", Appraisal, _system(APPRAISAL_VERSION), text,
                                   prompt_version=APPRAISAL_VERSION, validate=check)
         return [{"model": m.model.model, "family": m.model.family, "ok": True,
                  "value": m.value.model_dump(mode="json")}], [m.value]
 
-    async def extract(pack):
-        text = claims_material(summary, hyps, design, pack.text, limit, "paper_part")
-        if ens["dual_extraction"]:
-            r = await ensemble.dual(ctx, "read.claims", ClaimSet, system(CLAIMS_VERSION), text,
-                                    prompt_version=CLAIMS_VERSION, validate=claims_validator(limit))
-            return [(f"m{i}", m.model, m.value) for i, m in enumerate(r.members) if m.ok]
-        m = await ensemble.single(ctx, "read.claims", ClaimSet, system(CLAIMS_VERSION), text,
-                                  prompt_version=CLAIMS_VERSION, validate=claims_validator(limit))
-        return [("m0", m.model, m.value)]
-
-    prof, (appraisal_votes, appraisal_values), *per_pack = await asyncio.gather(
-        profile(), appraisal(), *[extract(p) for p in packs])
-    profile_n = prof.n.value
-    checked: list[tuple[str, Any, int | None, Any, C.Checked]] = []  # (extractor, model ref, pack no, pass, claim)
-    rejected: list[tuple[str, str]] = []
-    for pack, members in zip(packs, per_pack):
-        for label, ref, value in members:
-            for claim in value.claims:
-                ok, why = C.check_claim(claim, allowed=pack.seg_ids, snapshot=snap, profile_n=profile_n,
-                                        hypothesis_keys=keys)
-                if ok is None:
-                    rejected.append((claim.model_dump_json(), why))
-                else:
-                    checked.append((label, ref, pack.no, "pack", ok))
-    if ens["whole_paper_pass"]:
-        whole = "\n\n".join(p.text for p in packs)
-        m = await ensemble.single(ctx, "read.whole_paper", ClaimSet, system(WHOLE_VERSION),
-                                  claims_material(summary, hyps, design, whole, limit, "paper",
-                                                  existing=[c[4].claim.claim for c in checked]),
-                                  prompt_version=WHOLE_VERSION, validate=claims_validator(limit))
-        for claim in m.value.claims:  # type: ignore[union-attr]
-            ok, why = C.check_claim(claim, allowed=None, snapshot=snap, profile_n=profile_n, hypothesis_keys=keys)
-            if ok is None:
-                rejected.append((claim.model_dump_json(), why))
-            else:
-                checked.append(("whole", m.model, None, "whole", ok))
-    pairs_in = [(c[0], c[4]) for c in checked]
-    clusters, unjudged = C.reconcile(pairs_in)
-    same: dict[tuple[int, int], bool] = {}
-    if unjudged:
-        lines = [f"M{n}: A: {pairs_in[i][1].claim.claim}\n    B: {pairs_in[j][1].claim.claim}"
-                 for n, (i, j) in enumerate(unjudged, 1)]
-        wanted = {f"M{n}" for n in range(1, len(unjudged) + 1)}
-
-        def check_pairs(s: SameClaims) -> None:
-            if {p.pair for p in s.pairs} != wanted:
-                raise ValueError("one entry per pair is required")
-        m = await ensemble.single(ctx, "read.reconcile", SameClaims, system(RECONCILE_VERSION),
-                                  llm.material("\n".join(lines), kind="claim_pairs"), prompt_version=RECONCILE_VERSION,
-                                  validate=check_pairs)
-        answers = {p.pair: p.same for p in m.value.pairs}  # type: ignore[union-attr]
-        same = {pair: answers[f"M{n}"] for n, pair in enumerate(unjudged, 1)}
-        clusters, _ = C.reconcile(pairs_in, same)
-    m = await ensemble.single(ctx, "read.applicability", Applicability, system(APPLICABILITY_VERSION),
+    prof, (appraisal_votes, appraisal_values) = await asyncio.gather(profile(), appraisal())
+    ext = await extract_claims(ctx, snap=snap, packs=packs, summary=summary, hyps=hyps, design=design, limit=limit,
+                               profile_n=prof.n.value, dual=ens["dual_extraction"], whole=ens["whole_paper_pass"])
+    m = await ensemble.single(ctx, "read.applicability", Applicability, _system(APPLICABILITY_VERSION),
                               applicability_material(summary, brief, prof, design),
                               prompt_version=APPLICABILITY_VERSION)
     applicability = applicability_rule(m.value, pops)  # type: ignore[arg-type]
@@ -281,7 +341,6 @@ async def run(tc) -> Any:
                  for k, f in prof}  # type: ignore[union-attr]
     identity = {"registry_ids": C.registry_ids(snap), "dataset_or_cohort": profile_d["dataset_or_cohort"],
                 "secondary_analysis": profile_d["secondary_analysis"]}
-    meta = {id(c[4]): c for c in checked}
     by_key = {h["key"]: h["id"] for h in hyps}
 
     def commit(conn: sqlite3.Connection) -> None:
@@ -302,41 +361,13 @@ async def run(tc) -> Any:
                 "packs": [p.summary() for p in packs], "profile": profile_d, "appraisal_votes": appraisal_votes,
                 "appraisal": appraisal_combined, "study_identity": identity, "applicability": applicability,
                 "status": "read"})
-        counts = {"claims": 0, "agreement_2": 0, "superseded": 0}
-
-        def save(entry, status: str, agreement: int | None, cluster: int | None) -> int:
-            label, ref, pack_no, pass_, ck = meta[id(entry[1])]
-            c = ck.claim
-            claim_id = tc.db.insert(conn, "evidence_claims", {
-                "investigation_id": inv["id"], "read_id": read_id, "literature_id": cand["literature_id"],
-                "pass": pass_, "extractor_model": ref.model, "cluster_id": cluster, "agreement": agreement,
-                "pack_no": pack_no, "claim": c.claim, "sentence_ids": ck.sentence_ids, "quote": ck.quote,
-                "section_title": section_of(snap, ck.sentence_ids[0]),
-                "evidence_type": c.evidence_type, "population": c.population, "design": c.design, "n": c.n,
-                "effect": c.effect.model_dump(mode="json") if c.effect else None, "limitations": c.limitations,
-                "status": status, "checks": {**ck.checks, "extractor": label}, "round": rnd})
-            for link in c.links:
-                conn.execute("INSERT OR IGNORE INTO claim_links (claim_id, hypothesis_id, origin, direction, strength, "
-                             "case_match, reason) VALUES (?, ?, 'extract', ?, ?, ?, ?)",
-                             (claim_id, by_key[link.hypothesis_key], link.direction, link.strength, link.case_match,
-                              link.reason))
-            return claim_id
-        for cl in clusters:
-            kept = save(cl.kept, "pending", cl.agreement, None)
-            conn.execute("UPDATE evidence_claims SET cluster_id = ? WHERE id = ?", (kept, kept))
-            counts["claims"] += 1
-            counts["agreement_2"] += cl.agreement == 2
-            for member in cl.members:
-                save(member, "superseded", None, kept)
-                counts["superseded"] += 1
-        for raw, why in rejected:
-            tc.db.insert(conn, "rejected_items", {"investigation_id": inv["id"], "step": "read", "ref": f"r{read_id}",
-                                                  "raw": raw, "reason": why, "created_at": now()})
+        counts = save_claims(tc.db, conn, inv["id"], read_id, cand["literature_id"], rnd, ext, snap, by_key)
         conn.execute("UPDATE candidates SET status = 'read' WHERE id = ?", (cid,))
         tc.db.event(inv["id"], "read", f"c{cid}", stage="reading", conn=conn, data={
             "candidate_id": cid, "read_id": read_id, "packs": len(packs), "scope": packed.coverage,
-            "shared_with_grounding": shared is not None, "rejected": len(rejected), "borderline": len(unjudged),
-            "overall_risk": appraisal_combined["overall_risk"], "applicability": applicability["overall"], **counts})
+            "shared_with_grounding": shared is not None, "rejected": len(ext.rejected), "borderline": ext.borderline,
+            "overall_risk": appraisal_combined["overall_risk"], "applicability": applicability["overall"],
+            **{k: v for k, v in counts.items() if k != "ids"}})
     return commit
 
 

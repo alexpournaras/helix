@@ -161,7 +161,7 @@ class ReadBase(ResearchTestCase):
 
     async def run_inv(self, inv_id):
         ctx = self.ctx()
-        pipeline, _ = build_pipeline(ctx)
+        pipeline, _ = build_pipeline(ctx, stop_at="verifying")
         self.worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
         await self.worker.machine.advance(inv_id)
         await self.worker.run_until_idle()
@@ -183,7 +183,7 @@ class ReadFlowTests(ReadBase):
     async def test_full_read(self):
         inv_id = self.seed()
         await self.run_inv(inv_id)
-        self.assertIn("1E.2", self.reason(inv_id))  # verification is next
+        self.assertIn("verifying", self.reason(inv_id))
         self.assertEqual(self.models.calls, {"PaperProfile": 1, "Appraisal": 2, "ClaimSet": 2, "WholePaper": 1,
                                              "Applicability": 1})
         r = self.read_row(inv_id)

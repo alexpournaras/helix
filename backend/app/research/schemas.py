@@ -477,3 +477,21 @@ class Applicability(_Out):
     special_population_fit: Literal["match", "partial", "mismatch", "not_applicable"]
     overall: Literal["high", "partial", "low"]
     reason: str = Field(min_length=1, max_length=400)
+
+
+# ---------- claim verification (B8.15) ----------
+
+class ClaimVote(_Out):
+    pair: str  # `C{n}` from the material
+    asserts_effect: bool  # the claim says there is an effect or association
+    direction_check: Literal["same", "opposite", "not_applicable"]
+    significance: Literal["significant", "not_significant", "not_reported", "not_applicable"]
+    population_check: Literal["same", "broader", "different", "not_stated"]
+    overgeneralization: bool
+    context_needed: bool
+    verdict: Literal["supported", "partial", "unsupported"]
+    reason: str = Field(max_length=300)
+
+
+class ClaimVoteBatch(_Out):
+    items: list[ClaimVote] = Field(default_factory=list)

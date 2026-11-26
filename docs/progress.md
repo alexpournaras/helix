@@ -41,7 +41,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1D.3 Search and seed, prefilter, dual screening, select, fetch
 - [ ] 1E Reading and evidence
   - [x] 1E.1 Reading: profile, appraisal panel, study identity, dual extraction, whole-paper pass, reconciliation, applicability (fake-model tests)
-  - [ ] 1E.2 Verification panel, escalation, adjudication, re-read
+  - [x] 1E.2 Verification panel, escalation, adjudication, re-read (fake-model tests)
   - [ ] 1E.3 Map, group, confirm
   - [ ] 1E.4 Matrix
   - [ ] 1E.5 Fit and analysis

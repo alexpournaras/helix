@@ -33,3 +33,15 @@ cases. Updated after each live run. Sources: `backend/eval/results/*-live.json`,
 
 Not comparable yet: on `dev` qwen3-coder only ever ran next to gpt-5.4-mini, so no result above is the local
 model on its own.
+
+## Local speed on this PC (measured 2026-11-27)
+
+| Model | Fits the 6 GB GPU? | Input | Output | Full X9 (estimate) |
+|---|---|---|---|---|
+| qwen3-coder:latest (30B MoE, 22 GB) | no: 79% CPU at 32k | ~435 tok/s | ~16–22 tok/s | ~4–5 h |
+| qwen3:4b (2.3 GB) | yes at 24k context (5.0 GB, 100% GPU); 84% at 32k | ~1,650 tok/s | ~50–70 tok/s | ~1 h for 2 guidelines with thinking on; ~15–20 min with thinking off |
+
+The 1D + 1E pipeline (millions of tokens per case) isn't practical locally on this PC. Ollama fits small checks:
+short runs with thinking off, and cheap roles (brief check, second safety opinion). The reduced qwen3:4b X9 run was
+stopped after its first calls (long GPU runs are avoided).
+

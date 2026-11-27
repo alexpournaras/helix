@@ -11,7 +11,7 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X5 | 199-ID PubMed efetch (POST) parsed **199/199** in 3.5 s; retraction and concern fields present | ✅ |
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
 | X7 | Paper splitter on **240 sentences** of open-access text (6 papers, 3 systems): **238/240 (99.2%)** correct with `seg.v1`; the one error fixed in `seg.v2` | ✅ |
-| X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`; run 2 waits for the next day (OpenAI daily limit) | ❌ run 1 |
+| X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`. Run 2 (2026-11-27): recall **80/80 (100%)**; attestation hand review pending | ✅ recall (run 2) |
 | X3, X6 | **Not run.** Need the extraction prompts and schemas (1E) and a running pipeline (X6) | — |
 | X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
@@ -155,3 +155,26 @@ guidelines rarely state. So the model verdicts can't stand in for the hand revie
 a red flag (exam findings and medication overuse included), turns each referral or urgent-test criterion into a
 red flag with its age threshold, and requires every feature of a warning list to appear. `grounding.verify.v2` no
 longer verifies the urgency. Run 2 (then the attestation hand review) is the next live step.
+
+Run 2, 2026-11-27: `grounding.extract.v3` + `verify.v2`, same set-up (320 live calls + 15 cache hits, ~1.0M input
+and ~1.1M output tokens = 2.13M). Results in `results/x9/extraction.run2.json`; matches recorded as `matched_by` in
+`x9_gold.yaml` (by hand, same rule as run 1).
+
+| Guideline | Gold | Matched | Extracted red flags |
+|---|---|---|---|
+| PMC6734476 headache (EHF) | 20 | 20 | 60 |
+| PMC13405573 headache (Singapore) | 13 | 13 | 22 |
+| PMC8870422 back pain, children | 19 | 19 | 29 |
+| PMC11364714 acute vertigo | 11 | 11 | 11 |
+| PMC9380508 dyspepsia (BSG) | 8 | 8 | 20 |
+| PMC8831363 dyspepsia (Japan) | 9 | 9 | 12 |
+| **Total** | **80** | **80 (100%)** | 154 |
+
+All of run 1's misses are now red flags (the BSG referral criteria with their age thresholds; Horner syndrome,
+visual field defects and the central HINTS pattern as features of the vertigo checklist items). The model verifier
+judged red-flag attestations supported 163/169 (partial 6), down from 75/110 partial in run 1; the hand review still
+decides the ≥ 95% criterion.
+
+**Duplicates:** the two extractors' items are often kept side by side (EHF: 60 red flags for 20 gold, the same
+table row up to 3–4 times with different wording). Recall isn't affected, but the safety panel sees repeats; see
+backlog.

@@ -14,3 +14,5 @@ Ideas that are out of scope for the current task (PLAN Part G.5).
   and every step also passes `llm.base_system() + prompt`, so each call carries the ~730-character base prompt twice
   (~180 tokens). Fix: steps pass only their prompt. It changes every cache key, so the eval and X9 caches stop
   hitting: do it on a day the live runs are re-done anyway, with a version bump of `_system`.
+- Grounding: merge near-duplicate items from the two extractors (X9 run 2: EHF 60 red flags for 20 gold, the same
+  table row 3–4 times). Match on shared sentence IDs + similar features before the safety panel sees them.

@@ -145,6 +145,51 @@ class RunTests(ResearchTestCase):
         self.assertEqual(report["cases"][0]["status"], "timeout")
         self.assertTrue((self.tmp / "results" / "t-fake.json").exists())
 
+    async def test_settings_overlays_reach_the_run(self):
+        seen = {}
+
+        def capture(ctx):
+            seen["settings"] = ctx.settings
+            return factory()(ctx)
+        case = ev.EvalCase(**{**CASE, "settings": {"guards": {"max_screened": 200}, "loop": {"max_rounds": 2}}})
+        report = await ev.run([case], mode="fake", factory=capture, name="t", recordings_root=self.tmp / "rec",
+                              results_dir=self.tmp / "results", settings={"loop": {"max_rounds": 1}})
+        s = seen["settings"].model_dump()
+        self.assertEqual(s["guards"]["max_screened"], 200)  # the case's overlay
+        self.assertEqual(s["loop"]["max_rounds"], 1)  # the command line's overlay wins over the case's
+        self.assertEqual(s["guards"]["max_total_papers"], 120)  # untouched keys keep the profile's value
+        self.assertEqual(report["cases"][0]["settings_overlay"],
+                         {"guards": {"max_screened": 200}, "loop": {"max_rounds": 1}})
+
+    def test_overlays_cant_change_privacy_or_profile(self):
+        for bad in ({"privacy": {"store_prompts": True}}, {"profile": "quality"}):
+            with self.assertRaises(ValueError):
+                ev.EvalCase(**{**CASE, "settings": bad})
+            with self.assertRaises(ValueError):
+                ev.check_overlay(bad)
+
+    def test_unknown_setting_is_an_error(self):
+        with self.assertRaises(ValueError):
+            ev.EvalCase(**{**CASE, "settings": {"guards": {"max_screened": "many"}}})
+
+    def test_set_arguments_and_settings_files(self):
+        self.assertEqual(ev.parse_sets(["guards.max_tokens=2000000", "snowball.enabled=false", "search.sources=[pubmed]"]),
+                         {"guards": {"max_tokens": 2000000}, "snowball": {"enabled": False},
+                          "search": {"sources": ["pubmed"]}})
+        with self.assertRaises(ValueError):
+            ev.parse_sets(["no-equals-sign"])
+        path = self.tmp / "limits.yaml"
+        path.write_text("guards: {max_screened: 50}\n", "utf-8")
+        self.assertEqual(ev.overlay_from(str(path), ["guards.max_tokens=10"]),
+                         {"guards": {"max_screened": 50, "max_tokens": 10}})
+
+    def test_repo_limit_files_are_valid(self):
+        files = sorted(Path(ev.LIMITS_DIR).glob("*.yaml"))
+        self.assertTrue(files)
+        for path in files:
+            overlay = ev.overlay_from(str(path), [])
+            S.build("dev_openai", overlay)  # validates
+
     def test_compare(self):
         old = {"cases": [{"id": "a", "status": "complete", "outcome": "findings", "e1_ok": True},
                          {"id": "gone", "status": "complete"}]}

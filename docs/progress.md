@@ -64,9 +64,9 @@ model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval 
    (`--case`), or all 8 over two days.
 4. Live check of 1D and 1E on `dev_openai` (one case). With the quality structure (`max_screened` 6000, dual
    screening in batches of 8, 25 full-text papers per round, up to 5 rounds, ~0.3–0.5M per paper read) a full run
-   is **~10–20M+**, several days. It needs small limits first (screening ~200, ~3 papers, 1 round, `guards.max_tokens`);
-   `eval.run` can't set them per case yet. With those limits: `--stop-at reading` ~0.8–1.2M, then
-   `--stop-at synthesis` ~1.5–2.5M.
+   is **~10–20M+**, several days. So it runs with `--settings eval/limits/live_check.yaml` (≤ 6 hypotheses, 3
+   queries each, 200 screened, 3 papers, 1 round, no snowball, `guards.max_tokens` 2M): `--stop-at reading`
+   ~0.8–1.2M, then `--stop-at synthesis` ~1.5–2.5M.
 5. X3 (dual extraction on 6 papers; script not written yet): **~0.8–1.5M**, ~2M with the verification panel.
 6. X6 (cost and time): no extra calls, written up from the item 4 numbers.
 7. X1 (structured output, after 1F): the `dev_openai` part ~0.5–1.5M. The rest uses the quality models, not this

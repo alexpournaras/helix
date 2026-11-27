@@ -1,0 +1,12 @@
+# Small limits for the first live check of the whole pipeline on dev_openai (one case; see docs/progress.md).
+# The dev profile keeps the quality structure (6000 screened, 25 papers per round, 5 rounds: ~10-20M tokens);
+# these keep one case within a day's OpenAI limit (2.5M). Use: --settings eval/limits/live_check.yaml
+plan: {min_hypotheses: 5, max_hypotheses: 6}
+search: {max_queries_per_hypothesis: 3, results_per_query: 25, max_refinements: 1}
+snowball: {enabled: false}
+grounding: {max_sources_per_complaint: 2}
+questions: {max_rounds: 1}
+selection: {max_fulltext_papers_per_round: 3, min_papers_per_hypothesis: 1}
+loop: {max_rounds: 1}
+review: {max_iterations: 1}
+guards: {max_screened: 200, max_total_papers: 3, max_tokens: 2000000}

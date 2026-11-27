@@ -1,6 +1,7 @@
 """Eval runner (PLAN Part E, Part G.3–4, 1A.10).
 
     .venv/Scripts/python -m eval.run --mode fake|replay|live [--case ID] [--name NAME] [--compare OLD.json] [--stop-at STAGE]
+        [--settings eval/limits/NAME.yaml] [--set key.path=value ...]
 
 Modes:
 - fake: fake model providers, network blocked. Checks the pipeline mechanics.
@@ -12,6 +13,9 @@ Modes:
 Cases are YAML files in eval/cases/<system>/ and must be synthetic (B16.8). Each case runs in its own temporary
 data folder; results go to eval/results/<name>.json (git-ignored, like recordings). Answers to the pipeline's
 waits come from the case through the factory's resolvers.
+
+Settings: each case runs on its `profile`; a case's `settings`, then `--settings FILE`, then each `--set` are merged
+over it (limits for live checks, e.g. eval/limits/live_check.yaml). Overlays can't change privacy or the profile.
 
 The pipeline factory is `module:function`, called as factory(ctx) → (Pipeline, resolvers), where resolvers maps a
 `waiting_for` value to fn(case, investigation) → the `apply` function for Machine.resolve_wait.
@@ -33,7 +37,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.research import llm, preflight, settings as S, transport
 from app.research.db import ResearchDB
@@ -46,9 +50,44 @@ EVAL_DIR = Path(__file__).resolve().parent
 CASES_DIR = EVAL_DIR / "cases"
 RESULTS_DIR = EVAL_DIR / "results"
 RECORDINGS_DIR = EVAL_DIR / "recordings"
+LIMITS_DIR = EVAL_DIR / "limits"  # settings overlays for live checks (`--settings eval/limits/<name>.yaml`)
 DEFAULT_FACTORY = "app.research.steps:build_pipeline"
 MAX_WAITS = 12
 Mode = Literal["fake", "replay", "live"]
+
+
+OVERLAY_FORBIDDEN = ("privacy", "profile")  # the privacy gate and the profile stay the machine's and the case's
+
+
+def check_overlay(overlay: dict) -> dict:
+    """A settings overlay (case `settings`, `--settings`, `--set`) may change limits, never privacy or the profile."""
+    if not isinstance(overlay, dict):
+        raise ValueError("A settings overlay must be a mapping.")
+    bad = [k for k in OVERLAY_FORBIDDEN if k in overlay]
+    if bad:
+        raise ValueError(f"A settings overlay can't set {', '.join(bad)}.")
+    return overlay
+
+
+def parse_sets(items: list[str]) -> dict:
+    """`--set a.b.c=value` (value read as YAML: numbers, true/false, [lists]) → {"a": {"b": {"c": value}}}."""
+    out: dict = {}
+    for item in items:
+        key, sep, raw = item.partition("=")
+        if not sep or not key.strip():
+            raise ValueError(f"--set needs key.path=value, got {item!r}.")
+        node = out
+        *parents, leaf = key.strip().split(".")
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = yaml.safe_load(raw)
+    return check_overlay(out)
+
+
+def overlay_from(path: str | None, sets: list[str]) -> dict:
+    """The command line's overlay: a `--settings` YAML file, then each `--set` on top."""
+    base = (yaml.safe_load(Path(path).read_text("utf-8")) or {}) if path else {}
+    return check_overlay(S.deep_merge(check_overlay(base), parse_sets(sets)))
 
 
 class EvalCase(BaseModel):
@@ -62,7 +101,13 @@ class EvalCase(BaseModel):
     acknowledge: bool = True  # acknowledge urgent/emergency safety waits
     rewrite: str | None = None  # new problem text if intake asks for a rewrite (synthetic too)
     expected: dict[str, Any] = Field(default_factory=dict)  # safety level, red flags, hypothesis families …
+    settings: dict[str, Any] = Field(default_factory=dict)  # overlay on the profile (limits for live checks)
     notes: str = ""
+
+    @model_validator(mode="after")
+    def _settings_valid(self) -> "EvalCase":
+        S.build(self.profile, check_overlay(self.settings))  # unknown keys or wrong types fail at load time
+        return self
 
 
 def load_cases(folder: Path = CASES_DIR, only: str | None = None) -> list[EvalCase]:
@@ -209,8 +254,10 @@ def shared_cache(path: Path = SHARED_CACHE) -> ResearchDB:
     return cache
 
 
-def _context(db: ResearchDB, mode: Mode, profile: str, cache: ResearchDB | None = None) -> llm.CallContext:
-    research = S.build(profile, local_overrides() if mode == "live" else None)
+def _context(db: ResearchDB, mode: Mode, profile: str, cache: ResearchDB | None = None,
+             overlay: dict | None = None) -> llm.CallContext:
+    local = local_overrides() if mode == "live" else {}
+    research = S.build(profile, S.deep_merge(local, check_overlay(overlay or {})))
     if mode == "fake":
         providers = {f: FakeProvider(f) for f in ("openai", "anthropic", "ollama")}
         available = None
@@ -253,13 +300,16 @@ DEFAULT_TIMEOUT = 3600.0  # per case; grounding on local models takes a while
 
 
 async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings: Path,
-                   timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None) -> dict:
+                   timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None,
+                   settings: dict | None = None) -> dict:
+    """`settings`: the command line's overlay, applied over the case's own `settings`."""
     tmp = Path(tempfile.mkdtemp(prefix=f"helix-eval-{case.id}-"))
+    overlay = S.deep_merge(check_overlay(case.settings), check_overlay(settings or {}))
     worker = None
     try:
         db = ResearchDB(tmp / "research.sqlite3")
         db.init()
-        ctx = _context(db, mode, case.profile, cache)
+        ctx = _context(db, mode, case.profile, cache, overlay)
         if mode == "live":
             pf = preflight.run(ctx.settings, ctx.providers, preflight.ProbeStore(tmp / "probes.json"),
                                synthetic=True, require_probes=False)
@@ -300,7 +350,8 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
             "outcome": inv["outcome"],
             "stage": inv["stage"], "error": (inv.get("error") or "")[:800] or None,
             "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
-            "waits": waits, "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
+            "settings_overlay": overlay, "waits": waits,
+            "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
             "usage": db.usage(inv_id), "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
             "intake": summary,
             "expected_misses": intake_misses(case, summary, waits + ([inv["waiting_for"]] if inv["waiting_for"] else []),
@@ -317,8 +368,10 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
 
 async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str,
               recordings_root: Path = RECORDINGS_DIR, results_dir: Path = RESULTS_DIR,
-              timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None) -> dict:
+              timeout: float = DEFAULT_TIMEOUT, keep: bool = False, cache: ResearchDB | None = None,
+              settings: dict | None = None) -> dict:
     """Runs the cases one by one; the results file is rewritten after each case, so a crash keeps the rest.
+    `settings`: an overlay over every case's profile and own `settings` (`--settings FILE`, `--set k=v`).
     `cache`: a shared model-answer cache (live runs use eval/results/llm_cache.sqlite3 unless disabled)."""
     recordings = Path(recordings_root) / name
     results: list[dict] = []
@@ -326,7 +379,7 @@ async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str
     for i, c in enumerate(cases, 1):
         print(f"[{i}/{len(cases)}] {c.id} …", flush=True)
         results.append(await run_case(c, mode=mode, factory=factory, recordings=recordings, timeout=timeout,
-                                      keep=keep, cache=cache))
+                                      keep=keep, cache=cache, settings=settings))
         print(f"[{i}/{len(cases)}] {c.id}: {results[-1]['status']} in {results[-1].get('seconds', 0)} s", flush=True)
         report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                   "cases": results, "summary": {
@@ -367,13 +420,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keep", action="store_true", help="keep each case's data folder for inspection")
     parser.add_argument("--no-shared-cache", action="store_true",
                         help="live runs: don't reuse model answers from earlier runs (eval/results/llm_cache.sqlite3)")
+    parser.add_argument("--settings", help="a YAML settings overlay for every case (e.g. eval/limits/live_check.yaml)")
+    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                        help="one setting over the profile, e.g. guards.max_tokens=2000000 (repeatable)")
     args = parser.parse_args(argv)
+    overlay = overlay_from(args.settings, args.set)
     cases = load_cases(Path(args.cases), args.case)
     if not cases:
         print("No cases found.")
         return 1
     report = asyncio.run(run(cases, mode=args.mode, factory=stopping(load_factory(args.pipeline), args.stop_at), name=args.name,
-                             timeout=args.timeout, keep=args.keep,
+                             timeout=args.timeout, keep=args.keep, settings=overlay,
                              cache=shared_cache() if args.mode == "live" and not args.no_shared_cache else None))
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")

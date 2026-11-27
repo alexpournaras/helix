@@ -20,7 +20,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.10 Notes basics, test infrastructure, eval runner (`eval/run.py`), doctor, log canary
 - [x] 1A.11 X7 passed (99.2%, `seg.v2`)
 - [x] 1A.11 X9 passed (run 2: recall 80/80, attestations 163/169 = 96.4%)
-- [ ] 1A.11 X3, X6 — X3 can run now (1E prompts exist); X6 from the first 1D + 1E live run
+- [ ] 1A.11 X3, X6 — X3 script and papers ready, live run waiting; X6 from the first 1D + 1E live run
 - [x] Checkpoint after 1A (judged by the agent at your request; see decisions.md)
 
 ### 1B Clinical knowledge
@@ -67,7 +67,8 @@ model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval 
    is **~10–20M+**, several days. So it runs with `--settings eval/limits/live_check.yaml` (≤ 6 hypotheses, 3
    queries each, 200 screened, 3 papers, 1 round, no snowball, `guards.max_tokens` 2M): `--stop-at reading`
    ~0.8–1.2M, then `--stop-at synthesis` ~1.5–2.5M.
-5. X3 (dual extraction on 6 papers; script not written yet): **~0.8–1.5M**, ~2M with the verification panel.
+5. X3 (`python -m eval.spikes.x3_dual_extraction run`, then pair claims by hand and `score`): script and papers
+   ready (2026-11-27; each paper is one 10–20k-token pack, 12 extraction calls): **~0.4–0.6M** (~$1–2.50).
 6. X6 (cost and time): no extra calls, written up from the item 4 numbers.
 7. X1 (structured output, after 1F): the `dev_openai` part ~0.5–1.5M. The rest uses the quality models, not this
    limit.

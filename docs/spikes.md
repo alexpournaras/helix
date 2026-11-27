@@ -12,7 +12,8 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
 | X7 | Paper splitter on **240 sentences** of open-access text (6 papers, 3 systems): **238/240 (99.2%)** correct with `seg.v1`; the one error fixed in `seg.v2` | ✅ |
 | X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`. Run 2 (2026-11-27): recall **80/80 (100%)**; red-flag attestations supported **163/169 (96.4%)** by hand review | ✅ run 2 |
-| X3, X6 | **Not run.** Need the extraction prompts and schemas (1E) and a running pipeline (X6) | — |
+| X3 | **Ready, not run.** `x3_dual_extraction.py`: 6 open-access papers (ENT: 2 cohorts; neurology: cohort + RCT; digestive: 2 RCTs), `read.claims.v1` dual extraction + reconciliation. Valid IDs per extractor by code; reconciliation vs hand pairs (`x3_gold.yaml`) | — |
+| X6 | **Not run.** Needs a running pipeline (the first 1D + 1E live check) | — |
 | X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
 ## X4 Europe PMC (`x4_europepmc.py`)

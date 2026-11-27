@@ -10,6 +10,7 @@ cases. Updated after each live run. Sources: `backend/eval/results/*-live.json`,
 | Runs on | OpenAI API, 2.5M tokens/day | this PC: RTX 2060 (6 GB) + CPU; the 18 GB model mostly runs on the CPU |
 | Context | 400k | 32k (packs of 12k tokens) |
 | Structured output probe | ✅ ~2.5 s; efforts none…xhigh | ✅ ~36 s first load; no thinking mode |
+| Price | $0.75 / 1M input ($0.075 cached), $4.50 / 1M output | free (electricity) |
 
 ## Pipeline stages (live, synthetic cases)
 
@@ -28,7 +29,7 @@ cases. Updated after each live run. Sources: `backend/eval/results/*-live.json`,
 | Check | gpt-5.4-mini | qwen3-coder |
 |---|---|---|
 | X9 knowledge extraction (6 guidelines) | ✅ run 2: recall 80/80, attestations 163/169 (96.4%); 335 calls, 2.13M tokens, ~37 min. Run 1: 70/80 ❌ | not run |
-| X3 dual extraction (6 papers) | script being written | — |
+| X3 dual extraction (6 papers) | ready, not run (~0.4–0.6M tokens) | ready (`--profile dev_ollama --model …`) |
 | X1 structured output, step schemas | after 1F | after 1F |
 
 Not comparable yet: on `dev` qwen3-coder only ever ran next to gpt-5.4-mini, so no result above is the local

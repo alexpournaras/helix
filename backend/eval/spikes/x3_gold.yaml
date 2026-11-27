@@ -1,0 +1,13 @@
+# Spike X3 gold pairs (PLAN 1A.11): claims of the two extractors that state the same finding, paired by hand.
+# After `x3_dual_extraction run`, read results/x3/pairs.md and list each pair as ["m0:N", "m1:N"] under the run
+# label (dev_openai, dev_ollama-qwen3_4b, ...). Paired by the agent, like the X9 gold list; see docs/spikes.md.
+# Pass: reconciliation puts >= 80% of these pairs in one cluster; >= 90% valid sentence IDs per extractor.
+version: 1
+papers:  # 6 open-access full texts (Europe PMC), 3 body systems
+  PMC9891135: {system: ent, design: cohort, title: Transportation noise and risk of tinnitus (Danish nationwide cohort), year: 2023}
+  PMC5615572: {system: ent, design: cohort, title: Work-related noise exposure in a cohort of patients with chronic tinnitus, year: 2017}
+  PMC7388434: {system: neurology, design: cohort, title: Factors associated with headache in hospitalized COVID-19 patients, year: 2020}
+  PMC5036209: {system: neurology, design: rct, title: Melatonin vs amitriptyline vs placebo for migraine prevention, year: 2016}
+  PMC7016109: {system: digestive, design: rct, title: Non-coeliac gluten sensitivity in refractory functional dyspepsia, year: 2020}
+  PMC10764899: {system: digestive, design: rct, title: Bifidobacterium animalis BL-99 for functional dyspepsia, year: 2024}
+pairs: {}  # {run label: {pmcid: [["m0:N", "m1:N"], ...]}}

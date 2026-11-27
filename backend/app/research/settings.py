@@ -83,6 +83,8 @@ QUALITY_ROLES: dict[str, dict] = {
     "grounding.screen": _role(_m(SOL, "high"), _m(SONNET, "high"), fallback=[_m(LUNA, "high"), _m(HAIKU, "high")]),
     "grounding.extract": _role(_m(ASTRA, "high"), _m(OPUS, "high"), fallback=[_m(SOL, "high"), _m(SONNET, "high")]),
     "grounding.verify": _role(_m(SONNET, "high"), _m(SOL, "high"), fallback=[_m(HAIKU, "high"), _m(LUNA, "high")]),
+    # Pack drafting (build_pack.py, B7.2): the strongest model; a human reviews every pack.
+    "pack_draft": _role(_m(FABLE, "xhigh"), fallback=[_m(ASTRA, "xhigh"), _m(OPUS, "high")]),
     "grounding.merge": _role(_m(ASTRA, "high"), fallback=_FB_A_STRONG),
     "questions": _role(_m(OPUS, "high"), fallback=_FB_B_STRONG),
     "plan": _role(_m(ASTRA, "high"), _m(FABLE, "high"), fallback=[_m(OPUS, "high"), _m(SOL, "high")]),

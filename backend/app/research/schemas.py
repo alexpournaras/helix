@@ -574,3 +574,67 @@ class GapReport(_Out):
     missing_information: list[GapMissing] = Field(default_factory=list, max_length=10)
     new_hypotheses: list[GapHypothesis] = Field(default_factory=list, max_length=6)
     follow_up_queries: list[GapQuery] = Field(default_factory=list, max_length=12)
+
+
+# ---------- pack drafting (B7.2, eval/tools/build_pack.py) ----------
+
+PACK_AREAS = Literal["heart_lungs_allergy", "brain_nerves", "infection_sepsis", "abdomen_gut", "urinary_genital", "eye",
+                     "ent", "skin", "hormones_metabolism", "mental_health", "poisoning_injury", "pregnancy", "children",
+                     "older_adults", "possible_cancer"]  # = knowledge.loader.AREAS (a test keeps them equal)
+KREFS = Field(min_length=1, max_length=8)  # `K{n}` of the verified guideline items an entry rests on
+
+
+class DraftRedFlag(_Out):
+    slug: str = Field(pattern=SLUG, max_length=60)
+    title: str = Field(min_length=5, max_length=200)
+    area: PACK_AREAS
+    level: Literal["emergency", "urgent", "routine_review"]
+    population: Literal["all", "infant", "child", "pregnancy", "older", "immunocompromised"] = "all"
+    triggers: list[str] = Field(min_length=1, max_length=12)  # plain lower-case phrases a person would write
+    unknown_attribute: str = Field(pattern=SLUG, max_length=60)
+    rule_out_question: str = Field(min_length=5, max_length=300)
+    example_fires: list[str] = Field(min_length=1, max_length=3)
+    example_no_fire: list[str] = Field(min_length=1, max_length=2)
+    example_unknown: list[str] = Field(default_factory=list, max_length=2)
+    knowledge: list[str] = KREFS
+
+
+class DraftEtiology(_Out):
+    slug: str = Field(pattern=SLUG, max_length=60)
+    name: str = Field(min_length=3, max_length=200)
+    key_features: list[str] = Field(default_factory=list, max_length=8)
+    discriminating_questions: list[str] = Field(default_factory=list, max_length=4)
+    typical_evaluations: list[str] = Field(default_factory=list, max_length=4)
+    red_flag: bool = False
+    knowledge: list[str] = KREFS
+
+
+class DraftHistoryItem(_Out):
+    slug: str = Field(pattern=SLUG, max_length=60)
+    attribute: str = Field(pattern=SLUG, max_length=60)
+    priority: Literal["high", "medium", "low"]
+    question: str = Field(min_length=5, max_length=300)
+    knowledge: list[str] = KREFS
+
+
+class DraftEvaluation(_Out):
+    slug: str = Field(pattern=SLUG, max_length=60)
+    test: str = Field(min_length=3, max_length=200)
+    indication: str = Field(min_length=3, max_length=400)
+    knowledge: list[str] = KREFS
+
+
+class DraftManagementTopic(_Out):
+    slug: str = Field(pattern=SLUG, max_length=60)
+    topic: str = Field(min_length=3, max_length=200)
+    context: str = Field(min_length=3, max_length=400)
+    knowledge: list[str] = KREFS
+
+
+class PackDraft(_Out):
+    synonyms: list[str] = Field(default_factory=list, max_length=15)  # how people describe the complaint
+    red_flags: list[DraftRedFlag] = Field(default_factory=list, max_length=20)
+    etiologies: list[DraftEtiology] = Field(default_factory=list, max_length=25)
+    history_checklist: list[DraftHistoryItem] = Field(default_factory=list, max_length=25)
+    evaluations: list[DraftEvaluation] = Field(default_factory=list, max_length=20)
+    management_topics: list[DraftManagementTopic] = Field(default_factory=list, max_length=20)

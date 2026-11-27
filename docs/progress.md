@@ -28,13 +28,13 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1B.2 Tinnitus pack v0 (hand-built from NICE NG155/NG98 + NHS; 7 verified seed papers)
 - [x] 1B.3 Knowledge loader, validator, conditions and merge
 - [ ] Clinician review of the floor and the tinnitus pack (two reviewers, recorded in decisions.md)
-- [ ] `build_pack.py` after grounding (1C.3)
+- [ ] `build_pack.py` after grounding (1C.3): built 2026-11-27 with fake-model tests; live run for the tinnitus draft pending
 
 ### 1C–1H
 ### 1C Intake, safety, grounding, questions
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
-- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) passed (recall 80/80, attestations 96.4%); `build_pack.py` left
+- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) passed (recall 80/80, attestations 96.4%); `build_pack.py` built, live run pending
 - [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
 - [x] 1D Search (fake-model and fake-source tests; live check pending)
   - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (fake-model tests; live check pending)
@@ -70,5 +70,8 @@ model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval 
 5. X3 (`python -m eval.spikes.x3_dual_extraction run`, then pair claims by hand and `score`): script and papers
    ready (2026-11-27; each paper is one 10–20k-token pack, 12 extraction calls): **~0.4–0.6M** (~$1–2.50).
 6. X6 (cost and time): no extra calls, written up from the item 4 numbers.
+8. `build_pack.py --complaint tinnitus --term Tinnitus` (draft for review): grounding at maximum depth (8 sources,
+   every pack) + one drafting call. **~2–3M on `dev_openai`** (more than a day: it resumes from the shared cache);
+   on `quality` (the plan's default, strongest models) it needs the quality keys and a budget decision.
 7. X1 (structured output, after 1F): the `dev_openai` part ~0.5–1.5M. The rest uses the quality models, not this
    limit.

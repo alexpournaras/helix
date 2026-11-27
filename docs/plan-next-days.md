@@ -12,7 +12,7 @@ orders the work. Tick items in `docs/progress.md` as usual; update this file whe
 
 | Day | Live (OpenAI, ≤ 2.4M) | Offline (no model calls) |
 |---|---|---|
-| **Sat 11-28** | 1C.4 eval on 3 cases (`ent.tinnitus-left`, `neurology.headache-afternoons`, `digestive.abdominal-pain-pregnancy-unknown`), `--stop-at planning`: ~1–1.6M. X3 run (`x3_dual_extraction run`): ~0.5M | Hand-pair X3 claims (`results/x3/pairs.md` → `x3_gold.yaml`), `score`. Finish `build_pack.py` (1C.3) with fake-model tests |
+| **Sat 11-28** | 1C.4 eval on 3 cases (`ent.tinnitus-left`, `neurology.headache-afternoons`, `digestive.abdominal-pain-pregnancy-unknown`), `--stop-at planning`: ~1–1.6M. X3 run (`x3_dual_extraction run`): ~0.5M | Hand-pair X3 claims (`results/x3/pairs.md` → `x3_gold.yaml`), `score`. `build_pack.py` built 2026-11-27 (fake-model tests); its live run (~2–3M on dev_openai) gets a day of its own when the budget allows |
 | **Sun 11-29** | First 1D + 1E live check, one case, `--settings eval/limits/live_check.yaml --stop-at reading`: ~0.8–1.2M; then continue towards `--stop-at synthesis` with what's left (cache resumes) | Fixes from 1C.4 and X3 (prompt changes: version bump + `eval replay` comparison). Start 1F: ranking and synthesis |
 | **Mon 11-30** | Finish 1D + 1E to synthesis: ~1–1.3M. Write up X6 (cost and time) from that run | 1F: critic panel, support check, dose regex, revise and recheck loop (fake-model tests) |
 | **Tue 12-01** | 1C.4 on the remaining 5 cases, or re-runs after fixes: ~1.5–2M | 1F: final check, finalize (outcomes, record mode, readiness banner); pipeline end to end with fake models |

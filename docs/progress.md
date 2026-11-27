@@ -19,7 +19,8 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.9 MeSH module (`mesh.py`; recorded fixtures; X8b held-out 98%). mapping table audited and corrected (v2)
 - [x] 1A.10 Notes basics, test infrastructure, eval runner (`eval/run.py`), doctor, log canary
 - [x] 1A.11 X7 passed (99.2%, `seg.v2`)
-- [ ] 1A.11 X3, X9, X6 — wait for the extraction prompts/schemas (1C.3, 1E) and a running pipeline
+- [x] 1A.11 X9 passed (run 2: recall 80/80, attestations 163/169 = 96.4%)
+- [ ] 1A.11 X3, X6 — X3 can run now (1E prompts exist); X6 from the first 1D + 1E live run
 - [x] Checkpoint after 1A (judged by the agent at your request; see decisions.md)
 
 ### 1B Clinical knowledge
@@ -33,7 +34,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 ### 1C Intake, safety, grounding, questions
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
-- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) recall 80/80 = 100% (pass), attestation hand review pending
+- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) passed (recall 80/80, attestations 96.4%); `build_pack.py` left
 - [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
 - [x] 1D Search (fake-model and fake-source tests; live check pending)
   - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (fake-model tests; live check pending)
@@ -54,6 +55,6 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 
 One full X9 run uses about a day's OpenAI limit, so these go one per day, in this order:
 1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.
-2. X9 attestation hand review (`results/x9/attestations.md` → `attestation_review` in `x9_gold.yaml`). Pass: ≥ 95%.
+2. ~~X9 attestation hand review~~ done 2026-11-27: 163/169 = 96.4% (pass).
 3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update on the synthetic cases. Without `--stop-at` it also runs planning (1D.1), which is the next check.
 4. Live check of 1D and 1E on `dev_openai`: `eval.run --mode live --case <one case> --stop-at synthesis` runs intake → gaps. Start with `--stop-at reading` (1D only) to see the cost; reading and verification make many calls per paper.

@@ -11,7 +11,7 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X5 | 199-ID PubMed efetch (POST) parsed **199/199** in 3.5 s; retraction and concern fields present | ✅ |
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
 | X7 | Paper splitter on **240 sentences** of open-access text (6 papers, 3 systems): **238/240 (99.2%)** correct with `seg.v1`; the one error fixed in `seg.v2` | ✅ |
-| X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`. Run 2 (2026-11-27): recall **80/80 (100%)**; attestation hand review pending | ✅ recall (run 2) |
+| X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`. Run 2 (2026-11-27): recall **80/80 (100%)**; red-flag attestations supported **163/169 (96.4%)** by hand review | ✅ run 2 |
 | X3, X6 | **Not run.** Need the extraction prompts and schemas (1E) and a running pipeline (X6) | — |
 | X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
@@ -172,8 +172,17 @@ and ~1.1M output tokens = 2.13M). Results in `results/x9/extraction.run2.json`; 
 
 All of run 1's misses are now red flags (the BSG referral criteria with their age thresholds; Horner syndrome,
 visual field defects and the central HINTS pattern as features of the vertigo checklist items). The model verifier
-judged red-flag attestations supported 163/169 (partial 6), down from 75/110 partial in run 1; the hand review still
-decides the ≥ 95% criterion.
+judged red-flag attestations supported 163/169 (partial 6), down from 75/110 partial in run 1.
+
+**Attestation hand review** (agent, against the snapshot text; `attestation_review` in `x9_gold.yaml`): **163/169
+supported (96.4%, pass ≥ 95%)**, 6 partial, 0 unsupported. The model's verdicts agree on 4 of the 6 partials (it
+also marked the two pregnancy/puerperium items, which the table row supports). Three partials are BSG list items
+quoted without the list's lead-in ("People aged ≥55 years with:"), so the age condition isn't in the quote, and one
+of them dropped the age from the item too; see backlog. The others: a feature not in the quote (SAH "can be the only
+symptom") and two vertigo items built from history questions (tinnitus, chest pain) that the text doesn't call
+warning signs.
+
+**X9 passes** with run 2 (`grounding.extract.v3` + `verify.v2`).
 
 **Duplicates:** the two extractors' items are often kept side by side (EHF: 60 red flags for 20 gold, the same
 table row up to 3–4 times with different wording). Recall isn't affected, but the safety panel sees repeats; see

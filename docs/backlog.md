@@ -16,3 +16,6 @@ Ideas that are out of scope for the current task (PLAN Part G.5).
   hitting: do it on a day the live runs are re-done anyway, with a version bump of `_system`.
 - Grounding: merge near-duplicate items from the two extractors (X9 run 2: EHF 60 red flags for 20 gold, the same
   table row 3–4 times). Match on shared sentence IDs + similar features before the safety panel sees them.
+- Grounding: when an attestation quotes a list item, include the list's lead-in sentence (X9 run 2: BSG items
+  "Reflux with raised platelet count…" quoted without "People aged ≥55 years with:", so the age condition is lost and
+  one item came out for all ages).

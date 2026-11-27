@@ -115,4 +115,21 @@ guidelines:
       - {flag: Abdominal mass, ids: [S15.P2.s2], matched_by: "run2 #7 Dyspepsia with abdominal mass"}
       - {flag: Fever, ids: [S15.P2.s2], matched_by: "run2 #8 Dyspepsia with fever"}
       - {flag: Family history of oesophageal or gastric cancer, ids: [S15.P2.s2], matched_by: "run2 #9 Dyspepsia with family history of esophageal or gastric cancer"}
-attestation_review: null  # {judged: n, supported: n, notes: ...} after the run
+attestation_review:  # run 2 (2026-11-27), judged by the agent from extraction.run2.json against the snapshot text
+  run: 2
+  judged: 169
+  supported: 163
+  partial: 6
+  unsupported: 0
+  rate: 0.964  # pass >= 0.95
+  partial_items:  # <pmcid>#<red-flag number in extraction.run2.json>: reason
+    - "PMC6734476#9: feature 'can be the only symptom' is not in the quoted sentences"
+    - "PMC11364714#4: tinnitus alone and cardiovascular risk factors are context, not stated as warning features"
+    - "PMC11364714#5: chest pain, dyspnoea, palpitations are history questions; the quote doesn't call them warning signs"
+    - "PMC9380508#16: quote is the list item without its lead-in, so the age >= 55 condition isn't quoted"
+    - "PMC9380508#17: same (list item without the age >= 55 lead-in)"
+    - "PMC9380508#18: same, and the item drops the age condition (population all)"
+  notes: >-
+    The model verifier also judged 163/169 supported but marked a different 2 of the 6 (both pregnancy/puerperium
+    items, which the hand review counts as supported: the table row is 'Pregnancy or puerperium'). Three partials
+    come from list items quoted without the list's lead-in sentence.

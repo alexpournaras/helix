@@ -287,14 +287,37 @@ def _dev_openai() -> dict:
     }
 
 
+def _dev_ollama() -> dict:
+    """Local-only development setup (decision 2026-11-27): every role on the Ollama model, for comparing it with
+    `dev_openai` on the same cases. One local model can't give two independent members (no effort levels, and the
+    same request gets the same cached answer), so two-member roles run with one member (`reduced`). Not for real
+    cases."""
+    ref = _m(DEV_OLLAMA, None)
+    roles = {name: {"members": [dict(ref) for _ in spec["members"]], "fallback": []}
+             for name, spec in QUALITY_ROLES.items()}
+    return {
+        "roles": roles,
+        "strongest": {"ollama": dict(ref)},
+        "providers": {"ollama": {"enabled": True, "num_ctx": 32768, "max_output_tokens": 8192,
+                                 "idle_timeout_seconds": 600, "deadline_seconds": 3600}},
+        "concurrency": {"ollama": 1, "max_parallel_tasks": 2},
+        # 32k context: packs of 12k tokens, as on `dev`.
+        "grounding": {"max_sources_per_complaint": 3, "pack_tokens": 12000, "max_packs_per_source": 3,
+                      "max_results_per_query": 15, "max_screened": 24},
+        "extraction": {"max_pack_tokens": 12000},
+    }
+
+
 PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy,
-                                                   "dev": _dev, "dev_openai": _dev_openai}
+                                                   "dev": _dev, "dev_openai": _dev_openai,
+                                                   "dev_ollama": _dev_ollama}
 PROFILE_DESCRIPTIONS = {
     "quality": "Strongest model for every judgment, full ensembles, up to 5 rounds (default).",
     "balanced": "sol and opus for most roles, single extraction, one critic, 3 rounds, 15 papers per round.",
     "economy": "One efficient model per role, no ensembles except the safety panel, 1 round, 10 papers.",
     "dev": "Development only: gpt-5.4-mini (family A) + a local Ollama model (family B), quality structure.",
     "dev_openai": "Development only: gpt-5.4-mini everywhere (high effort for family-A roles, medium for family-B roles), quality structure.",
+    "dev_ollama": "Development only: the local Ollama model everywhere (one member per panel), quality structure.",
 }
 
 
@@ -365,7 +388,7 @@ class GuardsCfg(Strict):
 
 
 class ResearchSettings(Strict):
-    profile: Literal["quality", "balanced", "economy", "dev", "dev_openai"]
+    profile: Literal["quality", "balanced", "economy", "dev", "dev_openai", "dev_ollama"]
     roles: dict[str, RoleSpec]
     strongest: dict[str, ModelRef]
     providers: ProvidersCfg

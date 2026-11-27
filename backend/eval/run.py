@@ -90,6 +90,13 @@ def overlay_from(path: str | None, sets: list[str]) -> dict:
     return check_overlay(S.deep_merge(check_overlay(base), parse_sets(sets)))
 
 
+def with_profile(cases: list["EvalCase"], profile: str | None) -> list["EvalCase"]:
+    """`--profile`: run every case on another profile (e.g. dev_ollama to compare models); re-validated."""
+    if not profile:
+        return cases
+    return [EvalCase.model_validate({**c.model_dump(), "profile": profile}) for c in cases]
+
+
 class EvalCase(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_.-]*$")
     system: str
@@ -423,9 +430,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--settings", help="a YAML settings overlay for every case (e.g. eval/limits/live_check.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="one setting over the profile, e.g. guards.max_tokens=2000000 (repeatable)")
+    parser.add_argument("--profile", help="run every case on this profile instead of its own (e.g. dev_ollama)")
     args = parser.parse_args(argv)
     overlay = overlay_from(args.settings, args.set)
-    cases = load_cases(Path(args.cases), args.case)
+    cases = with_profile(load_cases(Path(args.cases), args.case), args.profile)
     if not cases:
         print("No cases found.")
         return 1

@@ -4,6 +4,7 @@
     .venv/Scripts/python -m eval.spikes.x9_knowledge find      # print red-flag-like sentences with IDs (for the gold list)
     .venv/Scripts/python -m eval.spikes.x9_knowledge run       # live: grounding extraction + verification (profile dev_openai)
     .venv/Scripts/python -m eval.spikes.x9_knowledge score     # recall vs eval/spikes/x9_gold.yaml + attestation review sheet
+    ... run --profile dev_ollama / score --profile dev_ollama  # another profile: its own cache, results and matches
 
 Pass: ≥ 90% of hand-listed red flags extracted; ≥ 95% of red-flag attestations supported (judged by hand from the
 review sheet `results/x9/attestations.md`, recorded in x9_gold.yaml under `attestation_review`).
@@ -83,47 +84,63 @@ def find(only: str | None = None) -> None:
                 print(f"[{s.seg_id}] {s.text[:400]}")
 
 
+def suffix(profile: str) -> str:
+    """dev_openai keeps the original file names; another profile gets its own cache, results and sheet."""
+    return "" if profile == "dev_openai" else f".{profile}"
+
+
+def match_key(profile: str) -> str:
+    return "matched_by" if profile == "dev_openai" else f"matched_by_{profile}"
+
+
 def context(profile: str = "dev_openai") -> llm.CallContext:
-    from app.config import settings as app_settings
-    import os
     st = S.build(profile)
-    db = ResearchDB(OUT / "x9.sqlite3")  # cache: reruns reuse the model answers
+    db = ResearchDB(OUT / f"x9{suffix(profile)}.sqlite3")  # cache: reruns reuse the model answers
     db.init()
     return llm.CallContext(db=db, settings=st, providers=default_providers(st), limiters=Limiters({}),
                            prices=PriceTable())
 
 
-async def run() -> None:
-    ctx = context()
+async def run(profile: str = "dev_openai") -> None:
+    import time
+    ctx = context(profile)
     cfg = G._cfg(ctx.settings.model_dump(mode="json"))
     results = {}
     for pmcid, system, complaint in GUIDELINES:
         data, snap = load(pmcid)
         packs = pack_snapshot(snap, int(cfg["pack_tokens"])).packs  # every pack (no cap): X9 measures recall
+        started = time.monotonic()
         read = G.Read(G.Cand(None, [], [], 0), None, snap, packs, data["coverage"])  # type: ignore[arg-type]
         items, dropped = await G.extract(ctx, {"text": complaint}, "general", [read], dual=True)
         await G.verify_items(ctx, {"text": complaint}, items, [read])
-        results[pmcid] = {"system": system, "packs": len(packs), "dropped": dropped, "items": [
+        results[pmcid] = {"system": system, "packs": len(packs), "dropped": dropped,
+                          "seconds": round(time.monotonic() - started, 1), "items": [
             {"kind": i.kind, "text": i.text, "population": i.population, "attributes": i.attributes,
              "attestations": [{k: a.get(k) for k in ("sentence_ids", "quote", "model", "verdict")}
                               for a in i.attestations]} for i in items]}
         flags = [i for i in items if i.kind == "red_flag"]
-        print(f"{pmcid}: {len(packs)} packs, {len(items)} items, {len(flags)} red flags, {dropped} dropped")
-    (OUT / "extraction.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), "utf-8")
+        print(f"{pmcid}: {len(packs)} packs, {len(items)} items, {len(flags)} red flags, {dropped} dropped, "
+              f"{results[pmcid]['seconds']} s", flush=True)
+        (OUT / f"extraction{suffix(profile)}.json").write_text(json.dumps(results, ensure_ascii=False, indent=1),
+                                                              "utf-8")  # after each guideline: a stop keeps the rest
 
 
-def score() -> None:
+def score(profile: str = "dev_openai") -> None:
     gold = yaml.safe_load(GOLD.read_text("utf-8"))
-    res = json.loads((OUT / "extraction.json").read_text("utf-8"))
+    res = json.loads((OUT / f"extraction{suffix(profile)}.json").read_text("utf-8"))
+    key = match_key(profile)
     total = found = 0
     lines = ["# X9 red-flag attestations (judge each: supports / partial / no)", ""]
     for pmcid, g in gold["guidelines"].items():
+        if pmcid not in res:
+            print(f"\n== {pmcid}: not in the results (run stopped?)")
+            continue
         r = res[pmcid]
         flags = [i for i in r["items"] if i["kind"] == "red_flag"]
         print(f"\n== {pmcid} ({r['system']}): {len(g['red_flags'])} gold, {len(flags)} extracted red flags")
         for gf in g["red_flags"]:
             total += 1
-            hit = gf.get("matched_by")  # filled in by hand after reading the list below
+            hit = gf.get(key)  # filled in by hand after reading the list below
             ok = bool(hit)
             found += ok
             print(f"  [{'x' if ok else ' '}] {gf['flag']}" + (f"  ← {hit}" if hit else ""))
@@ -136,7 +153,7 @@ def score() -> None:
                 lines.append(f"- **{i}. {f['text']}** — verdict `{a['verdict']}` · {', '.join(a['sentence_ids'])}  ")
                 lines.append(f"  > {a['quote'][:600]}")
         lines.append("")
-    (OUT / "attestations.md").write_text("\n".join(lines), "utf-8")
+    (OUT / f"attestations{suffix(profile)}.md").write_text("\n".join(lines), "utf-8")
     if total:
         print(f"\nRecall: {found}/{total} = {found / total:.0%} (pass ≥ 90%)")
     review = gold.get("attestation_review")
@@ -148,15 +165,16 @@ def score() -> None:
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")  # the Windows console can't print ≥
     cmd = argv[0] if argv else "score"
+    profile = argv[argv.index("--profile") + 1] if "--profile" in argv else "dev_openai"
     if cmd == "fetch":
         asyncio.run(fetch())
     elif cmd == "find":
         find(argv[1] if len(argv) > 1 else None)
     elif cmd == "run":
-        with transport.use_transport(transport.RecordTransport(OUT / "recordings")):
-            asyncio.run(run())
+        with transport.use_transport(transport.RecordTransport(OUT / f"recordings{suffix(profile)}")):
+            asyncio.run(run(profile))
     else:
-        score()
+        score(profile)
     return 0
 
 

@@ -82,6 +82,20 @@ class DevOpenAITests(unittest.TestCase):
         self.assertFalse(S._same_member(a, S.ModelRef(model="m", effort="medium")))
 
 
+class DevOllamaTests(unittest.TestCase):
+    def test_every_role_is_the_local_model_and_panels_run_reduced(self):
+        st = S.build("dev_ollama")
+        self.assertEqual({m.model for r in st.roles.values() for m in r.members}, {S.DEV_OLLAMA})
+        self.assertEqual({m.model for r in st.roles.values() for m in r.fallback}, set())
+        safety = S.resolve_role(st, "safety", lambda ref: True)
+        self.assertEqual((len(safety.members), safety.independence), (1, "reduced"))  # no second local member
+        self.assertEqual(S.resolve_role(st, "intake", lambda ref: True).independence, "single")
+        self.assertEqual(S.strongest_other(st, "ollama", lambda ref: True).model, S.DEV_OLLAMA)
+        self.assertTrue(st.providers.ollama["enabled"])
+        self.assertEqual(st.extraction["max_pack_tokens"], 12000)  # fits the 32k context
+        self.assertEqual(st.grounding["pack_tokens"], 12000)
+
+
 class ResolutionTests(unittest.TestCase):
     def setUp(self):
         self.s = S.build("quality")

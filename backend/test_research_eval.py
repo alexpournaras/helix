@@ -183,6 +183,13 @@ class RunTests(ResearchTestCase):
         self.assertEqual(ev.overlay_from(str(path), ["guards.max_tokens=10"]),
                          {"guards": {"max_screened": 50, "max_tokens": 10}})
 
+    def test_profile_option_replaces_each_cases_profile(self):
+        cases = ev.with_profile([ev.EvalCase(**CASE)], "dev_ollama")
+        self.assertEqual(cases[0].profile, "dev_ollama")
+        self.assertEqual(ev.with_profile([ev.EvalCase(**CASE)], None)[0].profile, "quality")
+        with self.assertRaises(ValueError):
+            ev.with_profile([ev.EvalCase(**CASE)], "no_such_profile")
+
     def test_repo_limit_files_are_valid(self):
         files = sorted(Path(ev.LIMITS_DIR).glob("*.yaml"))
         self.assertTrue(files)

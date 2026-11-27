@@ -53,8 +53,21 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 
 ## Waiting for live runs
 
-One full X9 run uses about a day's OpenAI limit, so these go one per day, in this order:
+Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
+model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval runs and X9 run 2:
+
 1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.
 2. ~~X9 attestation hand review~~ done 2026-11-27: 163/169 = 96.4% (pass).
-3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update on the synthetic cases. Without `--stop-at` it also runs planning (1D.1), which is the next check.
-4. Live check of 1D and 1E on `dev_openai`: `eval.run --mode live --case <one case> --stop-at synthesis` runs intake → gaps. Start with `--stop-at reading` (1D only) to see the cost; reading and verification make many calls per paper.
+3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update
+   on the synthetic cases. **~2.1–3.1M** for all 8 cases: intake + safety ~20k per case (mostly cached), grounding
+   0.3–0.55M per case for the 5 cases that reach it (11-25 runs), questions ~30k. Run 2–3 cases a day
+   (`--case`), or all 8 over two days.
+4. Live check of 1D and 1E on `dev_openai` (one case). With the quality structure (`max_screened` 6000, dual
+   screening in batches of 8, 25 full-text papers per round, up to 5 rounds, ~0.3–0.5M per paper read) a full run
+   is **~10–20M+**, several days. It needs small limits first (screening ~200, ~3 papers, 1 round, `guards.max_tokens`);
+   `eval.run` can't set them per case yet. With those limits: `--stop-at reading` ~0.8–1.2M, then
+   `--stop-at synthesis` ~1.5–2.5M.
+5. X3 (dual extraction on 6 papers; script not written yet): **~0.8–1.5M**, ~2M with the verification panel.
+6. X6 (cost and time): no extra calls, written up from the item 4 numbers.
+7. X1 (structured output, after 1F): the `dev_openai` part ~0.5–1.5M. The rest uses the quality models, not this
+   limit.

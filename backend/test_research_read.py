@@ -221,6 +221,14 @@ class ReadFlowTests(ReadBase):
         self.assertEqual((ev["data"]["claims"], ev["data"]["agreement_2"], ev["data"]["rejected"]), (3, 1, 1))
         self.assertNotIn("Noise", json.dumps(ev["data"]))  # counts, never paper or case text
 
+    async def test_rejected_claims_name_their_extractor(self):
+        """X3 counts valid IDs per extractor, so a rejected claim keeps its extractor label."""
+        self.seed()
+        packs = R.pack_snapshot(SNAP, 32000).packs
+        ext = await R.extract_claims(self.ctx(), snap=SNAP, packs=packs, summary={}, hyps=[{"key": "noise", "title": "n"}],
+                                     design="cohort", limit=20, profile_n=None, dual=True, whole=False)
+        self.assertEqual([(why, label) for _, why, label in ext.rejected], [("no valid sentence IDs", "m0")])
+
     async def test_borderline_pairs_go_to_the_judge(self):
         self.models.claims_a = lambda r: [claim("Noise exposure raised the odds of tinnitus", [IDS[1]])]
         self.models.claims_b = lambda r: [claim("Noise exposure was linked with more tinnitus in adults", [IDS[1]])]

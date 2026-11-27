@@ -173,7 +173,7 @@ def _system(version: str) -> str:
 @dataclass
 class Extraction:
     checked: list  # [(extractor label, model ref, pack no, pass, claims.Checked)]
-    rejected: list  # [(raw claim JSON, reason)]
+    rejected: list  # [(raw claim JSON, reason, extractor label)]
     clusters: list  # [claims.Cluster]
     borderline: int = 0
 
@@ -203,7 +203,7 @@ async def extract_claims(ctx, *, snap: Snapshot, packs: list, summary: dict, hyp
                 ok, why = C.check_claim(claim, allowed=pack.seg_ids, snapshot=snap, profile_n=profile_n,
                                         hypothesis_keys=keys)
                 if ok is None:
-                    rejected.append((claim.model_dump_json(), why))
+                    rejected.append((claim.model_dump_json(), why, label))
                 else:
                     checked.append((label, ref, pack.no, "pack", ok))
     if whole:
@@ -215,7 +215,7 @@ async def extract_claims(ctx, *, snap: Snapshot, packs: list, summary: dict, hyp
         for claim in m.value.claims:  # type: ignore[union-attr]
             ok, why = C.check_claim(claim, allowed=None, snapshot=snap, profile_n=profile_n, hypothesis_keys=keys)
             if ok is None:
-                rejected.append((claim.model_dump_json(), why))
+                rejected.append((claim.model_dump_json(), why, "whole"))
             else:
                 checked.append(("whole", m.model, None, "whole", ok))
     pairs_in = [(c[0], c[4]) for c in checked]
@@ -270,7 +270,7 @@ def save_claims(db, conn: sqlite3.Connection, investigation_id: int, read_id: in
         for member in cl.members:
             save(member, "superseded", None, kept)
             counts["superseded"] += 1
-    for raw, why in ext.rejected:
+    for raw, why, _label in ext.rejected:
         db.insert(conn, "rejected_items", {"investigation_id": investigation_id, "step": "read", "ref": f"r{read_id}",
                                            "raw": raw, "reason": why, "created_at": now()})
     return counts

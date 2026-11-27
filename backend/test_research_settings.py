@@ -96,6 +96,21 @@ class DevOllamaTests(unittest.TestCase):
         self.assertEqual(st.grounding["pack_tokens"], 12000)
 
 
+class LocalModelOverlayTests(unittest.TestCase):
+    def test_any_local_model_fills_every_role_with_thinking_on_and_off(self):
+        st = S.build("dev_ollama", S.local_model_overlay("qwen3:4b", num_ctx=24576, pack_tokens=10000))
+        self.assertEqual({m.model for r in st.roles.values() for m in r.members}, {"qwen3:4b"})
+        safety = S.resolve_role(st, "safety", lambda ref: True)
+        self.assertEqual(([m.effort for m in safety.members], safety.independence), (["high", "none"], "same_family"))
+        self.assertEqual(st.strongest["ollama"].model, "qwen3:4b")
+        self.assertEqual((st.providers.ollama["num_ctx"], st.grounding["pack_tokens"], st.extraction["max_pack_tokens"]),
+                         (24576, 10000, 10000))
+
+    def test_without_thinking_two_member_roles_run_reduced(self):
+        st = S.build("dev_ollama", S.local_model_overlay("qwen3-coder:latest", thinking=False))
+        self.assertEqual(S.resolve_role(st, "safety", lambda ref: True).independence, "reduced")
+
+
 class ResolutionTests(unittest.TestCase):
     def setUp(self):
         self.s = S.build("quality")

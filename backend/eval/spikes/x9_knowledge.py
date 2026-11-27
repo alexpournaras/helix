@@ -5,6 +5,8 @@
     .venv/Scripts/python -m eval.spikes.x9_knowledge run       # live: grounding extraction + verification (profile dev_openai)
     .venv/Scripts/python -m eval.spikes.x9_knowledge score     # recall vs eval/spikes/x9_gold.yaml + attestation review sheet
     ... run --profile dev_ollama / score --profile dev_ollama  # another profile: its own cache, results and matches
+    ... run --profile dev_ollama --model qwen3:4b --ctx 24576 --pack 10000 [--no-think] [--only PMC1,PMC2]
+        # another local model in every role; score with the same --profile/--model
 
 Pass: ≥ 90% of hand-listed red flags extracted; ≥ 95% of red-flag attestations supported (judged by hand from the
 review sheet `results/x9/attestations.md`, recorded in x9_gold.yaml under `attestation_review`).
@@ -84,29 +86,38 @@ def find(only: str | None = None) -> None:
                 print(f"[{s.seg_id}] {s.text[:400]}")
 
 
-def suffix(profile: str) -> str:
-    """dev_openai keeps the original file names; another profile gets its own cache, results and sheet."""
-    return "" if profile == "dev_openai" else f".{profile}"
+def suffix(label: str) -> str:
+    """dev_openai keeps the original file names; another run label gets its own cache, results and sheet."""
+    return "" if label == "dev_openai" else f".{label}"
 
 
-def match_key(profile: str) -> str:
-    return "matched_by" if profile == "dev_openai" else f"matched_by_{profile}"
+def match_key(label: str) -> str:
+    return "matched_by" if label == "dev_openai" else f"matched_by_{label}"
 
 
-def context(profile: str = "dev_openai") -> llm.CallContext:
-    st = S.build(profile)
-    db = ResearchDB(OUT / f"x9{suffix(profile)}.sqlite3")  # cache: reruns reuse the model answers
+def run_label(profile: str, model: str | None) -> str:
+    """dev_openai, dev_ollama, or dev_ollama-qwen3_4b for another local model."""
+    return profile if not model else f"{profile}-{re.sub(r'[^a-z0-9]+', '_', model.lower()).strip('_')}"
+
+
+def context(profile: str = "dev_openai", overlay: dict | None = None, label: str | None = None) -> llm.CallContext:
+    st = S.build(profile, overlay)
+    db = ResearchDB(OUT / f"x9{suffix(label or profile)}.sqlite3")  # cache: reruns reuse the model answers
     db.init()
     return llm.CallContext(db=db, settings=st, providers=default_providers(st), limiters=Limiters({}),
                            prices=PriceTable())
 
 
-async def run(profile: str = "dev_openai") -> None:
+async def run(profile: str = "dev_openai", overlay: dict | None = None, label: str | None = None,
+              only: list[str] | None = None) -> None:
     import time
-    ctx = context(profile)
+    label = label or profile
+    ctx = context(profile, overlay, label)
     cfg = G._cfg(ctx.settings.model_dump(mode="json"))
     results = {}
     for pmcid, system, complaint in GUIDELINES:
+        if only and pmcid not in only:
+            continue
         data, snap = load(pmcid)
         packs = pack_snapshot(snap, int(cfg["pack_tokens"])).packs  # every pack (no cap): X9 measures recall
         started = time.monotonic()
@@ -121,11 +132,11 @@ async def run(profile: str = "dev_openai") -> None:
         flags = [i for i in items if i.kind == "red_flag"]
         print(f"{pmcid}: {len(packs)} packs, {len(items)} items, {len(flags)} red flags, {dropped} dropped, "
               f"{results[pmcid]['seconds']} s", flush=True)
-        (OUT / f"extraction{suffix(profile)}.json").write_text(json.dumps(results, ensure_ascii=False, indent=1),
+        (OUT / f"extraction{suffix(label)}.json").write_text(json.dumps(results, ensure_ascii=False, indent=1),
                                                               "utf-8")  # after each guideline: a stop keeps the rest
 
 
-def score(profile: str = "dev_openai") -> None:
+def score(profile: str = "dev_openai") -> None:  # `profile` is the run label (see run_label)
     gold = yaml.safe_load(GOLD.read_text("utf-8"))
     res = json.loads((OUT / f"extraction{suffix(profile)}.json").read_text("utf-8"))
     key = match_key(profile)
@@ -165,16 +176,23 @@ def score(profile: str = "dev_openai") -> None:
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8")  # the Windows console can't print ≥
     cmd = argv[0] if argv else "score"
-    profile = argv[argv.index("--profile") + 1] if "--profile" in argv else "dev_openai"
+    def opt(name: str, default=None):
+        return argv[argv.index(name) + 1] if name in argv else default
+    profile = opt("--profile", "dev_openai")
+    model = opt("--model")  # another local model in every role (with --profile dev_ollama)
+    label = run_label(profile, model)
+    overlay = S.local_model_overlay(model, thinking="--no-think" not in argv, num_ctx=int(opt("--ctx", 32768)),
+                                    pack_tokens=int(opt("--pack", 12000))) if model else None
+    only = opt("--only", "").split(",") if "--only" in argv else None
     if cmd == "fetch":
         asyncio.run(fetch())
     elif cmd == "find":
         find(argv[1] if len(argv) > 1 else None)
     elif cmd == "run":
-        with transport.use_transport(transport.RecordTransport(OUT / f"recordings{suffix(profile)}")):
-            asyncio.run(run(profile))
+        with transport.use_transport(transport.RecordTransport(OUT / f"recordings{suffix(label)}")):
+            asyncio.run(run(profile, overlay, label, only))
     else:
-        score(profile)
+        score(label)
     return 0
 
 

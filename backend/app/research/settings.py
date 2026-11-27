@@ -308,6 +308,21 @@ def _dev_ollama() -> dict:
     }
 
 
+def local_model_overlay(model: str, *, thinking: bool = True, num_ctx: int = 32768, pack_tokens: int = 12000,
+                        max_output_tokens: int = 12000) -> dict:
+    """An overlay for `dev_ollama` that puts another local model in every role (model comparison, 2026-11-27).
+    A model with a thinking mode gives two members (thinking on = `high`, off = `none`), like dev_openai's two
+    efforts; without one, two-member roles run with one member (`reduced`). `num_ctx` sets the context that fits
+    the GPU; packs and output must fit inside it."""
+    a = _m(model, "high" if thinking else None)
+    b = _m(model, "none" if thinking else None)
+    roles = {name: {"members": [dict(a), dict(b)][:len(spec["members"])] if len(spec["members"]) > 1 else [dict(a)],
+                    "fallback": []} for name, spec in QUALITY_ROLES.items()}
+    return {"roles": roles, "strongest": {"ollama": dict(a)},
+            "providers": {"ollama": {"num_ctx": num_ctx, "max_output_tokens": max_output_tokens}},
+            "grounding": {"pack_tokens": pack_tokens}, "extraction": {"max_pack_tokens": pack_tokens}}
+
+
 PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy,
                                                    "dev": _dev, "dev_openai": _dev_openai,
                                                    "dev_ollama": _dev_ollama}

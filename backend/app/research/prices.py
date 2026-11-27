@@ -13,6 +13,7 @@ DEFAULT_PRICES: dict[str, dict[str, float]] = {
     "claude-fable-5-2": {"input": 8.0, "output": 40.0},
     "claude-opus-5-5": {"input": 4.0, "output": 20.0},
     "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
+    "gpt-5.4-mini": {"input": 0.75, "output": 4.5, "cached_input": 0.075},  # dev model (OpenAI list price, 2026-11)
     "fake-a": {"input": 0.0, "output": 0.0},
     "fake-b": {"input": 0.0, "output": 0.0},
 }

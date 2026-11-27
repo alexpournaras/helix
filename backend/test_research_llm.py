@@ -432,6 +432,9 @@ class TokenAndPriceTests(unittest.TestCase):
         self.assertAlmostEqual(prices.cost("gpt-6.2-astra", 1_000_000, 100_000), 8 + 4)
         self.assertAlmostEqual(prices.cost("gpt-6.2-astra", 1_000_000, 0, 1_000_000), 0.8)
         self.assertIsNone(prices.cost("unknown-model", 10, 10))
+        # the dev model at its list price, with the listed cached-input price
+        self.assertAlmostEqual(prices.cost("gpt-5.4-mini", 1_000_000, 1_000_000), 0.75 + 4.5)
+        self.assertAlmostEqual(prices.cost("gpt-5.4-mini", 1_000_000, 0, 1_000_000), 0.075)
 
 
 if __name__ == "__main__":

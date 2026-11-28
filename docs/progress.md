@@ -47,13 +47,19 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1E.4 Matrix (code; unit tests for every B8.19 rule)
   - [x] 1E.5 Fit and analysis (fake-model tests)
   - [x] 1E.6 Gaps panel (reporting only; fake-model tests)
+- [ ] 1R Budget rework (PLAN B17, decision 2026-11-28): one case within 2.4M tokens
+  - [ ] 1R.1 Budget profile and stage budgets
+  - [ ] 1R.2 Grounding reuse
+  - [ ] 1R.3 Single screener and ranking
+  - [ ] 1R.4 Reading and verification in budget
+  - [ ] 1R.5 Budget eval (+ X6)
 - [ ] 1F Report
 - [ ] 1G UI and privacy
 - [ ] 1H M1 gate
 
 ## Waiting for live runs
 
-Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
+**2026-11-28: PLAN v8.** One case must fit in one day (B17, target ~1.6M, stop 2.4M); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
 model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval runs and X9 run 2:
 
 1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.

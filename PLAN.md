@@ -1,15 +1,17 @@
-# Helix Investigations: The Plan (v7, quality-first, all health problems)
+# Helix Investigations: The Plan (v8, token budget, all health problems)
 
 ## Premise
 
 **Helix handles any human health problem**, in every body system and at every age.
 
-**AI usage and cost are not constraints.** Every design choice aims for correct, traceable, useful results. Three limits remain and are handled in the design:
+**One case must fit in one day's token budget.** The OpenAI limit is **2.5M tokens per day, input and output together**, and it can't be exceeded. So one investigation runs to its report within **2.4M tokens** (hard stop), aiming for about 1.6M, and finishes in hours, not days. Quality comes from code checks, careful selection and a second opinion where it matters, not from doing every step twice (B17).
+
+Other limits handled in the design:
 - provider rate limits (tokens per minute);
 - the literature APIs' own limits;
 - wall-clock time.
 
-A cheaper profile can be switched on later without any code change (B15).
+The earlier quality-first design (v7, cost no constraint) is archived in `QUALITY.md`. Its mechanisms stay in the code as the `quality` profile, for when the budget allows it (B15).
 
 ---
 
@@ -34,18 +36,18 @@ The user describes a health problem in free text. Helix then:
 
 ### How quality is achieved (in order of impact)
 
-1. **The strongest models for every judgment** (B6).
-2. **Cross-family checks.** One company's model extracts, another company's model verifies, and the strongest model settles disagreements.
+1. **A fixed token budget per case** (B17), split by stage, so every case reaches a report within one day's limit. Effort is set per role: low for mechanical work, high only for synthesis, adjudication and safety.
+2. **Code checks first, a second opinion where it matters.** Code checks every ID, quote and number; a second model checks safety and the claims that drive the ratings, and the strongest model settles disagreements.
 3. **Three-layer clinical knowledge** (B7), so coverage doesn't depend on what a model happens to remember:
    - **universal safety floor:** a curated, reviewed checklist of emergencies across all of medicine;
    - **guideline grounding:** for each case, the relevant clinical guidelines are found, read and turned into cited checklists;
    - **curated complaint packs** for common problems, added over time.
 4. **Quotes assembled by code.** The model cites sentence and table-cell IDs, and code builds the quote from the stored source.
-5. **Whole-paper reading,** plus **two independent claim extractions** that are reconciled.
+5. **Whole-paper reading** with one claim extraction per paper and batched verification of every claim.
 6. **Evidence counted by independent study.** Papers from the same cohort or trial, and primary studies already included in a review, are not counted twice.
 7. **Three separate ratings,** never merged into a single "probability".
 8. **High recall:** Europe PMC, PubMed, OpenAlex and Semantic Scholar; citation chasing; legal open-access PDFs through Unpaywall.
-9. **Iterative critique.** Three critics, revision, and a fresh-eyes final check.
+9. **Critique.** One critic plus code checks (support, doses, wording), one revision, and a final check.
 10. **Honest end states.** "Insufficient evidence" and "incomplete" are valid outcomes.
 11. **Measured quality,** across body systems and special populations: a published triage benchmark, trap papers, blinded human review of claims, reference assessments, and model judges calibrated against human grades.
 12. **Readiness labels.** Every body system shows how well Helix has been tested there. They are information only and never block an investigation.
@@ -56,9 +58,9 @@ The MVP is everything in GOAL.md for any health problem. It is done when the M3 
 
 | Milestone | Contents | Gate |
 |---|---|---|
-| **M1 Evidence slice** | The full investigation path at full quality: OpenAI + Claude; universal safety floor; guideline grounding; Europe PMC + PubMed; one round; about 15 papers. Exercised on cases from **at least 5 body systems** | Faithfulness and safety gate (E5) before anything else is built |
+| **M1 Evidence slice** | The full investigation path within the token budget (B17): OpenAI; universal safety floor; guideline grounding (reused per complaint); Europe PMC + PubMed; one round; about 12 full-text papers. Exercised on cases from **at least 5 body systems** | Faithfulness, safety and budget gate (E5) before anything else is built |
 | **M2 Breadth** | Research loop, citation chasing, OpenAlex, Semantic Scholar, Unpaywall + PDF, follow-ups, approvals, concurrency, full Notes, curated packs for the top 10 complaints, optional Ollama, full settings UI | Regression on the M1 gate |
-| **M3 Proof** | At least 100 cases across at least 15 body systems; a 45-case triage benchmark; trap papers; at least 150 claims in blinded review; at least 20 reference assessments; calibrated model judges; readiness labels; tuning | MVP gate (E5) |
+| **M3 Proof** | At least 100 cases across at least 15 body systems through intake and safety, and at least 20 full investigations across at least 10 systems (E3.1); a 45-case triage benchmark; trap papers; at least 150 claims in blinded review; at least 20 reference assessments; calibrated model judges; readiness labels; tuning | MVP gate (E5) |
 | **After the MVP** | Living investigations, more curated packs, chat tools, image input, multiple users | |
 
 ### What you need to provide
@@ -66,7 +68,7 @@ The MVP is everything in GOAL.md for any health problem. It is done when the M3 
 | Item | Purpose | Needed for |
 |---|---|---|
 | `OPENAI_API_KEY` from a project **without data sharing** | Model family A | M1 |
-| `ANTHROPIC_API_KEY` | Model family B, for cross-family checks | M1 (strongly recommended; without it, panels use same-family models, labelled as such) |
+| `ANTHROPIC_API_KEY` | Model family B, for cross-family checks | Optional (only with a budget for it; without it, second opinions use a second OpenAI member, labelled `same_family`) |
 | `NCBI_API_KEY` | PubMed and MeSH at 10 requests/s instead of 3 | M1 (recommended) |
 | `OPENALEX_API_KEY` | Search and citation graph; required since Feb 2026 | M2 |
 | `UNPAYWALL_EMAIL` | Legal open-access PDFs; requires a contact email, and you choose which one | M2 |
@@ -84,12 +86,15 @@ These are default choices, and all can be changed:
 
 ### Expected cost and time
 
-These are estimates for the `quality` profile and will be measured in M1.
+Targets for the default `budget` profile (B17), measured in X6 and checked by the E5 budget gate. Cost at `gpt-5.4-mini` prices (about $3 per 1M tokens, mixed).
 
-| Run | Model calls | Tokens | Cost at list prices | Time |
-|---|---|---|---|---|
-| Full investigation | about 3,200 | about 38M | about $160–320 | 1.5–3 hours |
-| M1 slice | about 1,000 | about 12M | about $50–90 | 45–100 minutes |
+| Run | Tokens | Cost | Time |
+|---|---|---|---|
+| One investigation, new complaint | about 1.6M (hard stop 2.4M) | about $5 | 1–2 hours |
+| One investigation, grounding reused | about 1.2M | about $4 | under 1 hour |
+| Intake + safety only (benchmark and case-set runs) | about 20–40k | cents | minutes |
+
+The `quality` profile (`QUALITY.md`) was estimated at about 38M tokens per case: about 16 days at this limit.
 
 ---
 
@@ -98,7 +103,7 @@ These are estimates for the `quality` profile and will be measured in M1.
 | Part | Topic |
 |---|---|
 | A | Walkthrough |
-| B | Design |
+| B | Design (B17: token budget) |
 | C | Facts checked |
 | D | Build plan |
 | E | Evaluation and gates |
@@ -111,6 +116,8 @@ Items marked ✔ were checked against the code or the live APIs on 2026-11-20.
 ---
 
 # Part A: One investigation from start to finish (tinnitus case from GOAL.md, `quality` profile)
+
+This walkthrough shows every mechanism. The default `budget` profile runs the same stages with fewer calls: B17 lists what it changes (one planner, one screener, about 12 papers, one extraction, batched verification, one critic).
 
 M1 runs every row except 19, 20 and 26: one round, no citation chasing, no PDFs, no follow-up.
 
@@ -201,7 +208,7 @@ The label is shown on the investigation page and in the report banner, for examp
 2. **Every model output is checked.** It must be JSON matching a schema, and code checks it before saving.
 3. **Quotes are mechanically traceable.** They are assembled from sentence or cell IDs in stored snapshots. Whether a quote *supports* a claim is verified by independent models and measured (E3), not guaranteed.
 4. **Patient facts cite the user's sentences,** and a model from the other family checks them. Anything uncited is treated as unknown.
-5. **Every important judgment gets an independent second opinion,** preferably from the other model family. The strongest model decides disagreements.
+5. **Code checks every output; the judgments that matter get a second opinion.** Safety always gets a panel; claims that drive ratings get a second model check (B17); the strongest model decides disagreements. Other judgments are single-model, and the record says so.
 6. **Coverage comes from reviewed and cited knowledge.** The universal floor is curated and reviewed. Case checklists come from verified guideline sentences or curated packs. Items a model proposes on its own are allowed, but flagged as "proposed".
 7. **Steps are safe to repeat:** unique task keys, transactional results, cached model calls.
 8. **The model cannot lower safety.** Rules set a minimum level, panels take the most cautious answer, and emergency wording is fixed text.
@@ -209,7 +216,7 @@ The label is shown on the investigation page and in the report banner, for examp
 10. **Three separate ratings; never a single probability.**
 11. **Every run reaches a clear end state.** Helix never produces a result just to have produced one.
 12. **Everything is logged:** calls, queries, votes, decisions, rejections.
-13. **Guards, not budgets.** Spending is unlimited, but loops still stop by rule: no novelty, no new work, maximum rounds, sanity limits.
+13. **Budgets and guards.** Each case has a token budget split by stage (B17). A stage that runs out degrades in a stated way (fewer papers, abstract-only) instead of failing; the hard stop finalizes with the best checked report or `incomplete`. Loops also stop by rule: no novelty, no new work, maximum rounds.
 14. **Paper and user text is data, not instructions.** It is wrapped in `<material>`, and any instructions inside it are ignored.
 15. **Health text stays local,** except for the providers the user configured (B16).
 16. **Generality is honest.** Readiness labels show how well each body system has been tested.
@@ -1359,7 +1366,7 @@ If more than half of a stage's tasks are skipped, the investigation is `failed`.
 
 ## B15. Settings and profiles
 
-`quality` is the default under this plan's premise. Settings are a profile plus overrides.
+`budget` is the default under this plan's premise (B17). Settings are a profile plus overrides. The block below shows the `quality` profile with every setting; `budget` overrides the values listed in B17.
 
 ```yaml
 profile: quality
@@ -1417,6 +1424,7 @@ concurrency: {max_parallel_tasks: 8, openai: 16, anthropic: 16, ollama: 1}
 
 | Profile | What changes |
 |---|---|
+| `budget` (default) | B17: the per-case token budget, effort per role, one planner and one screener, about 12 full-text papers, single extraction, batched verification with a second opinion on rating-driving claims, grounding reused per complaint, one critic and one revision. `dev_openai` is `budget` on `gpt-5.4-mini` |
 | `balanced` | sol and opus for most roles; single extraction; a 2-model verify panel without adjudication; one critic; grounding with up to 3 sources per complaint; 3 rounds; 15 papers per round |
 | `economy` | one efficient model (`gpt-6-luna` or `claude-haiku-5-5`) for every role; no ensembles; grounding with 2 sources; 1 round; 10 papers; at most 4 packs per paper; snowballing and PDFs off |
 
@@ -1443,6 +1451,31 @@ concurrency: {max_parallel_tasks: 8, openai: 16, anthropic: 16, ollama: 1}
 6. **Retention (M2):** purge after N days, or now.
 7. **The Unpaywall email** is one you choose and configure; Helix never fills it in.
 8. **Experiments and evals use synthetic cases.** Real cases go only to provider projects without data sharing. Benchmark vignettes are stored locally (`eval/triage/`, git-ignored) unless their license allows redistribution.
+
+## B17. Token budget (default `budget` profile)
+
+The daily OpenAI limit is 2.5M tokens, input and output together (decision 2026-11-28). One case must reach its report within one day: **target about 1.6M tokens, hard stop 2.4M** (`guards.max_tokens`). Measured on X9 (2026-11-27), output was larger than input (`grounding.extract`: 17.6k in, 20.3k out per call; `grounding.verify`: 2.2k in, 2.4k out, one claim per call), so effort and batching matter as much as the number of calls.
+
+**Stage budgets.** Shares of the case budget (`budget.stages`); targets, to be measured in X6:
+
+| Stage | What runs in `budget` | Target |
+|---|---|---|
+| intake, safety, questions, brief_update | as B8.1–B8.5; the safety panel stays two members | ~100k |
+| grounding | **reused per complaint × population key** (cached case knowledge, max age 180 days, invalidated by a knowledge or prompt version bump); a curated pack first; otherwise 2 sources, ≤ 2 packs each, single extraction, batched verification | 0 reused / ≤ 400k new |
+| plan, queries | one planner, code knowledge coverage; ≤ 4 queries per hypothesis, one refinement | ~80k |
+| search, prefilter, screen | code prefilter and ranking first; **one** screener on the top ~300 abstracts, 20 per call, low effort | ~250k |
+| read, verify | **about 12 full-text papers** (others abstract-only), ≤ 2 packs per paper; profile + appraisal in one call; one extraction (medium); code checks; verification **batched** 10–20 claims per call; a second verifier only when code flags a claim or the first verifier is unsure | ~800k (~65k per paper) |
+| map, group, confirm, fit, analysis, gaps | batched, low or medium effort; confirm only the top 3 claims per hypothesis | ~150k |
+| synthesis, critique, revise, final_check | one writer (high), one critic + code checks (support, dose regex, wording), one revision, one final check | ~250k |
+| reserve | re-reads, retries, degrade path | the rest up to 2.4M |
+
+**Effort per role.** `low`: screen, map, queries. `medium`: extraction, verification, appraisal, fit, critic. `high`: synthesis, revise, adjudicate, final_check, safety.
+
+**Degrade, don't fail.** When a stage reaches its share, it stops starting new work and the next stage runs with what exists (fewer papers, abstract-only). The report's limitations say which stages were cut. At the hard stop, finalize with the best checked report or `incomplete`.
+
+**What `budget` gives up compared with `quality`.** Dual screening, dual extraction and the whole-paper pass, a verify panel on every claim, two planners, three critics and the revision loop. The loss is measured, not assumed: X3 (dual vs single extraction) and the E3 faithfulness checks. If a check fails, the fix goes into the budget first (for example, a second extraction only for results sections) before a stage gets more tokens.
+
+**Development within the limit.** A day is either a **case day** (one full live case, ≤ 2.4M) or a **check day** (stage-level live checks with `--stop-at` and small overlays). Most work uses fake models and replays. After a prompt change, only the stages whose prompt version changed are re-run live; the model-answer cache supplies the rest.
 
 ---
 
@@ -1647,7 +1680,25 @@ Tests:
   - agreement weight;
   - recompute gives identical results.
 
+### 1R Budget rework (before 1F)
+
+Make the default `budget` profile real (B17), so the first whole-case live run fits in one day.
+
+| Task | Contents |
+|---|---|
+| 1R.1 Budget profile and stage budgets (M) | `budget` profile in `settings.py`; `dev_openai` becomes `budget` on `gpt-5.4-mini`; effort per role; `budget.stages` shares; per-stage acquisition stop and degrade path in `budgets.py`; limitations text for cut stages |
+| 1R.2 Grounding reuse (M) | Cache case knowledge per complaint × population key, with max age and version invalidation; curated pack first; reuse recorded in the case |
+| 1R.3 Single screener and ranking (S) | Code ranking before screening, top-N cut, one screener, batches of 20 |
+| 1R.4 Reading and verification in budget (M) | Profile + appraisal in one call, single extraction, ≤ 2 packs per paper, batched verification, second verifier only on code flags or unsure, confirm top 3 per hypothesis |
+| 1R.5 Budget eval (S) | `eval.run` reports tokens per stage against B17; X6 written up from the first full live case |
+
+Tests: per-stage stop and degrade; reuse hit and invalidation; batching keeps per-claim verdicts and votes; a flagged claim gets a second verifier; stage shares add up; a run at the hard stop finalizes or ends `incomplete`.
+
+Done when: one synthetic case runs from start to report on `dev_openai` within 2.4M tokens, with tokens per stage recorded.
+
 ### 1F Report
+
+Built to the `budget` profile from the start: one writer, one critic plus code checks, one revision, final check.
 
 - ranking and synthesis: plain summary, knowledge-item citations, management topics, special-population statements (L);
 - critic panel, support check, regexes including the dose regex (M);
@@ -1686,7 +1737,7 @@ The gate is E5, run on cases from at least 5 body systems. If it fails, iterate 
 
 | Task | Contents |
 |---|---|
-| 3.1 Case set (L) | ≥ 100 cases across ≥ 15 body systems (≥ 5 per system), including ≥ 15 special-population cases (children, pregnancy, older adults, immunocompromised), ≥ 40 red-flag cases across systems, incomplete inputs, adversarial inputs, and non-human or non-health inputs. Synthetic vignettes are generated from guideline knowledge and all reviewed by a human |
+| 3.1 Case set (L) | ≥ 100 cases across ≥ 15 body systems (≥ 5 per system), run through intake and safety; ≥ 20 of them run as full investigations across ≥ 10 systems (one case day each), including ≥ 15 special-population cases (children, pregnancy, older adults, immunocompromised), ≥ 40 red-flag cases across systems, incomplete inputs, adversarial inputs, and non-human or non-health inputs. Synthetic vignettes are generated from guideline knowledge and all reviewed by a human |
 | 3.2 Trap paper set (M) | 12 papers from several fields |
 | 3.3 Blinded claim review (M) | ≥ 150 claims |
 | 3.4 Reference assessments (M) | ≥ 20 cases across ≥ 10 systems; guideline-based; ideally reviewed by a GP and specialists |
@@ -1697,7 +1748,7 @@ The gate is E5, run on cases from at least 5 body systems. If it fails, iterate 
 | 3.9 Tuning (M) | |
 | 3.10 Documentation and acceptance (S) | README "Investigations": scope, readiness, privacy, limitations, profiles |
 
-**Order:** 1A → 1B → 1C → 1D → 1E → 1F → 1G → **1H gate** → M2 (in parallel where possible) → 2.13 → M3 → MVP gate.
+**Order:** 1A → 1B → 1C → 1D → 1E → **1R** → 1F → 1G → **1H gate** → M2 (in parallel where possible) → 2.13 → M3 → MVP gate.
 
 ## After the MVP
 
@@ -1748,7 +1799,7 @@ Pipeline correctness (E1, E2) and clinical quality (E3, E4) are scored separatel
 
 | Set | Contents |
 |---|---|
-| E3.1 Cases | ≥ 100 (MVP) / ≥ 15 across ≥ 5 systems (M1): typical presentations, red flags, special populations, incomplete and adversarial inputs, and non-human/non-health inputs. Each has scripted answers, expected red flags and expected hypothesis families |
+| E3.1 Cases | ≥ 100 (MVP) / ≥ 15 across ≥ 5 systems (M1) through intake and safety; full investigations: ≥ 20 across ≥ 10 systems (MVP) / ≥ 5 across 5 systems (M1). Cases: typical presentations, red flags, special populations, incomplete and adversarial inputs, and non-human/non-health inputs. Each has scripted answers, expected red flags and expected hypothesis families |
 | E3.2 Traps | 12 papers: non-significant results, subgroup-only effects, abstract spin, animal or in-vitro studies, negations, an expression of concern. The verifiers must reject or downgrade them |
 | E3.3 Blinded review | Random active claims from ≥ 5 investigations in different systems. Reviewers see quote, paragraph and claim, but no verdicts |
 | E3.4 Rubric | Critical errors: a missed red flag; diagnostic language; an unsupported clinical recommendation; any dose or instruction; "no evidence exists"; overstated certainty; a ranking in an incomplete or insufficient outcome; a missing special-population caveat |
@@ -1777,8 +1828,8 @@ Tinnitus, plus one case each from 3 other systems:
 
 | Gate | Requirements |
 |---|---|
-| **M1** | E1: all checks. E2. E3.1 on ≥ 15 cases across ≥ 5 systems. E3.2 on ≥ 6 traps, catch rate ≥ 90%. E3.3 on ≥ 60 claims from ≥ 3 systems: faithful ≥ 92%, unfaithful ≤ 2%. E3.4 on ≥ 5 reports from ≥ 5 systems with no critical errors. Red-flag cases 100% correct. E3.7 emergent subset (15 vignettes) 100% |
-| **MVP (M3)** | E1: all checks. E2. E3.1 ≥ 100 cases across ≥ 15 systems. E3.2: 12 traps, catch rate ≥ 95%. E3.3 ≥ 150 claims: faithful ≥ 95%, unfaithful ≤ 1%. E3.4: no critical errors in ≥ 95% of reports and zero missed red flags. E3.5: ≥ 20 cases across ≥ 10 systems, must-mention recall ≥ 85%. E3.6 κ ≥ 0.6. E3.7: all 45 vignettes, emergent 100%. E4 complete. Readiness labels published |
+| **M1** | E1: all checks. E2. **Budget: every full investigation ≤ 2.4M tokens.** E3.1 on ≥ 15 cases across ≥ 5 systems. E3.2 on ≥ 6 traps, catch rate ≥ 90%. E3.3 on ≥ 60 claims from ≥ 3 systems: faithful ≥ 92%, unfaithful ≤ 2%. E3.4 on ≥ 5 reports from ≥ 5 systems with no critical errors. Red-flag cases 100% correct. E3.7 emergent subset (15 vignettes) 100% |
+| **MVP (M3)** | E1: all checks. E2. **Budget: every full investigation ≤ 2.4M tokens, median ≤ 1.6M.** E3.1 ≥ 100 cases across ≥ 15 systems. E3.2: 12 traps, catch rate ≥ 95%. E3.3 ≥ 150 claims: faithful ≥ 95%, unfaithful ≤ 1%. E3.4: no critical errors in ≥ 95% of reports and zero missed red flags. E3.5: ≥ 20 cases across ≥ 10 systems, must-mention recall ≥ 85%. E3.6 κ ≥ 0.6. E3.7: all 45 vignettes, emergent 100%. E4 complete. Readiness labels published |
 
 Targets are fixed before measuring. They change only through a written decision in `docs/decisions.md`.
 
@@ -1800,6 +1851,7 @@ Targets are fixed before measuring. They change only through a written decision 
 | Kept claims are faithful | E3.3 | Iterate before moving on |
 | PDF parsing is good enough | 2.4 | Abstract-only, with the reason recorded |
 | Throughput fits within rate limits | X6, M1 | Adaptive concurrency; higher usage tier |
+| One case fits in the token budget at acceptable quality | X3, X6, E5 budget gate, E3.3 | Move tokens between stages; selective second extraction; fewer papers with a stated limitation |
 
 ## F2. Risks
 
@@ -1826,14 +1878,14 @@ Targets are fixed before measuring. They change only through a written decision 
 
 | Topic | Decision |
 |---|---|
-| Premise | Quality-first; AI cost isn't a constraint; guards still stop loops |
+| Premise | **Token budget (2026-11-28):** one case within the 2.5M/day limit (hard stop 2.4M). The quality-first premise (v7) is archived in `QUALITY.md` and kept as the `quality` profile |
 | **Scope** | **All human health problems (your decision, 2026-11-20).** Readiness labels per body system; nothing is blocked except emergencies (safety stop) and input that isn't about human health (rewrite) |
 | MVP | Everything in GOAL.md; built in the order M1 → M2 → M3 |
 | Knowledge | Universal floor (reviewed) + guideline grounding per case + curated complaint packs |
-| Models | OpenAI (A) + Anthropic (B) from M1; strongest model per role; cross-family checks; Ollama optional; Gemini after the MVP |
-| Evidence | Sentence- and cell-level quotes; dual extraction; panel verification; study independence; three ratings |
+| Models | OpenAI (`dev_openai` on `gpt-5.4-mini`); effort per role (B17); Anthropic optional for cross-family checks; Ollama optional; Gemini after the MVP |
+| Evidence | Sentence- and cell-level quotes; single extraction with batched verification and a second opinion on rating-driving claims; study independence; three ratings |
 | Recall | Europe PMC, PubMed, OpenAlex, Semantic Scholar; snowballing; Unpaywall PDFs |
-| Review | Critic panel, iterative revision, fresh-eyes check |
+| Review | One critic plus code checks, one revision, final check |
 | End states | findings / insufficient_evidence / incomplete / safety_stop / failed / cancelled |
 | Privacy | Local only; no data-sharing projects for real cases |
 | Language, output | English; Notes; text input only in the MVP |
@@ -1879,4 +1931,5 @@ All the points adopted in v5 and v6 remain.
 | v4 | Live API and environment checks; full specs and failure paths |
 | v5 | External reviews: evidence slice, end states, guarantees, independence, three ratings, semantic verification, evaluation program, privacy |
 | v6 | Quality-first premise: current models, second provider, ensembles, domain pack, whole-paper reading, cell-level quotes, recall expansion, review loop, profiles, larger evaluation, agent protocol |
+| v8 | **Token budget (2026-11-28).** One case within the 2.5M/day limit (hard stop 2.4M, target ~1.6M): new B17 (stage budgets, effort per role, degrade path, grounding reuse, batched verification, single extraction, one critic); `budget` becomes the default profile; task 1R before 1F; full investigations in E3.1/M3 set to ≥ 5 (M1) and ≥ 20 (MVP), the rest through intake and safety; budget gate in E5. v7 archived as `QUALITY.md` |
 | v7 | **All human health problems.** Scope gate removed, readiness labels added. Complaints mapped to MeSH (verified live) and body systems. Special populations. Three-layer clinical knowledge: reviewed universal safety floor across all systems and populations; guideline grounding per case (dual extraction, panel-verified attestations, merge with trust levels, gaps); curated complaint packs (tinnitus in M1, top 10 in M2). Knowledge tab and coverage. Management topics as discussion points only, plus a dose regex. Evaluation across ≥ 15 systems, special populations, and the Semigran 45-vignette triage benchmark |

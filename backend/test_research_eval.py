@@ -92,7 +92,7 @@ class RunTests(ResearchTestCase):
         self.assertTrue(case["e1_ok"])
         self.assertEqual(build.seen["answers"], {"q1": "Synthetic answer."})
         saved = json.loads((self.tmp / "results" / "t-fake.json").read_text("utf-8"))
-        self.assertEqual(saved["summary"], {"cases": 1, "complete": 1, "e1_failures": 0})
+        self.assertEqual(saved["summary"], {"cases": 1, "complete": 1, "e1_failures": 0, "tokens": 0, "over_target": []})
 
     async def test_fake_mode_blocks_the_network(self):
         report = await ev.run([ev.EvalCase(**CASE)], mode="fake", factory=factory("https://example.test/x"), name="t",
@@ -214,3 +214,35 @@ class RunTests(ResearchTestCase):
         pipeline, resolvers = ev.load_factory(ev.DEFAULT_FACTORY)(None)
         self.assertEqual(pipeline.first_stage, "intake")
         self.assertIn("problem_rewrite", resolvers)
+
+
+class BudgetReportTests(ResearchTestCase):
+    """1R.5: tokens per stage group against the B17.4 targets, and the audit disagreement rate."""
+
+    def test_groups_targets_reserves_and_audits(self):
+        snap = S.build("budget").model_dump(mode="json")
+        inv_id = self.db.create_investigation("Synthetic.", profile="budget", settings_snapshot=snap, synthetic=True)
+        for step, tokens in (("intake", 40_000), ("ground", 450_000), ("read", 100_000), ("fit", 50_000)):
+            self.db.log_call({"investigation_id": inv_id, "step": step, "role": "r", "provider": "openai",
+                              "model": "gpt-5.4-mini", "status": "ok", "cached": False, "attempt_kind": "first",
+                              "input_tokens": tokens, "output_tokens": 0})
+        with self.db.tx() as conn:
+            rid = self.db.insert(conn, "paper_reads", {"investigation_id": inv_id, "round": 1, "status": "read"})
+            for n, stages in enumerate((["verify", "audit"], ["verify", "audit", "adjudicate"], ["verify"])):
+                cid = self.db.insert(conn, "evidence_claims", {"investigation_id": inv_id, "read_id": rid,
+                                                               "claim": f"c{n}", "status": "active", "round": 1})
+                for st in stages:
+                    conn.execute("INSERT INTO claim_votes (claim_id, stage, model, verdict, created_at) "
+                                 "VALUES (?, ?, 'm', 'supported', 'x')", (cid, st))
+        report = ev.budget_report(self.db, self.db.investigation(inv_id))
+        self.assertEqual(report["total"], 640_000)
+        self.assertEqual(report["groups"], {"intake_safety": 40_000, "grounding": 450_000, "read": 100_000,
+                                            "assess": 50_000})
+        self.assertEqual(report["over"], ["grounding"])  # 450k > its 400k target
+        self.assertEqual(report["protected_left"], 600_000 + 150_000)  # 650k − 50k assess, retry untouched
+        self.assertEqual(report["audit"], {"audited": 2, "disagreements": 1})
+
+    def test_compare_shows_token_changes_per_group(self):
+        old = {"cases": [{"id": "a", "status": "complete", "budget": {"groups": {"read": 100}}}]}
+        new = {"cases": [{"id": "a", "status": "complete", "budget": {"groups": {"read": 80, "screen": 5}}}]}
+        self.assertEqual(ev.compare(old, new), ["a: tokens read 100 → 80", "a: tokens screen 0 → 5"])

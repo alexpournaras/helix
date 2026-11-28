@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Columns that hold JSON. Rows read through `_row` are decoded automatically.
 JSON_COLUMNS = {
@@ -574,6 +574,24 @@ MIGRATIONS: dict[int, list[str]] = {
             created_at    TEXT NOT NULL
         )""",
         "ALTER TABLE grounding_runs ADD COLUMN reused_from INTEGER",
+    ],
+    # 3 (task 1R.4, PLAN B17.5 item 5): single-verifier mode records `second` and `audit` votes. SQLite can't
+    # change a CHECK constraint, so the table is rebuilt with the same columns.
+    3: [
+        """CREATE TABLE claim_votes_v3 (
+            id         INTEGER PRIMARY KEY,
+            claim_id   INTEGER NOT NULL REFERENCES evidence_claims (id) ON DELETE CASCADE,
+            stage      TEXT NOT NULL CHECK (stage IN ('verify','escalate','second','audit','adjudicate','confirm')),
+            model      TEXT NOT NULL,
+            verdict    TEXT NOT NULL,
+            checks     TEXT,
+            reason     TEXT,
+            created_at TEXT NOT NULL
+        )""",
+        "INSERT INTO claim_votes_v3 (id, claim_id, stage, model, verdict, checks, reason, created_at) "
+        "SELECT id, claim_id, stage, model, verdict, checks, reason, created_at FROM claim_votes",
+        "DROP TABLE claim_votes",
+        "ALTER TABLE claim_votes_v3 RENAME TO claim_votes",
     ],
 }
 

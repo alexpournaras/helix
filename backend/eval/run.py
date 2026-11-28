@@ -359,7 +359,8 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
             "waiting_for": inv["waiting_for"], "stop_reason": inv["stop_reason"],
             "settings_overlay": overlay, "waits": waits,
             "seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
-            "usage": db.usage(inv_id), "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
+            "usage": db.usage(inv_id), "budget": budget_report(db, inv),
+            "e1": [c.__dict__ for c in checks], "e1_ok": all(c.ok for c in checks),
             "intake": summary,
             "expected_misses": intake_misses(case, summary, waits + ([inv["waiting_for"]] if inv["waiting_for"] else []),
                                             inv["outcome"]),
@@ -371,6 +372,33 @@ async def run_case(case: EvalCase, *, mode: Mode, factory: Callable, recordings:
             print(f"  kept {tmp}", flush=True)
         else:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+def budget_report(db: ResearchDB, inv: dict) -> dict:
+    """Tokens per stage group against the B17.4 targets, the protected reserves left, and the random-audit
+    disagreement rate (1R.5). Provider tokens only (cache hits count nothing)."""
+    from app.research import budgets
+    settings = inv.get("settings_snapshot") or {}
+    budget = settings.get("budget") or {}
+    usage = budgets.group_usage(db, inv["id"])
+    audits = disagreements = 0
+    for r in db.query("SELECT v.claim_id, GROUP_CONCAT(v.stage) AS stages FROM claim_votes v JOIN evidence_claims c "
+                      "ON c.id = v.claim_id WHERE c.investigation_id = ? GROUP BY v.claim_id", (inv["id"],)):
+        stages = (r["stages"] or "").split(",")
+        if "audit" in stages:
+            audits += 1
+            disagreements += "adjudicate" in stages
+    for r in db.query("SELECT a.votes FROM knowledge_attestations a JOIN knowledge_items i ON i.id = a.item_id "
+                      "WHERE i.investigation_id = ?", (inv["id"],)):
+        stages = [v.get("stage") for v in (r["votes"] or [])]
+        if "audit" in stages:
+            audits += 1
+            disagreements += "adjudicate" in stages
+    return {"groups": {k: v for k, v in usage.items() if k not in ("total", "retry")}, "total": usage["total"],
+            "retry": usage["retry"], "targets": budget.get("targets") or {},
+            "over": budgets.over_targets(usage, budget) if budget else [],
+            "protected_left": budgets.protected_unspent(usage, budget) if budget else None,
+            "audit": {"audited": audits, "disagreements": disagreements}}
 
 
 async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str,
@@ -391,7 +419,9 @@ async def run(cases: list[EvalCase], *, mode: Mode, factory: Callable, name: str
         report = {"name": name, "mode": mode, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                   "cases": results, "summary": {
                       "cases": len(results), "complete": sum(r["status"] == "complete" for r in results),
-                      "e1_failures": sum(not r.get("e1_ok", False) for r in results)}}
+                      "e1_failures": sum(not r.get("e1_ok", False) for r in results),
+                      "tokens": sum((r.get("budget") or {}).get("total", 0) for r in results),
+                      "over_target": sorted({g for r in results for g in (r.get("budget") or {}).get("over", [])})}}
         Path(results_dir).mkdir(parents=True, exist_ok=True)
         (Path(results_dir) / f"{name}-{mode}.json").write_text(json.dumps(report, indent=2), "utf-8")
     return report
@@ -409,6 +439,12 @@ def compare(old: dict, new: dict) -> list[str]:
         for key in ("status", "outcome", "e1_ok"):
             if prev.get(key) != case.get(key):
                 lines.append(f"{case['id']}: {key} {prev.get(key)} → {case.get(key)}")
+        old_g = (prev.get("budget") or {}).get("groups") or {}
+        new_g = (case.get("budget") or {}).get("groups") or {}
+        for group in sorted(set(old_g) | set(new_g)):
+            a, b = old_g.get(group, 0), new_g.get(group, 0)
+            if a != b:
+                lines.append(f"{case['id']}: tokens {group} {a:,} → {b:,}")
     for missing in sorted(set(before) - {c["id"] for c in new.get("cases", [])}):
         lines.append(f"{missing}: no longer run")
     return lines
@@ -444,6 +480,11 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(errors="replace")
     for case in report["cases"]:
         print(f"{case['id']:<28} {case['status']:<14} {str(case.get('outcome')):<22} e1={'ok' if case.get('e1_ok') else 'FAIL'}")
+        b = case.get("budget") or {}
+        if b.get("groups"):
+            groups = ", ".join(f"{g} {t:,}" + (" (over)" if g in b.get("over", []) else "")
+                               for g, t in sorted(b["groups"].items()))
+            print(f"  tokens {b['total']:,}: {groups}")
     print(json.dumps(report["summary"]))
     if args.compare:
         for line in compare(json.loads(Path(args.compare).read_text("utf-8")), report) or ["no differences"]:

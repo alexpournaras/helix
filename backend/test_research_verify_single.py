@@ -96,3 +96,23 @@ class SingleVerifierTests(ResearchTestCase):
                                             "evidence_type": "guideline_recommendation"}),
                          ["code_flag", "strong_link", "causal", "red_flag", "recommendation"])
         self.assertEqual(VS.claim_triggers({"claim": "Tinnitus was common", "checks": {}}), [])
+
+
+class WriteVotesTests(ResearchTestCase):
+    def test_second_and_audit_votes_are_stored_with_the_mode(self):
+        inv = self.db.create_investigation("Synthetic.", profile="budget", settings_snapshot={}, synthetic=True)
+        with self.db.tx() as conn:
+            rid = self.db.insert(conn, "paper_reads", {"investigation_id": inv, "round": 1, "status": "read"})
+            ids = [self.db.insert(conn, "evidence_claims", {"investigation_id": inv, "read_id": rid, "claim": f"c{n}",
+                                                            "status": "pending", "round": 1, "checks": {"x": 1}})
+                   for n in range(2)]
+            for cid, stage in zip(ids, ("second", "audit")):
+                p = V.Pair("C1", "t", "q", "c", "m", "openai", verdict="partial",
+                           votes=[{"stage": "verify", "model": "m", "rule_verdict": "partial"},
+                                  {"stage": stage, "model": "m", "rule_verdict": "partial"}])
+                VS.write_votes(conn, cid, p)
+        rows = {r["id"]: r for r in self.db.query("SELECT * FROM evidence_claims")}
+        self.assertEqual([rows[i]["checks"]["verification_mode"] for i in ids], ["second", "audit"])
+        self.assertEqual(rows[ids[0]]["checks"]["x"], 1)  # existing checks kept
+        self.assertEqual(sorted(r["stage"] for r in self.db.query("SELECT stage FROM claim_votes")),
+                         ["audit", "second", "verify", "verify"])

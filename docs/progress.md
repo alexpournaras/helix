@@ -53,7 +53,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1R.2 Grounding reuse (`knowledge_cache`, schema 2; hit = no model calls; `ok` 180 days, `gap` 30 days only after a full search; operational failures not cached) and the 2-new-complaints cap with the "not grounded: token budget" gap and `broad_case` event; doctor line + `--clear-knowledge-cache` (7 tests)
   - [x] 1R.3 Code ranking before screening (`screening.prerank`, `round_caps` 300/100) in the prefilter; one screener, batches of 20 (2 tests)
   - [ ] 1R.4 Reading and verification in budget — code done 2026-11-28: section-priority packs, `read.assess` (one call), `read.claims.v2` coverage prompt, single-verifier mode with second opinions on triggers and a seeded 5% audit, `verification_mode`, fit/confirm limits from settings (11 tests); open: the X3 single-extraction re-run score
-  - [ ] 1R.5 Budget eval (+ X6)
+  - [ ] 1R.5 Budget eval (+ X6) — code done 2026-11-28: `eval.run` reports tokens per stage group vs the targets, protected reserves left, over-target groups and the audit disagreement rate; `--compare` per group (2 tests). Open: the live check to `reading` and to `gaps`, then X6
   - [ ] 1R.6 Second round from the pool
   - [ ] 1R.7 Safety clearance
   - [ ] 1R.8 End-to-end quota validation (after 1F; cold and warm cache)

@@ -17,7 +17,7 @@ the plan changes.
 | **Sat 11-28** | X3 (`x3_dual_extraction run`): ~0.5M. It decides whether single extraction (B17) loses claims | PLAN v8 + `QUALITY.md` (done). 1R.1 budget profile and stage budgets. Hand-pair X3 claims, `score` |
 | **Sun 11-29** | 1C.4 eval on 3 cases on the `budget` profile, `--stop-at planning`: estimate after 1R.1 (grounding with 2 sources) | 1R.2 grounding reuse, 1R.3 single screener and ranking |
 | **Mon 11-30** | Check day: one case `--stop-at reading` on `budget` (~0.5–0.8M) to measure tokens per stage | 1R.4 reading and verification in budget, 1R.5 budget eval |
-| **Tue 12-01** | **First case day:** one case through gaps on `budget` (target ≤ 1.4M before the report). X6 from its numbers | 1F: synthesis, one critic + code checks, revision, final check (fake-model tests) |
+| **Tue 12-01** | **First case day:** one case through gaps on `budget` (target ≤ 1.73M before the report for a new complaint, B17.4). X6 from its numbers | 1F: synthesis, one critic + code checks, revision, final check (fake-model tests) |
 | **Wed 12-02** | Report stages on the same case (cache resumes the rest) | 1F finalize; 1G UI tabs and privacy basics |
 
 **After these five days:** 1R done, X3 and X6 done, one case run live on the `budget` profile through its report,

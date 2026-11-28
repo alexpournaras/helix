@@ -59,7 +59,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 
 ## Waiting for live runs
 
-**2026-11-28: PLAN v8.** One case must fit in one day (B17, target ~1.6M, stop 2.4M); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
+**2026-11-28: PLAN v8.** One case must fit in one day (B17, target ~1.6–2.0M, stop 2.4M); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
 model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval runs and X9 run 2:
 
 1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.

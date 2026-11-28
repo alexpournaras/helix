@@ -4,7 +4,7 @@
 
 **Helix handles any human health problem**, in every body system and at every age.
 
-**One case must fit in one day's token budget.** The OpenAI limit is **2.5M tokens per day, input and output together**, and it can't be exceeded. So one investigation runs to its report within **2.4M tokens** (hard stop), aiming for about 1.6M, and finishes in hours, not days. Quality comes from code checks, careful selection and a second opinion where it matters, not from doing every step twice (B17).
+**One case must fit in one day's token budget.** The OpenAI limit is **2.5M tokens per day, input and output together**, and it can't be exceeded. So one investigation runs to its report within **2.4M tokens** (hard stop), aiming for about 1.6M (complaint already grounded) to 2.0M (new complaint), and finishes in 1–2 hours. Quality comes from code checks, careful selection and a second opinion where it matters, not from doing every step twice (B17).
 
 Other limits handled in the design:
 - provider rate limits (tokens per minute);
@@ -12,6 +12,10 @@ Other limits handled in the design:
 - wall-clock time.
 
 The earlier quality-first design (v7, cost no constraint) is archived in `QUALITY.md`. Its mechanisms stay in the code as the `quality` profile, for when the budget allows it (B15).
+
+**How to read this plan.** The default profile is `budget`, specified completely in **B17**. B6 (roles), B8 (steps) and B15 (settings) describe every mechanism at full strength, which is the `quality` profile; each B8 step that `budget` runs differently has a "**Budget:**" line pointing to B17. Where they differ, B17 wins. Part D task **1R** builds B17; until 1R is done, the code runs the v7 structure (profiles `quality` … `dev_openai`).
+
+**Open question (2026-11-28).** If the 2.5M daily tokens come from OpenAI's free-token offer for projects that **share data** with OpenAI, B16.3 allows only synthetic cases on that project. Real cases then need a project without data sharing, which is billed. Record the answer in `docs/decisions.md`; until then, only synthetic cases run.
 
 ---
 
@@ -28,7 +32,7 @@ The user describes a health problem in free text. Helix then:
 6. **Plans competing explanations,** making sure every cause listed in the guidelines is considered.
 7. **Searches several literature sources** and follows citations.
 8. **Reads the best papers in full** and extracts evidence that cites exact sentences, table cells and sections.
-9. **Verifies every claim** with independent models from different companies.
+9. **Verifies every claim,** with a second model check where it matters (B17.5) and a stronger model for disagreements.
 10. **Rates each explanation** on three separate scales: what the literature says, how certain that evidence is, and how well it fits this case.
 11. **Researches the gaps** it found.
 12. **Writes a report** that a panel of critics reviews until no serious problem remains.
@@ -58,7 +62,7 @@ The MVP is everything in GOAL.md for any health problem. It is done when the M3 
 
 | Milestone | Contents | Gate |
 |---|---|---|
-| **M1 Evidence slice** | The full investigation path within the token budget (B17): OpenAI; universal safety floor; guideline grounding (reused per complaint); Europe PMC + PubMed; one round; about 12 full-text papers. Exercised on cases from **at least 5 body systems** | Faithfulness, safety and budget gate (E5) before anything else is built |
+| **M1 Evidence slice** | The full investigation path within the token budget (B17): OpenAI; universal safety floor; guideline grounding (reused per complaint); Europe PMC + PubMed; one round; 10 full-text papers. Exercised on cases from **at least 5 body systems** | Faithfulness, safety and budget gate (E5) before anything else is built |
 | **M2 Breadth** | Research loop, citation chasing, OpenAlex, Semantic Scholar, Unpaywall + PDF, follow-ups, approvals, concurrency, full Notes, curated packs for the top 10 complaints, optional Ollama, full settings UI | Regression on the M1 gate |
 | **M3 Proof** | At least 100 cases across at least 15 body systems through intake and safety, and at least 20 full investigations across at least 10 systems (E3.1); a 45-case triage benchmark; trap papers; at least 150 claims in blinded review; at least 20 reference assessments; calibrated model judges; readiness labels; tuning | MVP gate (E5) |
 | **After the MVP** | Living investigations, more curated packs, chat tools, image input, multiple users | |
@@ -90,9 +94,9 @@ Targets for the default `budget` profile (B17), measured in X6 and checked by th
 
 | Run | Tokens | Cost | Time |
 |---|---|---|---|
-| One investigation, new complaint | about 1.6M (hard stop 2.4M) | about $5 | 1–2 hours |
-| One investigation, grounding reused | about 1.2M | about $4 | under 1 hour |
-| Intake + safety only (benchmark and case-set runs) | about 20–40k | cents | minutes |
+| One investigation, new complaint | about 2.0M (hard stop 2.4M) | about $6 | 1–2 hours |
+| One investigation, grounding reused | about 1.6M | about $5 | about 1 hour |
+| Intake + first safety review only (benchmark and case-set runs, B17.8) | about 50k | about $0.15 | minutes |
 
 The `quality` profile (`QUALITY.md`) was estimated at about 38M tokens per case: about 16 days at this limit.
 
@@ -117,7 +121,7 @@ Items marked ✔ were checked against the code or the live APIs on 2026-11-20.
 
 # Part A: One investigation from start to finish (tinnitus case from GOAL.md, `quality` profile)
 
-This walkthrough shows every mechanism. The default `budget` profile runs the same stages with fewer calls: B17 lists what it changes (one planner, one screener, about 12 papers, one extraction, batched verification, one critic).
+This walkthrough shows every mechanism. The default `budget` profile runs the same stages with fewer calls: B17 lists what it changes (one planner, one screener on ≤ 300 abstracts, 10 papers, one extraction, one verifier plus second opinions, one combined critic, grounding reused).
 
 M1 runs every row except 19, 20 and 26: one round, no citation chasing, no PDFs, no follow-up.
 
@@ -135,7 +139,7 @@ M1 runs every row except 19, 20 and 26: one round, no citation chasing, no PDFs,
 | 10 | querying | Queries built from the knowledge vocabulary and MeSH entry terms, with an allowlist, hit-count test and refinement. | 60–100 queries |
 | 11 | searching | Europe PMC core records and PubMed (OpenAlex and Semantic Scholar arrive in M2), plus the grounding sources and pack seeds. Duplicates merged. | about 1,500–2,500 candidates |
 | 12 | prefiltering, screening | Rules, then dual screening of full abstracts. Included if either model includes. | screenings |
-| 13 | selecting, fetching | Quotas per hypothesis, then by score. PMC / Europe PMC full text; Unpaywall PDFs from M2. | 15 papers (M1) / 25 per round |
+| 13 | selecting, fetching | Quotas per hypothesis, then by score. PMC / Europe PMC full text; Unpaywall PDFs from M2. | 10 papers (M1, `budget`) / 25 per round (`quality`) |
 | 14 | reading | Sentence and cell snapshot. Profile, appraisal panel, study identity. Dual extraction plus a whole-paper pass, then reconciliation and applicability. | draft claims |
 | 15 | verifying | Verification panel, escalation, adjudication. | active claims |
 | 16 | mapping, grouping, confirming | Links to hypotheses; independent studies; strongest-model confirmation of the claims that drive ratings. | |
@@ -207,7 +211,7 @@ The label is shown on the investigation page and in the report banner, for examp
 1. **The backend controls the order of steps.** Models only make judgments inside steps.
 2. **Every model output is checked.** It must be JSON matching a schema, and code checks it before saving.
 3. **Quotes are mechanically traceable.** They are assembled from sentence or cell IDs in stored snapshots. Whether a quote *supports* a claim is verified by independent models and measured (E3), not guaranteed.
-4. **Patient facts cite the user's sentences,** and a model from the other family checks them. Anything uncited is treated as unknown.
+4. **Patient facts cite the user's sentences,** and a second model call checks them (another family when one is configured; in `budget`, a separate `brief_check` call). Anything uncited is treated as unknown.
 5. **Code checks every output; the judgments that matter get a second opinion.** Safety always gets a panel; claims that drive ratings get a second model check (B17); the strongest model decides disagreements. Other judgments are single-model, and the record says so.
 6. **Coverage comes from reviewed and cited knowledge.** The universal floor is curated and reviewed. Case checklists come from verified guideline sentences or curated packs. Items a model proposes on its own are allowed, but flagged as "proposed".
 7. **Steps are safe to repeat:** unique task keys, transactional results, cached model calls.
@@ -235,7 +239,7 @@ The label is shown on the investigation page and in the report banner, for examp
 
 | Risk | How it is reduced |
 |---|---|
-| A claim is misread or loses its context | Verification panel, escalation, adjudication, confirmation |
+| A claim is misread or loses its context | Verification (in `budget`: one verifier plus a second opinion on triggers, B17.5), escalation, adjudication, confirmation |
 | Evidence doesn't apply to this person | Applicability rating, case fit, special-population caveats |
 | Numbers in tables or figures are wrong | Cell-level citations; figures only optionally |
 | The literature found is incomplete or unrepresentative | Several sources, citation chasing, coverage reporting |
@@ -251,7 +255,7 @@ backend/app/research/
   ids.py           ID formats (B2.1)
   schemas.py       Pydantic schemas: model outputs + API bodies
   strict.py        Pydantic → provider-compatible JSON schema (common subset of OpenAI strict, Claude JSON outputs, Ollama)
-  settings.py      ResearchSettings + profiles (quality / balanced / economy) + store (data/research.json)
+  settings.py      ResearchSettings + profiles (budget (default) / quality / balanced / economy / dev*) + store (data/research.json)
   preflight.py     keys, model probes, capabilities, privacy gate, loopback check
   providers/       openai.py, anthropic.py, ollama.py (M2): structured calls (streamed internally)
   llm.py           complete_json(): routing by role, repair, truncation/overflow guard, cache, logging, usage
@@ -401,7 +405,7 @@ The database uses WAL, foreign keys, `busy_timeout` 10 s and `secure_delete=ON`.
 | `snowballing` (M2) | `snowball:r{round}` | `gaps` |
 | `gaps` | `gaps:r{round}` (panel) | continue → `round+1` and then `questions` or `querying`; stop → `synthesis` |
 | `synthesis` | `synthesis:v{n}` | `critique` |
-| `critique` | `critic:v{n}:i{k}:{role}` ×3, `support:b{n}` | `revising` |
+| `critique` | `critic:v{n}:i{k}:{role}` for each of `ensembles.critics` (3 in `quality`, `combined` in `budget`), `support:b{n}` | `revising` |
 | `revising` | `revise:v{n}:i{k}` | `rechecking` |
 | `rechecking` | `support:b{n}`, plus the critic roles on changed sections | critical or major issues left and `k < review.max_iterations` → `revising`; else `final_check` |
 | `final_check` | `final_check:v{n}` | critical issue and `k < max` → `revising`; else `finalizing` |
@@ -512,7 +516,7 @@ A call goes through these steps:
 
 ## B6. Model roles and ensembles
 
-Family A = OpenAI, family B = Anthropic. All defaults are settings (B15).
+Family A = OpenAI, family B = Anthropic. All defaults are settings (B15). **This table is the `quality` profile; the default `budget` roles are in B17.3.**
 
 | Role | Default (`quality` profile) | Ensemble | How results are combined |
 |---|---|---|---|
@@ -614,7 +618,7 @@ seed_literature: [{pmid|doi, kind: guideline|systematic_review}]
 
 ### B7.3 Layer 3: guideline grounding per case (B8.3a)
 
-This runs for every case and every complaint, even when a curated pack exists, to keep the knowledge current and to cover combinations of complaints. It produces verified `knowledge_items` with attestations: guideline sentences that support each item, assembled from IDs and verified by the panel.
+This runs for every complaint, even when a curated pack exists, to keep the knowledge current and to cover combinations of complaints. It produces verified `knowledge_items` with attestations: guideline sentences that support each item, assembled from IDs and verified. **Budget:** the result is cached per complaint × population key and reused by later investigations (B17.6), so the cost is paid once per key.
 
 ### B7.4 Merging and trust
 
@@ -739,6 +743,8 @@ Note: `final_report`.
 
 **8. Gaps.** If a complaint finds no guideline and no systematic review, record `grounding_runs.status = gap`. The report states "no clinical guideline was found for X in the searched sources", and planning relies on the universal floor, curated packs (if any) and proposed items.
 
+**Budget:** reuse first (B17.6); on a miss, 2 sources with ≤ 2 packs each, one screener, one extractor, one verifier plus the second opinion on triggers (B17.5).
+
 **9. Reuse.** Grounding papers are marked `purpose = both`. If the main research selects them, their snapshot and profile are reused, and only claim extraction runs.
 
 ### B8.4 questions
@@ -765,6 +771,8 @@ Note: `final_report`.
 **Checks.** As for intake. A feature is removed only if a contradicting segment is cited. Complaints, systems and populations are recomputed. A new complaint or population triggers grounding for it (B4 safety rule, step 3).
 
 ### B8.6 plan (two planners → consolidation → knowledge coverage)
+
+**Budget:** one planner (`ensembles.planners: 1`), then consolidation, which writes the knowledge coverage; 5–8 hypotheses.
 
 **Planners.** A astra and B fable each produce `Plan {research_questions[], hypotheses[{key, title, description, mechanism, kind, item_id?, features_explained[], features_unexplained[], discriminators[], prior, prior_reason}], uncovered_features[{key, reason}]}`.
 
@@ -797,7 +805,7 @@ Note: `final_report`.
 
 The prompt includes the MeSH entry terms and knowledge vocabulary for the hypothesis's item, plus population terms.
 
-**Output:** `QuerySet {queries[{source, query, query_type, rationale}]}`, at most 12 queries.
+**Output:** `QuerySet {queries[{source, query, query_type, rationale}]}`, at most 12 queries (`budget`: 4 per hypothesis, one refinement, Europe PMC and PubMed only).
 
 **Checks (code).**
 - Field allowlists per source. Europe PMC returns 0 hits with HTTP 200 for unknown fields ✔.
@@ -859,6 +867,8 @@ Note: `search_log`.
 
 ### B8.11 screen (dual)
 
+**Budget:** code prefilter and ranking first, then one screener (`low`) on at most 300 candidates (`guards.max_screened`), 20 per call, abstracts cut at 1,500 characters.
+
 **Input:** brief summary, hypotheses, population, and up to 8 candidates with **full abstracts**.
 
 **Output** (each model): `ScreeningBatch {items[{paper_id, relevance 0–3, hypothesis_keys[], design, population_note, decision, reason}]}`.
@@ -914,7 +924,7 @@ multi_query = min(1, (n_queries − 1)/3); seed or grounding source +0.1; popula
 - The paper sentence splitter never splits inside brackets, after abbreviations, after initials, or inside decimals.
 - Snapshot hash stored.
 
-**Coverage.** No caps in the `quality` profile: every body section is read.
+**Coverage.** No caps in the `quality` profile: every body section is read. **Budget:** ≤ 2 packs of ≤ 16k tokens chosen by section priority (B17.5 item 2); profile, appraisal and applicability in one `read.assess` call (item 1); one extraction per pack (item 3).
 - Labels: `full`, `partial` (something skipped, e.g. a parse failure), `abstract_only`.
 - Packs follow document order, up to 32k tokens each.
 
@@ -954,6 +964,8 @@ multi_query = min(1, (n_queries − 1)/3); seed or grounding source +0.1; popula
 
 ### B8.15 verify (panel → escalate → adjudicate)
 
+**Budget:** one verifier for every claim, a second opinion only on the B17.5 item 4 triggers, adjudication only when those two disagree.
+
 **Panel.** Two verifiers (B sonnet, A sol), each from a family other than the extractor's where possible. Each returns `{asserts_effect, direction_check, significance, population_check, overgeneralization, context_needed, verdict, reason}` for every claim.
 
 **Code rules, applied to each vote:**
@@ -989,7 +1001,7 @@ multi_query = min(1, (n_queries − 1)/3); seed or grounding source +0.1; popula
 
 ### B8.18 confirm
 
-**Which claims.** For each hypothesis, the top 5 supporting and top 5 contradicting claims by provisional weight, plus every claim rated `strong`. At most 100.
+**Which claims.** For each hypothesis, the top 5 supporting and top 5 contradicting claims by provisional weight, plus every claim rated `strong`. At most 100. **Budget:** top 3 per hypothesis and direction, at most 30.
 
 **How.** Re-verified by the strongest model of the other family (xhigh), with the full section, neighbouring sections and the profile. The most cautious verdict wins.
 
@@ -1076,6 +1088,8 @@ Note: `hypothesis_analysis`.
 - grounding gaps;
 - contradiction pairs.
 
+**Budget:** one member (`ensembles.gaps_panel: false`); with `loop.max_rounds: 1` the gaps step only reports.
+
 **Panel.** A astra and B fable each produce a `GapReport`:
 - contradictions;
 - new concepts;
@@ -1149,6 +1163,8 @@ Statement { text, kind, claim_ids[], seg_ids[], item_ids[], safety_flag | null }
 
 ### B8.25 critique (panel + support check + regexes)
 
+**Budget:** one combined critic (`critic.combined`, B17.5 item 6) with all three checklists below; the support check is batched 20 pairs per call (item 5); the regexes are unchanged.
+
 **Critics:**
 
 | Critic | Model | Checks for |
@@ -1168,7 +1184,7 @@ Statement { text, kind, claim_ids[], seg_ids[], item_ids[], safety_flag | null }
 
 ### B8.26 revise and recheck
 
-**Revise** (B fable). Every critical and major issue must be resolved. Unchanged statements keep their IDs.
+**Revise** (B fable). Every critical and major issue must be resolved. Unchanged statements keep their IDs. **Budget:** one iteration (`review.max_iterations: 1`).
 
 **Recheck.** Support check on changed statements; critics on changed sections.
 - Repeat until no critical or major issue remains, or 3 iterations have run.
@@ -1255,7 +1271,7 @@ A fresh reader from a different family than the writer (A astra, xhigh) sees onl
 | What the literature says | direction of independent evidence | supported / mixed / insufficient / contradicted |
 | Certainty of that evidence | GRADE-inspired, automated | high / moderate / low / very low |
 | Coverage | how much of a paper was read | full / partial / abstract only |
-| Agreement | claim found by both extractors | 2 / 1 |
+| Agreement | claim found by both extractors | 2 / 1 (always 1 in `budget`, which has one extractor) |
 | Knowledge trust | where a checklist item comes from | curated / verified (guideline) / partial / proposed |
 | Readiness | how well Helix is tested in this body system | tested / limited / untested |
 
@@ -1424,11 +1440,11 @@ concurrency: {max_parallel_tasks: 8, openai: 16, anthropic: 16, ollama: 1}
 
 | Profile | What changes |
 |---|---|
-| `budget` (default) | B17: the per-case token budget, effort per role, one planner and one screener, about 12 full-text papers, single extraction, batched verification with a second opinion on rating-driving claims, grounding reused per complaint, one critic and one revision. `dev_openai` is `budget` on `gpt-5.4-mini` |
+| `budget` (default) | B17: the per-case token budget, effort per role, one planner and one screener, 10 full-text papers, single extraction, one verifier with a second opinion on triggers, grounding reused per complaint, one combined critic and one revision, all on `gpt-5.4-mini`. `dev_openai` keeps the v7 structure on `gpt-5.4-mini` for comparisons (B17.2) |
 | `balanced` | sol and opus for most roles; single extraction; a 2-model verify panel without adjudication; one critic; grounding with up to 3 sources per complaint; 3 rounds; 15 papers per round |
 | `economy` | one efficient model (`gpt-6-luna` or `claude-haiku-5-5`) for every role; no ensembles; grounding with 2 sources; 1 round; 10 papers; at most 4 packs per paper; snowballing and PDFs off |
 
-**Eval profile** (`eval/profiles/m1.yaml`): 15 papers, 1 round.
+**Eval runs** use each case's `profile` (`budget` after 1R.1), `--profile` to override, and `--settings` / `--set` overlays (decision 2026-11-27).
 
 **Safety settings in every profile:** the universal floor and the safety panel always run. `economy` uses a 2-model panel even when everything else is single-model.
 
@@ -1454,28 +1470,167 @@ concurrency: {max_parallel_tasks: 8, openai: 16, anthropic: 16, ollama: 1}
 
 ## B17. Token budget (default `budget` profile)
 
-The daily OpenAI limit is 2.5M tokens, input and output together (decision 2026-11-28). One case must reach its report within one day: **target about 1.6M tokens, hard stop 2.4M** (`guards.max_tokens`). Measured on X9 (2026-11-27), output was larger than input (`grounding.extract`: 17.6k in, 20.3k out per call; `grounding.verify`: 2.2k in, 2.4k out, one claim per call), so effort and batching matter as much as the number of calls.
+This section is the full specification of the default profile. **Where B6, B8 or B15 describe more calls than this section allows, this section wins for `budget`;** those sections stay the specification of the `quality` profile (`QUALITY.md`).
 
-**Stage budgets.** Shares of the case budget (`budget.stages`); targets, to be measured in X6:
+### B17.1 The limit and what it means
 
-| Stage | What runs in `budget` | Target |
-|---|---|---|
-| intake, safety, questions, brief_update | as B8.1–B8.5; the safety panel stays two members | ~100k |
-| grounding | **reused per complaint × population key** (cached case knowledge, max age 180 days, invalidated by a knowledge or prompt version bump); a curated pack first; otherwise 2 sources, ≤ 2 packs each, single extraction, batched verification | 0 reused / ≤ 400k new |
-| plan, queries | one planner, code knowledge coverage; ≤ 4 queries per hypothesis, one refinement | ~80k |
-| search, prefilter, screen | code prefilter and ranking first; **one** screener on the top ~300 abstracts, 20 per call, low effort | ~250k |
-| read, verify | **about 12 full-text papers** (others abstract-only), ≤ 2 packs per paper; profile + appraisal in one call; one extraction (medium); code checks; verification **batched** 10–20 claims per call; a second verifier only when code flags a claim or the first verifier is unsure | ~800k (~65k per paper) |
-| map, group, confirm, fit, analysis, gaps | batched, low or medium effort; confirm only the top 3 claims per hypothesis | ~150k |
-| synthesis, critique, revise, final_check | one writer (high), one critic + code checks (support, dose regex, wording), one revision, one final check | ~250k |
-| reserve | re-reads, retries, degrade path | the rest up to 2.4M |
+- **The limit.** The OpenAI project allows **2.5M tokens per day, input and output together** (decision 2026-11-28). It can't be exceeded. Every token the provider counts is counted, including cached input tokens (`llm_calls.input_tokens` already includes `cached_input_tokens`). Calls answered from Helix's own model-answer cache (`llm_calls.cached = 1`) reach no provider and log no tokens.
+- **One case = one day at most.** A full investigation stops at **2.4M tokens** (`guards.max_tokens: 2400000`, the hard stop). With `guards.reserve: 0.2`, new acquisition work (grounding, screening, reading) stops at 1.92M, so the remaining 0.48M always finishes the analysis and the report.
+- **Targets** (B17.4): about **1.6M** when the complaint's grounding is reused, about **2.0M** for a complaint grounded for the first time. Wall time 1–2 hours at `concurrency.openai: 8`.
+- **A case day uses the whole day.** No other live run starts on a day a full case runs. Stage checks (`--stop-at`) run on other days.
+- **Why the change** (measured, X9 run 2, 2026-11-27, `eval/spikes/results/x9/x9.sqlite3`): 6 guidelines used 2.13M tokens, about 355k per guideline. `grounding.extract` (dual, 18 calls) used 0.73M: 17.6k input and 20.3k output per call. `grounding.verify` (two-member panel, 10 attestations per call, 317 calls) used 1.40M: 2.1k input and 2.4k output per call. **Output (mostly reasoning) was larger than input,** so effort, the number of ensemble members and the size of what is sent matter more than the number of calls. The v7 structure on `gpt-5.4-mini` was estimated at 10–20M+ tokens per case (`docs/progress.md`), 4–8 days per case at this limit.
 
-**Effort per role.** `low`: screen, map, queries. `medium`: extraction, verification, appraisal, fit, critic. `high`: synthesis, revise, adjudicate, final_check, safety.
+### B17.2 Profile settings
 
-**Degrade, don't fail.** When a stage reaches its share, it stops starting new work and the next stage runs with what exists (fewer papers, abstract-only). The report's limitations say which stages were cut. At the hard stop, finalize with the best checked report or `incomplete`.
+`budget` is a profile overlay in `settings.py` (`PROFILE_OVERLAYS["budget"]`), merged over `QUALITY` like the others (B15). Every value that differs from B15:
 
-**What `budget` gives up compared with `quality`.** Dual screening, dual extraction and the whole-paper pass, a verify panel on every claim, two planners, three critics and the revision loop. The loss is measured, not assumed: X3 (dual vs single extraction) and the E3 faithfulness checks. If a check fails, the fix goes into the budget first (for example, a second extraction only for results sections) before a stage gets more tokens.
+```yaml
+profile: budget
+roles: B17.3
+strongest: {openai: {model: gpt-5.4-mini, effort: high}}
+ensembles: {dual_screening: false, dual_extraction: false, whole_paper_pass: false, verify_panel: 1,
+            adjudicate: true, appraisal_panel: false, planners: 1, gaps_panel: false,
+            critics: [combined], final_check: true, dual_knowledge_extraction: false}
+grounding: {max_sources_per_complaint: 2, max_packs_per_source: 2, max_results_per_query: 15, max_screened: 24,
+            reuse: {enabled: true, max_age_days: 180}}
+questions: {max_per_round: 10, max_rounds: 1, max_gap_rounds: 0}
+plan: {min_hypotheses: 5, max_hypotheses: 8}
+search: {sources: [europepmc, pubmed], max_queries_per_hypothesis: 4, results_per_query: 50, max_refinements: 1}
+snowball: {enabled: false}
+fulltext: {unpaywall: false}
+screening: {batch_size: 20, abstract_chars: 1500}
+selection: {max_fulltext_papers_per_round: 10, min_papers_per_hypothesis: 1}
+extraction: {max_pack_tokens: 16000, max_packs_per_paper: 2, pack_priority: true, max_claims_per_pack: 15}
+verification: {second_opinion: [code_flag, unsure, strong_link], batch_size: 10}
+confirm: {per_hypothesis: 3, max_claims: 30}
+fit: {max_claims: 20}               # claims shown to fit and analysis (code constant 40 today)
+weights: {single_extractor: 1.0}     # every claim has agreement 1 here, so it is not a penalty
+review: {max_iterations: 1}
+loop: {max_rounds: 1}
+guards: {max_total_papers: 10, max_screened: 300, max_wall_minutes: 240, reserve: 0.2,
+         max_tokens: 2400000, max_cost_usd: null}
+concurrency: {max_parallel_tasks: 8, openai: 8}
+budget:
+  stages:            # token shares per stage group (B17.4); provider tokens only (cached = 0)
+    intake_safety: 150000
+    grounding: 400000
+    plan: 80000
+    screen: 200000
+    read: 650000
+    assess: 250000
+    report: 250000
+```
 
-**Development within the limit.** A day is either a **case day** (one full live case, ≤ 2.4M) or a **check day** (stage-level live checks with `--stop-at` and small overlays). Most work uses fake models and replays. After a prompt change, only the stages whose prompt version changed are re-run live; the model-answer cache supplies the rest.
+New keys (`grounding.reuse`, `extraction.pack_priority`, `verification`, `fit`, `budget`) and the `combined` critic are added to the settings model in task 1R.1; `ResearchSettings.profile` gains `budget`. The safety panel keeps two members (the B15 floor rule is unchanged).
+
+**Existing profiles stay.** `quality`, `balanced` and `economy` are unchanged. `dev_openai` (the v7 structure on `gpt-5.4-mini`) stays for comparisons such as X3; it isn't used for full cases. Eval cases and `eval.run` default to `budget` after 1R.1 (`profile: budget` in the case files).
+
+### B17.3 Roles in `budget`
+
+Every role uses `gpt-5.4-mini` (the model the daily limit covers; `docs/model-comparison.md`). One member per role unless stated. Two members of the same model differ by effort and are recorded as `independence: same_family`, which the report states (B8.28 banner). `low` has to pass a probe before 1R.1 is done (`research:doctor --probe`; so far `medium` and `high` are probed).
+
+| Role | Effort | Members | Notes |
+|---|---|---|---|
+| intake, brief_update | medium | 1 | |
+| brief_check | medium | 1 | |
+| safety | high + medium | 2 | the panel floor; most cautious level wins |
+| grounding.queries, grounding.merge | low | 1 | |
+| grounding.screen | low | 1 | |
+| grounding.extract | medium | 1 | single extraction |
+| grounding.verify | medium | 1 | + `verify.second` on B17.5 triggers |
+| questions | medium | 1 | |
+| plan, plan.consolidate | medium | 1 each | one planner, then consolidation (it writes the knowledge coverage) |
+| queries | low | 1 | |
+| screen | low | 1 | |
+| read.assess (new) | medium | 1 | profile + appraisal + applicability in one call (B17.5) |
+| read.claims | medium | 1 | single extraction; `read.whole_paper` and `read.reconcile` don't run |
+| verify | medium | 1 | first verifier |
+| verify.second (new) | high | 1 | second opinion on B17.5 triggers only |
+| adjudicate | high | 1 | `strongest.openai`; only when the two verifiers disagree |
+| map | low | 1 | |
+| confirm | high | 1 | `strongest.openai` |
+| fit, analysis, gaps | medium | 1 | |
+| synthesis, revise | high | 1 | |
+| critic.combined (new) | medium | 1 | one critic with the evidence, safety and reasoning checklists of B8.25 |
+| support_check | low | 1 | batched, B17.5 |
+| final_check | high | 1 | |
+| pack_draft | high | 1 | `build_pack.py` only |
+
+The `quality` roles that `budget` doesn't use (`read.profile`, `read.appraisal`, `read.applicability`, `read.whole_paper`, `read.reconcile`, `critic.evidence`, `critic.safety`, `critic.reasoning`, `figure_reader`) stay defined, so the settings validator's "every role present" rule still holds. In `budget` they also map to `gpt-5.4-mini` (`medium`, one member), so a code path that still calls one of them (for example before 1R.4 is done) works and stays inside the limit.
+
+### B17.4 Stage budgets and the degrade path
+
+**Stage groups.** `llm_calls.step` is mapped to a group; usage per group is the sum of `input_tokens + output_tokens` over the investigation's rows with `cached = 0`.
+
+| Group | Steps (task step names) | Share | How the share is met |
+|---|---|---|---|
+| `intake_safety` | intake (with its brief check), safety (every run of it), questions, brief_update (with its check) | 150k | effort `medium`; safety runs again only when the brief or knowledge version changed (B4) |
+| `grounding` | ground, ground_merge | 400k (0 when reused) | reuse (B17.6); else 2 sources × ≤ 2 packs, single extraction, single verifier, second opinion on triggers. Estimate from X9: ~60k extraction + ~140k verification per source |
+| `plan` | plan, queries | 80k | one planner + consolidation; ≤ 4 queries per hypothesis, one refinement |
+| `screen` | screen | 200k | code prefilter and ranking, then ≤ 300 abstracts (≤ 1,500 chars each), 20 per call, `low` |
+| `read` | read, verify, reread | 650k | 10 papers × ~65k: one `read.assess` call, ≤ 2 packs of ≤ 16k chosen by section priority, one extraction per pack, verification 10 claims per call, second opinion on triggers |
+| `assess` | map, confirm, fit, analysis, gaps | 250k | map 20 claims per call (`low`); confirm ≤ 3 per hypothesis and direction, ≤ 30; fit and analysis only for changed hypotheses, ≤ 20 claims each; one gaps member |
+| `report` | synthesis, critic, support, revise, final_check | 250k | one writer, one combined critic, batched support check, one revision, one final check |
+| **Total** | | **1.98M** (1.58M when grounding is reused) | acquisition ends near 1.48M (new complaint), well before the 1.92M acquisition stop, leaving ≥ 0.9M for `assess` and `report` (0.5M) under the 2.4M hard stop |
+
+These are targets from X9 and the step designs; task 1R.5 measures them (X6). If a group is over its share on a measured case, the shares move (decision entry); the 2.4M stop does not.
+
+**Per-paper estimate behind the `read` share.** `read.assess` on the abstract and methods (≤ 6k in, ~3k out) ≈ 9k; one 16k pack extraction at `medium` ≈ 16k in + ~8k out = 24k (a second pack +24k); verification of ~15 claims in 2 calls ≈ 14k; second opinions ≈ 5k; snapshot and checks are code. About 52k for a one-pack paper, 76k for two packs.
+
+**When a group reaches its share** (checked by `budgets.py` before a task of that group starts; a running call is never cut):
+- **Acquisition groups** (`grounding`, `screen`, `read`): no new task of the group starts. Tasks not started are marked `skipped` with `skip_reason = "budget:<group>"`. The next stage runs with what exists: grounding with the sources read so far (or a grounding gap), selection from what was screened, analysis with the papers read. **Budget skips don't count toward the B10 rule** "more than half of a stage's tasks skipped → failed".
+- **Other groups** (`intake_safety`, `plan`, `assess`, `report`): they are needed for a correct result and are not cut. Going over the share logs a `budget_over` event; only the total limits apply.
+- **Total:** the acquisition stop at `(1 − reserve) × max_tokens` (1.92M) and the hard stop at 2.4M work as in B4: hard stop → finalize with the best report that passed its checks, otherwise outcome `incomplete`.
+- **Report.** The limitations paragraph (B8.28 item 12) lists every group that was cut and what was not done ("4 of 10 selected papers were not read: token budget").
+
+### B17.5 Mechanisms that `budget` adds
+
+These are new code (task 1R). Each has its own prompt or schema version where it changes model input.
+
+1. **One reading call for the paper's profile.** `read.assess` returns `PaperAssessment {profile, appraisal, study_identity_fields, applicability}` (the B8.14 fields) from the abstract, the methods section and the case summary, ≤ 6k tokens of input. Prompt `read.assess.v1`. Registry regexes still run over the whole snapshot.
+2. **Packs chosen by section priority.** With `extraction.pack_priority: true` and `max_packs_per_paper` set, `packing.py` fills packs in this order: abstract, results (with tables), discussion and conclusions, methods, other sections. It does not drop the later packs of document order (today's behaviour, which would lose the results). Sections left out are recorded in `paper_reads.skipped_sections`, and coverage is `partial`.
+3. **Single extraction** per pack (`read.claims`, `grounding.extract`) with the existing code checks (IDs in the pack, quotes built by code, effect numbers and `n` in the cited text). Every claim gets `agreement = 1`.
+4. **Single verifier plus a second opinion on triggers.** The first verifier (`verify` or `grounding.verify`) checks every claim, 10 per call (`verify.py` `BATCH = 10`, already the case). `verify.second` checks a claim only when one of `verification.second_opinion` holds:
+   - `code_flag`: a code check changed the claim (effect cleared, `n` not found, an ID dropped), or a B8.15 code rule changed the first vote;
+   - `unsure`: the first vote is `partial`, has `context_needed`, or isn't `supported`/`unsupported`;
+   - `strong_link`: the claim has a `strong` link to any hypothesis.
+   Agreement → that verdict. Disagreement → `adjudicate` (`strongest.openai`, with the section and the profile). Claims without a trigger keep the first verdict, recorded as `verification_mode: single`. Today the verify stages call the role's members as a panel and don't read `ensembles.verify_panel` or `ensembles.adjudicate`; task 1R.4 makes them read these settings.
+5. **Batched support check.** Statement–claim pairs are checked 20 per call at `low`. Pairs where the statement contains a number, a certainty word or a population term go first; a `not_supported` result is an issue as in B8.25.
+6. **One combined critic.** `critic.combined` (prompt `critic.combined.v1`) returns one `IssueSet` covering the three B8.25 checklists. The regexes (diagnostic language, absence overstatement, dose or instruction) run in code as before. One revision (`review.max_iterations: 1`), then the final check; a critical issue left after that goes to Known limitations, or removes the statement (B8.26).
+7. **Stage budgets** (B17.4) in `budgets.py`, with the `budget:<group>` skip reason and the `budget_over` event.
+
+### B17.6 Grounding reuse
+
+Guideline knowledge depends on the complaint and the population, not on the person, so it is reused across investigations.
+
+- **Key:** the complaint's verified MeSH descriptor UI (or its normalised key when no descriptor was verified), the population key (B8.3a), and the versions of the grounding prompts (`grounding.extract`, `grounding.verify`, `grounding.merge`), the universal floor and the complaint's pack.
+- **Store:** a global table `knowledge_cache {key, complaint_key, mesh_ui, population, versions, items, attestations, sources, grounding_status, created_at}` in `research.sqlite3` (like `mesh_cache`). It holds guideline items, attestations with their quotes from guideline papers, and the literature IDs of the sources. It holds no user segments and no case facts, so deleting an investigation doesn't touch it.
+- **Hit** (same key, younger than `grounding.reuse.max_age_days`): the grounding task copies the items and attestations into the investigation (`knowledge_items`, `knowledge_attestations`), records `grounding_runs.status = ok` with `reused_from = <cache id>`, and makes no model calls. The merge with the floor and the pack runs as usual (code, plus the merge judge only for borderline pairs).
+- **Miss:** grounding runs as in B8.3a with the B17.2 limits, and a successful run (status `ok`, or `gap`, which is reused too) is written to the cache.
+- **Invalidation:** any version in the key changes → a miss. `POST /api/research/knowledge/cache/clear` (and a doctor line with the cache size) for manual clearing.
+- **Curated pack first:** a complaint with a reviewed pack still runs grounding (B7.3), but its share is spent only once per key thanks to the cache.
+- **The Knowledge tab** shows "reused from an earlier grounding on <date>" for reused items.
+
+### B17.7 What `budget` gives up, and how that is checked
+
+| Given up (vs `quality`) | Risk | Measured by | If it fails |
+|---|---|---|---|
+| Dual extraction and the whole-paper pass | missed claims | X3 (recall of hand-paired claims, single vs dual), E3.3 | a second extraction for results sections only, paid from `screen` |
+| A two-member verify panel on every claim | a wrong claim kept | E3.2 traps (≥ 90% caught in M1), E3.3 faithfulness | widen the second-opinion triggers |
+| Cross-family checks | errors shared by one model | E3.3, E3.4; the report states `same_family` | an Anthropic key, if a budget for it exists |
+| Dual screening, 6,000 screened | relevant papers missed | E2 hypothesis-family coverage, E3.5 must-mention recall | more abstracts per call, not more calls |
+| Two planners, gaps panel | missed hypotheses | E2 coverage (knowledge coverage is enforced by code) | a second planner, paid from `assess` |
+| Three critics, up to 3 revisions | report issues left | E3.4 critical errors | a second revision only when a critical issue is left |
+| 25 papers × 5 rounds, snowballing, PDFs | less evidence | E3.5, the outcome rule (`insufficient_evidence` stays honest) | M2 adds them only within the same shares |
+
+### B17.8 Development within the limit
+
+- **Case day:** one full live investigation (≤ 2.4M), nothing else live that day.
+- **Check day:** stage checks with `eval.run --mode live --stop-at <stage>` and small overlays, ≤ 2.4M in total. Add up the day's `llm_calls` (all eval databases) before each run.
+- **Everything else** uses fake models (`--mode fake`) and replays (`--mode replay`), which cost nothing.
+- **After a prompt change:** bump its version, then `eval replay` (Part G.4). Only the steps whose prompt version changed call the provider again; the model-answer cache supplies the rest.
+- **Case-set runs** (E3.1 beyond the full investigations, the E3.7 triage benchmark) stop at grounding (`--stop-at grounding`): intake, the brief check and the first safety review, about 50k per case. 45 benchmark vignettes ≈ 2.3M (one day); 100 case-set cases ≈ 5M (two or three days).
+- **Content tools** (`build_pack.py`) are not cases: they may span days, stopping at 2.4M a day and resuming from the cache.
 
 ---
 
@@ -1524,10 +1679,10 @@ The daily OpenAI limit is 2.5M tokens, input and output together (decision 2026-
 # Part D: Build plan
 
 **Conventions:**
-- Branches `feat/research-{m}-{topic}`; tests in `backend/test_research_*.py` with synthetic fixtures.
+- All work on the `development` branch, one commit per task named by its ID (decision 2026-11-25); tests in `backend/test_research_*.py` with synthetic fixtures.
 - `npm test` and `npm run build` pass on every PR.
 - Tests use the no-network guard, patched keys and a temporary data folder.
-- Live runs use provider projects without data sharing.
+- Live runs use synthetic cases only, within the day's token limit (B17.8). Real cases only on provider projects without data sharing (B16.3; see the open question in the Premise).
 - Prompt or threshold changes need a version bump and an `eval replay` comparison (Part G).
 - Sizes: S < 300 lines, M 300–800, L > 800.
 
@@ -1602,7 +1757,7 @@ Tests (dummy pipeline):
 
 It is reviewed by two people, ideally clinicians, and the review is recorded in `docs/decisions.md`.
 
-**1B.2 Tinnitus pack v0 (M):** built with `build_pack.py` and reviewed.
+**1B.2 Tinnitus pack v0 (M):** built with `build_pack.py` and reviewed. `build_pack.py` runs within the daily limit: it stops at 2.4M and resumes the next day from the cache (B17.8).
 
 **1B.3 Knowledge loader, validator and merge (M).** Tests: schema; every source resolves; duplicate merging; trust levels; disagreement flags.
 
@@ -1682,23 +1837,35 @@ Tests:
 
 ### 1R Budget rework (before 1F)
 
-Make the default `budget` profile real (B17), so the first whole-case live run fits in one day.
+Builds the default `budget` profile (B17) so that one case runs from start to report within one day's limit. Order: 1R.1 → (1R.2, 1R.3, 1R.4 in any order) → 1R.5. Each subtask is one commit on `development` named by its ID. All tests use fake models; no live calls except the probe in 1R.1 and the live checks in 1R.5 (ask first, B17.8).
+
+**State of the code at the start of 1R** (checked 2026-11-28):
+- `settings.py`: profiles `quality`, `balanced`, `economy`, `dev`, `dev_openai`, `dev_ollama`; `ResearchSettings` is strict (unknown keys are rejected); the validator requires every `QUALITY_ROLES` role, two safety members and a `strongest` model for each family in use; `critics` must include `safety`.
+- Ensemble flags read by the code: `dual_screening` (screen, grounding), `dual_knowledge_extraction` (grounding), `dual_extraction`, `whole_paper_pass` and `appraisal_panel` (read), `planners` (plan), `gaps_panel` (gaps). **Not read:** `verify_panel` and `adjudicate`. Verification (`verify.py`) runs every member of the role as a panel on batches of 10 (`BATCH = 10`), escalates, then adjudicates.
+- `packing.py`: with `max_packs_per_paper` set, later packs in document order are dropped, so results and discussion are lost. 1R.4 changes this.
+- `budgets.py`: total guards only (`max_tokens`, `reserve`, papers, screened, wall time); `db.usage` sums `llm_calls` per segment; cache hits log no tokens.
+- `llm_calls.step` holds the task step name (`intake`, `safety`, `ground`, `ground_merge`, `questions`, `brief_update`, `plan`, `queries`, `screen`, `read`, `verify`, `reread`, `map`, `confirm`, `fit`, `analysis`, `gaps`; 1F adds `synthesis`, `critic`, `support`, `revise`, `final_check`).
 
 | Task | Contents |
 |---|---|
-| 1R.1 Budget profile and stage budgets (M) | `budget` profile in `settings.py`; `dev_openai` becomes `budget` on `gpt-5.4-mini`; effort per role; `budget.stages` shares; per-stage acquisition stop and degrade path in `budgets.py`; limitations text for cut stages |
-| 1R.2 Grounding reuse (M) | Cache case knowledge per complaint × population key, with max age and version invalidation; curated pack first; reuse recorded in the case |
-| 1R.3 Single screener and ranking (S) | Code ranking before screening, top-N cut, one screener, batches of 20 |
-| 1R.4 Reading and verification in budget (M) | Profile + appraisal in one call, single extraction, ≤ 2 packs per paper, batched verification, second verifier only on code flags or unsure, confirm top 3 per hypothesis |
-| 1R.5 Budget eval (S) | `eval.run` reports tokens per stage against B17; X6 written up from the first full live case |
+| **1R.1 Budget profile and stage budgets (M)** | `settings.py`: `PROFILE_OVERLAYS["budget"]` with every B17.2 value and the B17.3 roles (`gpt-5.4-mini`, efforts per role); new roles `read.assess`, `verify.second`, `critic.combined` added to `QUALITY_ROLES` too (quality uses them only if configured); settings model gains `budget.stages` (seven groups, positive integers), `grounding.reuse`, `extraction.pack_priority`, `verification.second_opinion` (subset of `code_flag`, `unsure`, `strong_link`) and `batch_size`; `critics` accepts `combined` as covering safety; `profile` literal gains `budget`; `build()` default and the store default become `budget`; `PROFILE_DESCRIPTIONS` updated. `budgets.py`: `STAGE_GROUPS` (step → group, B17.4), `group_usage(db, inv)` (provider tokens, `cached = 0`), `group_allows(group)` checked before a queued task of an acquisition group starts (where the runner claims tasks); skipped tasks get `skip_reason = "budget:<group>"`; B10's "more than half skipped → failed" ignores budget skips; a `budget_over` event for other groups. Eval case files switch to `profile: budget`. Probe `low` on `gpt-5.4-mini` with `research:doctor --probe` (tiny cost; ask first); if refused, `low` roles use `medium` and decisions.md records it |
+| **1R.2 Grounding reuse (M)** | `db.py`: global `knowledge_cache` table (B17.6) and `grounding_runs.reused_from`, with a migration. `steps/grounding.py`: key from MeSH UI (or normalised key) + population + grounding prompt versions + floor and pack versions; hit → copy items and attestations, no model calls; miss → run with the B17.2 limits, then write the cache (`ok` and `gap`). `routes.py`: `POST /api/research/knowledge/cache/clear`. `doctor.py`: cache entry count. Knowledge tab label in 1G |
+| **1R.3 Single screener and ranking (S)** | `steps/screen.py`: candidates ranked by code before screening (the B8.11 score without relevance: design, recency, citations, full text, multi-query, seed/grounding and population bonuses), cut to `guards.max_screened` (300), then one screener in batches of `screening.batch_size` (20) with abstracts cut at `abstract_chars` (1,500). The `dual_screening: false` path already exists; this adds the ranking and the cut |
+| **1R.4 Reading and verification in budget (M)** | `packing.py`: with `pack_priority`, packs filled by section priority (abstract, results + tables, discussion/conclusions, methods, other), skipped sections recorded, coverage `partial`. `steps/read.py`: `read.assess` (schema `PaperAssessment`, prompt `read.assess.v1`) replaces profile + appraisal + applicability when the role is configured and `appraisal_panel` is off; single extraction per pack. `verify.py` + `steps/verification.py` + grounding verification: read `ensembles.verify_panel` and `adjudicate`; with `verify_panel: 1`, the first verifier checks every pair, `verify.second` checks pairs that meet `verification.second_opinion` (B17.5 item 4), disagreement → adjudicate; claims record `verification_mode` (`single` / `second` / `adjudicated`) in `checks`. `verify.py` takes its batch size from `verification.batch_size` (today the constant `BATCH = 10`). `steps/evidence.py`: confirm limits from settings (3 per hypothesis and direction, ≤ 30). `steps/assess.py`: fit and analysis claim limit from `fit.max_claims` (today `MAX_CLAIMS = 40`) |
+| **1R.5 Budget eval (S)** | `eval.run`: tokens per stage group in each case's result and in the summary, compared with the B17.4 shares (over-share groups flagged); `--compare` shows the change per group. Live checks, one per day and each asked first: (a) one case `--stop-at reading` (~0.6–0.8M), (b) the same case to `gaps` (cache resumes). X6 (cost and time) written up in `docs/spikes.md` from (b); shares adjusted in a decision entry if needed |
 
-Tests: per-stage stop and degrade; reuse hit and invalidation; batching keeps per-claim verdicts and votes; a flagged claim gets a second verifier; stage shares add up; a run at the hard stop finalizes or ends `incomplete`.
+**Tests** (fake provider, `research_testkit.ResearchTestCase`):
+- 1R.1: `build("budget")` validates; the safety role has two members; every B17.2 value is present; an unknown `budget.stages` group is rejected; step → group mapping covers every model-calling step; a group at its share skips the next acquisition task with `budget:<group>` and the stage still completes; budget skips don't trigger the B10 failure rule; a non-acquisition group over its share logs `budget_over` and continues; cached calls don't count; the total acquisition stop and hard stop still work.
+- 1R.2: a second investigation with the same complaint and population makes no grounding model calls and gets the same items and attestations; a different population, an older entry (> `max_age_days`) or a bumped prompt/floor/pack version is a miss; a `gap` result is reused; deleting an investigation keeps the cache; the cache holds no user segments (privacy canary).
+- 1R.3: ranking order is deterministic; only the top `max_screened` are screened; batches of 20; one model call per batch.
+- 1R.4: with two packs allowed, a paper whose results come late keeps its results pack; skipped sections are recorded; one `read.assess` call per paper; with `verify_panel: 1`, a clean `supported` claim gets one vote, a `partial`, `context_needed`, code-flagged or `strong` claim gets a second, a disagreement is adjudicated; final verdicts match the stored votes (E1.13); `quality` behaviour is unchanged (existing tests pass).
+- 1R.5: per-group usage in the results file adds up to the total.
 
-Done when: one synthetic case runs from start to report on `dev_openai` within 2.4M tokens, with tokens per stage recorded.
+**Done when:** the tests above pass, `npm test` and `npm run build` pass, and one synthetic case runs live on `budget` to `gaps` within the B17.4 shares for those groups (or the shares are re-set by a decision), with tokens per group recorded in `docs/spikes.md` (X6) and `docs/progress.md` ticked.
 
 ### 1F Report
 
-Built to the `budget` profile from the start: one writer, one critic plus code checks, one revision, final check.
+Built for `budget` from the start (B17.5 items 5 and 6): one writer, one combined critic plus the regexes, the batched support check, one revision, the final check. The `quality` path (three critics, up to three iterations) is built behind the same settings (`ensembles.critics`, `review.max_iterations`). Step names: `synthesis`, `critic`, `support`, `revise`, `final_check`, `finalize` (group `report`).
 
 - ranking and synthesis: plain summary, knowledge-item citations, management topics, special-population statements (L);
 - critic panel, support check, regexes including the dose regex (M);
@@ -1713,14 +1880,16 @@ Built to the `budget` profile from the start: one writer, one critic plus code c
 
 ### 1H M1 gate
 
-The gate is E5, run on cases from at least 5 body systems. If it fails, iterate and run it again. **M2 doesn't start until M1 passes.**
+The gate is E5, run on cases from at least 5 body systems. If it fails, iterate and run it again.
+
+Before the gate: the case set grows to ≥ 15 synthetic cases across ≥ 5 systems (8 exist on 2026-11-28: cardiovascular, digestive, ENT ×2, general ×2, mental health, neurology), each with scripted answers and expected red flags and hypothesis families. All of them run to the first safety review (`--stop-at grounding`, ~50k each); **≥ 5 of them, one per system, run as full investigations, one case day each** (E3.1). **M2 doesn't start until M1 passes.**
 
 ## M2: Breadth and full features
 
 | Task | Contents |
 |---|---|
-| 2.1 Research loop (M) | |
-| 2.2 Snowballing (M) | |
+| 2.1 Research loop (M) | In `budget`, a second round starts only if the acquisition stop (1.92M) isn't reached; it uses the same `screen` and `read` shares (B17.4) |
+| 2.2 Snowballing (M) | In `budget`, snowball candidates compete for the same 300 screening places |
 | 2.3 OpenAlex and Semantic Scholar sources (M) | |
 | 2.4 Unpaywall + PDF pipeline (L) | GROBID or Docling, pages, parse checks. Tests: fixture PDFs; parse failure → abstract-only |
 | 2.5 Follow-ups (M) | |
@@ -1731,7 +1900,7 @@ The gate is E5, run on cases from at least 5 body systems. If it fails, iterate 
 | 2.10 Ollama adapter (M, optional) | |
 | 2.11 Full settings UI (M) | |
 | 2.12 Retention (S) | |
-| 2.13 Regression (S) | M1 gate in replay, plus live runs on cases from 5 systems |
+| 2.13 Regression (S) | M1 gate in replay, plus live full runs on cases from 5 systems (5 case days) |
 
 ## M3: Proof
 
@@ -1741,8 +1910,8 @@ The gate is E5, run on cases from at least 5 body systems. If it fails, iterate 
 | 3.2 Trap paper set (M) | 12 papers from several fields |
 | 3.3 Blinded claim review (M) | ≥ 150 claims |
 | 3.4 Reference assessments (M) | ≥ 20 cases across ≥ 10 systems; guideline-based; ideally reviewed by a GP and specialists |
-| 3.5 Triage benchmark (S) | Run the 45 Semigran vignettes (E3.7) |
-| 3.6 Model judges (M) | Calibrated against ≥ 30 human-graded reports |
+| 3.5 Triage benchmark (S) | Run the 45 Semigran vignettes (E3.7), `--stop-at grounding` (~2.3M, one day) |
+| 3.6 Model judges (M) | Calibrated against ≥ 20 human-graded reports (the full investigations of 3.1) |
 | 3.7 Readiness (S) | `eval/readiness.py` computes per-system labels from results; published via `/api/research/readiness` |
 | 3.8 Figure reading (M, optional) | |
 | 3.9 Tuning (M) | |
@@ -1804,8 +1973,8 @@ Pipeline correctness (E1, E2) and clinical quality (E3, E4) are scored separatel
 | E3.3 Blinded review | Random active claims from ≥ 5 investigations in different systems. Reviewers see quote, paragraph and claim, but no verdicts |
 | E3.4 Rubric | Critical errors: a missed red flag; diagnostic language; an unsupported clinical recommendation; any dose or instruction; "no evidence exists"; overstated certainty; a ranking in an incomplete or insufficient outcome; a missing special-population caveat |
 | E3.5 Reference assessments | Must-mention explanations, red flags, evaluations, key evidence |
-| E3.6 Model judges | κ ≥ 0.6 against human grades before they are used for regression |
-| E3.7 Triage benchmark | The 45 Semigran vignettes ✔ (C37). **Target: 100% of emergent vignettes reach the safety wait or stop at urgent or emergency level.** Over-triage of non-emergent and self-care vignettes is reported (caution is acceptable, but it is tracked) |
+| E3.6 Model judges | κ ≥ 0.6 against human grades (≥ 20 reports) before they are used for regression |
+| E3.7 Triage benchmark | The 45 Semigran vignettes ✔ (C37), run to the first safety review (`--stop-at grounding`, B17.8). **Target: 100% of emergent vignettes reach the safety wait or stop at urgent or emergency level.** Over-triage of non-emergent and self-care vignettes is reported (caution is acceptable, but it is tracked) |
 | E3.8 Readiness | Per body system: cases run, gate criteria met, label |
 
 ## E4. Manual acceptance
@@ -1829,7 +1998,7 @@ Tinnitus, plus one case each from 3 other systems:
 | Gate | Requirements |
 |---|---|
 | **M1** | E1: all checks. E2. **Budget: every full investigation ≤ 2.4M tokens.** E3.1 on ≥ 15 cases across ≥ 5 systems. E3.2 on ≥ 6 traps, catch rate ≥ 90%. E3.3 on ≥ 60 claims from ≥ 3 systems: faithful ≥ 92%, unfaithful ≤ 2%. E3.4 on ≥ 5 reports from ≥ 5 systems with no critical errors. Red-flag cases 100% correct. E3.7 emergent subset (15 vignettes) 100% |
-| **MVP (M3)** | E1: all checks. E2. **Budget: every full investigation ≤ 2.4M tokens, median ≤ 1.6M.** E3.1 ≥ 100 cases across ≥ 15 systems. E3.2: 12 traps, catch rate ≥ 95%. E3.3 ≥ 150 claims: faithful ≥ 95%, unfaithful ≤ 1%. E3.4: no critical errors in ≥ 95% of reports and zero missed red flags. E3.5: ≥ 20 cases across ≥ 10 systems, must-mention recall ≥ 85%. E3.6 κ ≥ 0.6. E3.7: all 45 vignettes, emergent 100%. E4 complete. Readiness labels published |
+| **MVP (M3)** | E1: all checks. E2. **Budget: every full investigation ≤ 2.4M tokens, median ≤ 2.0M.** E3.1 ≥ 100 cases across ≥ 15 systems. E3.2: 12 traps, catch rate ≥ 95%. E3.3 ≥ 150 claims: faithful ≥ 95%, unfaithful ≤ 1%. E3.4: no critical errors in ≥ 95% of reports and zero missed red flags. E3.5: ≥ 20 cases across ≥ 10 systems, must-mention recall ≥ 85%. E3.6 κ ≥ 0.6. E3.7: all 45 vignettes, emergent 100%. E4 complete. Readiness labels published |
 
 Targets are fixed before measuring. They change only through a written decision in `docs/decisions.md`.
 
@@ -1864,7 +2033,7 @@ Targets are fixed before measuring. They change only through a written decision 
 | Mental-health crises | Crisis rule shows resources immediately; the investigation stops |
 | Being read as treatment advice | Management only as topics to discuss; dose regex; safety critic |
 | A claim misreads its sentences | Cross-family panel, escalation, adjudication, confirmation; traps; blinded review |
-| Errors shared within one model family | Cross-family roles; independence flag |
+| Errors shared within one model family | Cross-family roles when a second provider is configured; in `budget` (one model), code checks, second opinions at a different effort, the `same_family` banner and the E3 measurements (B17.7) |
 | Evidence counted twice | Aggregation; study grouping; review overlap |
 | Ratings read as certainty | Three ratings; GRADE-inspired label; no probability |
 | Overconfidence in areas tested less | Readiness labels on every report |
@@ -1881,7 +2050,7 @@ Targets are fixed before measuring. They change only through a written decision 
 | Premise | **Token budget (2026-11-28):** one case within the 2.5M/day limit (hard stop 2.4M). The quality-first premise (v7) is archived in `QUALITY.md` and kept as the `quality` profile |
 | **Scope** | **All human health problems (your decision, 2026-11-20).** Readiness labels per body system; nothing is blocked except emergencies (safety stop) and input that isn't about human health (rewrite) |
 | MVP | Everything in GOAL.md; built in the order M1 → M2 → M3 |
-| Knowledge | Universal floor (reviewed) + guideline grounding per case + curated complaint packs |
+| Knowledge | Universal floor (reviewed) + guideline grounding per complaint × population (reused across cases, B17.6) + curated complaint packs |
 | Models | OpenAI (`dev_openai` on `gpt-5.4-mini`); effort per role (B17); Anthropic optional for cross-family checks; Ollama optional; Gemini after the MVP |
 | Evidence | Sentence- and cell-level quotes; single extraction with batched verification and a second opinion on rating-driving claims; study independence; three ratings |
 | Recall | Europe PMC, PubMed, OpenAlex, Semantic Scholar; snowballing; Unpaywall PDFs |
@@ -1931,5 +2100,6 @@ All the points adopted in v5 and v6 remain.
 | v4 | Live API and environment checks; full specs and failure paths |
 | v5 | External reviews: evidence slice, end states, guarantees, independence, three ratings, semantic verification, evaluation program, privacy |
 | v6 | Quality-first premise: current models, second provider, ensembles, domain pack, whole-paper reading, cell-level quotes, recall expansion, review loop, profiles, larger evaluation, agent protocol |
-| v8 | **Token budget (2026-11-28).** One case within the 2.5M/day limit (hard stop 2.4M, target ~1.6M): new B17 (stage budgets, effort per role, degrade path, grounding reuse, batched verification, single extraction, one critic); `budget` becomes the default profile; task 1R before 1F; full investigations in E3.1/M3 set to ≥ 5 (M1) and ≥ 20 (MVP), the rest through intake and safety; budget gate in E5. v7 archived as `QUALITY.md` |
+| v8.1 | Review of v8 against the code (2026-11-28): B17 rewritten as the full `budget` specification (settings, roles and efforts, stage groups mapped to steps, degrade rules, per-paper estimate, new mechanisms, grounding reuse store, trade-offs, development rules); verification already batches 10 per call (the v8 text was wrong); pack cap must keep results; `verify_panel`/`adjudicate` not yet read by the code; "Budget:" lines in B8; branch convention, eval profile, judges (≥ 20), triage and case-set runs (`--stop-at grounding`) aligned; data-sharing open question; task 1R in full detail |
+| v8 | **Token budget (2026-11-28).** One case within the 2.5M/day limit (hard stop 2.4M, target ~1.6–2.0M): new B17 (stage budgets, effort per role, degrade path, grounding reuse, batched verification, single extraction, one critic); `budget` becomes the default profile; task 1R before 1F; full investigations in E3.1/M3 set to ≥ 5 (M1) and ≥ 20 (MVP), the rest through intake and safety; budget gate in E5. v7 archived as `QUALITY.md` |
 | v7 | **All human health problems.** Scope gate removed, readiness labels added. Complaints mapped to MeSH (verified live) and body systems. Special populations. Three-layer clinical knowledge: reviewed universal safety floor across all systems and populations; guideline grounding per case (dual extraction, panel-verified attestations, merge with trust levels, gaps); curated complaint packs (tinnitus in M1, top 10 in M2). Knowledge tab and coverage. Management topics as discussion points only, plus a dose regex. Evaluation across ≥ 15 systems, special populations, and the Semigran 45-vignette triage benchmark |

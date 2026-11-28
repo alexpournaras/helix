@@ -19,3 +19,25 @@ Ideas that are out of scope for the current task (PLAN Part G.5).
 - Grounding: when an attestation quotes a list item, include the list's lead-in sentence (X9 run 2: BSG items
   "Reflux with raised platelet count…" quoted without "People aged ≥55 years with:", so the age condition is lost and
   one item came out for all ages).
+
+## From the v8.1 reviews (Codex, ChatGPT; 2026-11-28, PLAN F4)
+
+Deferred from PLAN v9; none is needed for the M1 gate.
+- Global cache of verified paper-level findings (claims without case links) reused across investigations; needs
+  extraction scope, source hashes and provenance, and a canary proving it holds no patient text.
+- Local retrieval over paper text (SQLite FTS5 / BM25, optional local embeddings) and progressive reading levels
+  (overview → targeted → deep) to cut input tokens; never replaces full reading of papers that drive conclusions.
+- Design-specific appraisal: RoB 2, ROBINS-I, QUADAS-2, AMSTAR 2, AGREE II in place of the generic criteria.
+- Overlap between systematic reviews (shared primary studies), not only primary-in-review.
+- Feature importance in case fit (defining / discriminating / nonspecific), clinically reviewed.
+- Evidence-category labels (mechanistic, association, diagnostic, causal) so mechanism papers can't drive a strong
+  clinical conclusion.
+- Multi-factor hypotheses (several mechanisms together).
+- Counter-evidence searches per hypothesis; official medical society sources outside PubMed; guideline version
+  tracking; retraction and correction re-checks for cached evidence.
+- Multilingual retrieval; supplementary material; a patient timeline; a reproducibility manifest (sources, prompt
+  and model versions per report); an evidence graph.
+- Reconcile the quota ledger with OpenAI's usage API (needs an admin key); OpenAI's input-token counting endpoint
+  in place of the character estimate.
+- Side-by-side comparison of `quality`, `budget` and an adaptive profile on a frozen corpus (one `quality` case is
+  about 16 quota days).

@@ -47,19 +47,23 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1E.4 Matrix (code; unit tests for every B8.19 rule)
   - [x] 1E.5 Fit and analysis (fake-model tests)
   - [x] 1E.6 Gaps panel (reporting only; fake-model tests)
-- [ ] 1R Budget rework (PLAN B17, decision 2026-11-28): one case within 2.4M tokens
-  - [ ] 1R.1 Budget profile and stage budgets
-  - [ ] 1R.2 Grounding reuse
+- [ ] 1R Budget rework (PLAN B17 v9, decisions 2026-11-28): one case within 2.4M, ledger-enforced daily ceiling
+  - [ ] 1R.0 Daily quota ledger (reservations before every call)
+  - [ ] 1R.1 Budget profile, stage targets, protected reserves, pool
+  - [ ] 1R.2 Grounding reuse and several complaints
   - [ ] 1R.3 Single screener and ranking
-  - [ ] 1R.4 Reading and verification in budget
+  - [ ] 1R.4 Reading and verification in budget (triggers, audit)
   - [ ] 1R.5 Budget eval (+ X6)
+  - [ ] 1R.6 Second round from the pool
+  - [ ] 1R.7 Safety clearance
+  - [ ] 1R.8 End-to-end quota validation (after 1F; cold and warm cache)
 - [ ] 1F Report
 - [ ] 1G UI and privacy
 - [ ] 1H M1 gate
 
 ## Waiting for live runs
 
-**2026-11-28: PLAN v8.** One case must fit in one day (B17, target ~1.6–2.0M, stop 2.4M); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
+**2026-11-28: PLAN v9.** One case must fit in one quota day (B17, target ~1.6–2.0M, cap 2.4M; ledger from 1R.0); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
 model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval runs and X9 run 2:
 
 1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.

@@ -3,7 +3,8 @@
 **Read the PLAN.md task first.** `PLAN.md` is the source of truth for Helix Investigations (the research
 pipeline). Before coding a task, read the task in Part D, the B-sections it names and the related Part C facts.
 Follow the execution protocol in PLAN.md Part G.
-Every case must fit in one day's token budget (PLAN B17: stop at 2.4M of the 2.5M daily OpenAI limit).
+Every case must fit in one quota day (PLAN B17: Helix enforces a 2.4M/UTC-day ceiling on OpenAI's 2.5M complimentary
+data-sharing quota). Synthetic cases only on that project; real cases need `private_real` (B17.1).
 `QUALITY.md` is the archived quality-first plan (v7), kept for reference only.
 
 ## Commands

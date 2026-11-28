@@ -274,8 +274,14 @@ async def run(tc) -> Any:
 def stage(next_stage: str = "searching") -> StageDef:
     def on_enter(sc: StageContext) -> None:
         rnd = int(sc.inv["round"])
-        for h in sc.conn.execute("SELECT id, key FROM hypotheses WHERE investigation_id = ? AND status = 'active' "
-                                 "ORDER BY id", (sc.id,)):
+        # Round 1: every hypothesis. Later rounds (B17.5 item 9): only the hypotheses added for this round; the
+        # gaps step's follow-up queries are already saved as `ready`.
+        sql = "SELECT id, key FROM hypotheses WHERE investigation_id = ? AND status = 'active'"
+        params: list = [sc.id]
+        if rnd > 1 and (sc.settings.get("budget") or {}).get("targets"):
+            sql += " AND round_added = ?"
+            params.append(rnd)
+        for h in sc.conn.execute(sql + " ORDER BY id", params):
             sc.queue("queries", f"queries:r{rnd}:{h['key']}", {"hypothesis_id": h["id"]}, priority=40)
 
     def on_complete(sc: StageContext):

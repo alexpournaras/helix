@@ -18,13 +18,14 @@ Then → reading (1E).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from .. import ensemble, llm, scoring
+from .. import budgets, ensemble, llm, scoring
 from ..db import _decode
 from ..pipeline import STAY, StageContext, StageDef, StepDef
 from ..schemas import ScreeningBatch
@@ -244,6 +245,8 @@ async def run_select(tc) -> Any:
     inv = tc.investigation
     rnd = int(inv["round"])
     cfg = _select_cfg(tc.settings)
+    pool = await asyncio.to_thread(budgets.pool_left, tc.db, inv["id"], tc.settings or {}) if rnd > 1 else None
+    read_estimate = int((((tc.settings or {}).get("budget") or {}).get("task_estimates") or {}).get("read") or 80000)
 
     def commit(conn: sqlite3.Connection) -> None:
         hyp_keys = [r["key"] for r in conn.execute("SELECT key FROM hypotheses WHERE investigation_id = ? AND "
@@ -256,6 +259,10 @@ async def run_select(tc) -> Any:
             for k in s["hypothesis_keys"]:
                 have[k] = have.get(k, 0) + 1
         n = max(0, min(int(cfg["max_fulltext_papers_per_round"]), cfg["max_total_papers"] - len(selected)))
+        if rnd > 1 and cfg.get("round2_max_papers") is not None:  # B17.5 item 9: what the pool can pay for
+            n = min(n, int(cfg["round2_max_papers"]))
+            if pool is not None:
+                n = min(n, pool // max(1, read_estimate))
         chosen = plan_selection(eligible(conn, inv["id"], int(cfg["min_relevance"])), hyp_keys, have, n, cfg)
         for c, reason in chosen:
             conn.execute("UPDATE candidates SET status = 'selected' WHERE id = ?", (c["id"],))

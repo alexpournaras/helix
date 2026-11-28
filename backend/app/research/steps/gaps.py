@@ -11,16 +11,20 @@ gaps:r{round}
   decision  novelty = rating changes + accepted concepts + accepted hypotheses (+ snowball candidates, M2);
             new_work = accepted queries + accepted hypotheses (+ snowball, M2);
             continue = round < first + max_rounds − 1 and not acquisition_stopped and novelty ≥ min_novelty and
-            new_work. M1 is reporting only: the result is recorded and the run goes on to synthesis.
+            new_work. With `loop.max_rounds` 1 (quality's M1 profile) it only reports. In `budget` (PLAN B17.5
+            item 9, task 1R.6) a second round also needs the token pool to hold `loop.round2_min_pool`; then the
+            accepted hypotheses and follow-up queries are saved for round + 1 and the run goes back to `querying`
+            (queries only for the new hypotheses; targeted citation chasing in `searching`).
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from typing import Any
 
-from .. import claims as CL, ensemble, llm, weights as W
+from .. import budgets, claims as CL, ensemble, llm, weights as W
 from ..db import _decode
 from ..pipeline import StageContext, StageDef, StepDef
 from ..schemas import GapReport
@@ -237,9 +241,18 @@ async def run(tc) -> Any:
     would = decide(rnd=rnd, first=first, max_rounds=int(loop["max_rounds"]),
                    acquisition_stopped=bool(tc.payload.get("acquisition_stopped")), novelty=novelty["total"],
                    min_novelty=int(loop["min_novelty"]), new_work=new_work)
-    decision = "stop" if (M1_REPORTING_ONLY or not would) else "continue"
-    reason = ("M1 reports gaps only; the loop would " + ("continue" if would else "stop")) if M1_REPORTING_ONLY \
-        else ("new work and novelty remain" if would else "no new work, no novelty, or rounds used up")
+    pool = await asyncio.to_thread(budgets.pool_left, tc.db, inv["id"], settings)
+    # M1: only the budget profile (a case budget, hence a pool) runs a second round; quality's loop is M2 (2.1).
+    reporting_only = M1_REPORTING_ONLY and (pool is None or int(loop["max_rounds"]) <= 1)
+    min_pool = int(loop.get("round2_min_pool") or 0)
+    pool_ok = pool is None or pool >= min_pool
+    decision = "continue" if (would and pool_ok and not reporting_only) else "stop"
+    if reporting_only:
+        reason = "M1 reports gaps only; the loop would " + ("continue" if would else "stop")
+    elif would and not pool_ok:
+        reason = f"new work remains, but the token pool ({pool:,}) is below {min_pool:,}"
+    else:
+        reason = "new work and novelty remain" if would else "no new work, no novelty, or rounds used up"
 
     def commit(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT OR REPLACE INTO gap_reports (investigation_id, round, computed, panel, novelty, decision, "
@@ -248,20 +261,54 @@ async def run(tc) -> Any:
                          "members": [r.model_dump(mode="json") for r in reports], "independence": independence,
                          "merged": merged}), json.dumps({**novelty, "new_work": new_work, "would_continue": would}),
                       decision, reason))
+        if decision == "continue":
+            carry_over(tc.db, conn, inv["id"], rnd + 1, merged)
         tc.db.event(inv["id"], "gaps", f"r{rnd}", stage="gaps", conn=conn, data={
-            "round": rnd, "decision": decision, "would_continue": would, "novelty": novelty["total"],
+            "round": rnd, "decision": decision, "would_continue": would, "novelty": novelty["total"], "pool": pool,
             "new_work": new_work, "contradiction_pairs": len(comp["contradiction_pairs"]),
             "accepted_hypotheses": len(merged["new_hypotheses"]), "accepted_queries": len(merged["follow_up_queries"]),
             **{f"dropped_{k}": v for k, v in merged["dropped"].items()}})
     return commit
 
 
+def carry_over(db, conn: sqlite3.Connection, investigation_id: int, nxt: int, merged: dict) -> None:
+    """Round nxt starts with the accepted hypotheses (origin `gaps`) and the accepted follow-up queries."""
+    keys = {}
+    for h in merged["new_hypotheses"]:
+        keys[h["key"]] = db.insert(conn, "hypotheses", {
+            "investigation_id": investigation_id, "key": h["key"], "title": h["title"],
+            "description": h.get("description"), "kind": "less_common", "prior": "low",
+            "prior_reason": "proposed by the gaps step from claims " + ", ".join(f"C{c}" for c in h["claim_ids"]),
+            "round_added": nxt, "origin": "gaps"}, or_ignore=True)
+    for q in merged["follow_up_queries"]:
+        hid = keys.get(q["hypothesis_key"])
+        if hid is None:
+            row = conn.execute("SELECT id FROM hypotheses WHERE investigation_id = ? AND key = ?",
+                               (investigation_id, q["hypothesis_key"])).fetchone()
+            hid = row["id"] if row else None
+        db.insert(conn, "research_queries", {
+            "investigation_id": investigation_id, "hypothesis_id": hid, "round": nxt, "purpose": "research",
+            "source": q["source"], "query": q["query"], "query_type": q.get("query_type") or "other",
+            "rationale": q.get("rationale"), "origin": "gaps", "attempts": 0, "status": "ready"})
+    # The round itself moves on in the stage transition (on_complete), so this task's key stays the current one.
+
+
 def stage(next_stage: str = "synthesis") -> StageDef:
     def on_enter(sc: StageContext) -> None:
         sc.queue("gaps", f"gaps:r{int(sc.inv['round'])}", {"acquisition_stopped": bool(sc.guards.acquisition_stop)},
                  priority=95)
-    # M1 is reporting only: whatever the decision, the run goes on to synthesis (B4: stop → synthesis).
-    return StageDef("gaps", on_enter=on_enter, on_complete=lambda sc: next_stage)
+
+    def on_complete(sc: StageContext):
+        """B4: continue → the next round's querying; stop → synthesis."""
+        rnd = int(sc.inv["round"])
+        row = sc.conn.execute("SELECT decision FROM gap_reports WHERE investigation_id = ? AND round = ?",
+                              (sc.id, rnd)).fetchone()
+        if row and row["decision"] == "continue":
+            sc.update(round=rnd + 1)
+            sc.event("round", f"r{rnd + 1}")
+            return "querying"
+        return next_stage
+    return StageDef("gaps", on_enter=on_enter, on_complete=on_complete)
 
 
 STEP = StepDef("gaps", run, on_fail="skip")

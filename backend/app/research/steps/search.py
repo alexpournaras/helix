@@ -167,6 +167,61 @@ async def run_seed(tc) -> Any:
     return commit
 
 
+# ---------- targeted citation chasing (budget round 2, PLAN B17.5 item 9) ----------
+
+def seed_papers(conn: sqlite3.Connection, investigation_id: int, n: int) -> list[dict]:
+    """The `n` papers read so far with the most active claims (ties: the earlier read)."""
+    return [_decode(r) for r in conn.execute(
+        "SELECT r.id, r.literature_id, r.candidate_id, COUNT(c.id) AS claims FROM paper_reads r JOIN evidence_claims c "
+        "ON c.read_id = r.id AND c.status = 'active' WHERE r.investigation_id = ? AND r.literature_id IS NOT NULL "
+        "GROUP BY r.id ORDER BY claims DESC, r.id LIMIT ?", (investigation_id, n))]
+
+
+async def run_snowball(tc) -> Any:
+    """Backward references (from the library copy) and Europe PMC citing papers of the top seed papers; PMIDs only,
+    looked up in batches for their abstracts. Shared by ≥ 2 seeds first, then by seed order (B8.9)."""
+    inv = tc.investigation
+    snow = (tc.settings or {}).get("snowball") or {}
+    per_seed = int(snow.get("max_per_seed") or 30)
+    src = sources_for(tc.services)
+    with tc.db.read() as conn:
+        seeds = seed_papers(conn, inv["id"], int(snow.get("max_seeds") or 3))
+        known = {r["pmid"] for r in conn.execute("SELECT pmid FROM candidates WHERE investigation_id = ? AND "
+                                                 "pmid IS NOT NULL", (inv["id"],))}
+    found: dict[str, int] = {}
+    order: list[str] = []
+    for s in seeds:
+        refs: list = []
+        if hasattr(src, "references"):
+            refs += (await src.references(int(s["literature_id"])))[:per_seed]
+        if hasattr(src, "citing"):
+            refs += (await src.citing(int(s["literature_id"]), per_seed))[:per_seed]
+        for ref in refs:
+            pmid = getattr(ref, "pmid", None)
+            if not pmid or pmid in known:
+                continue
+            if pmid not in found:
+                order.append(pmid)
+            found[pmid] = found.get(pmid, 0) + 1
+    ranked = sorted(order, key=lambda p: (-found[p], order.index(p)))
+    articles: list[Article] = []
+    for i in range(0, len(ranked), 25):
+        batch = ranked[i:i + 25]
+        _, got = await src.search("pubmed", " OR ".join(f"{p}[pmid]" for p in batch), len(batch))
+        articles += got
+
+    def commit(conn: sqlite3.Connection) -> None:
+        rnd = int(inv["round"])
+        rank = {p: n for n, p in enumerate(ranked)}
+        for a in articles:
+            upsert(tc.db, conn, inv["id"], rnd, a, query_id=None, rank=rank.get(a.pmid or "", len(rank)),
+                   found_via="snowball")
+        tc.db.event(inv["id"], "snowball", f"r{rnd}", stage="searching", conn=conn, data={
+            "round": rnd, "seeds": [s["id"] for s in seeds], "linked": len(found),
+            "shared": sum(1 for v in found.values() if v > 1), "candidates": len(articles)})
+    return commit
+
+
 def searching_stage(next_stage: str = "prefiltering") -> StageDef:
     def on_enter(sc: StageContext) -> None:
         rnd = int(sc.inv["round"])
@@ -175,6 +230,9 @@ def searching_stage(next_stage: str = "prefiltering") -> StageDef:
             sc.queue("search", f"search:{q['id']}", {"query_id": q["id"]}, priority=50)
         if rnd == 1:
             sc.queue("seed", f"seed:r{rnd}", {}, priority=50)
+        snow = sc.settings.get("snowball") or {}
+        if rnd > 1 and snow.get("enabled") and snow.get("targeted") and rnd in (snow.get("rounds") or []):
+            sc.queue("snowball", f"snowball:r{rnd}", {}, priority=50)
 
     def on_complete(sc: StageContext):
         searches = sc.tasks("search")
@@ -284,3 +342,4 @@ def prefilter_stage(next_stage: str = "screening") -> StageDef:
 SEARCH_STEP = StepDef("search", run_search, on_fail=search_failed)
 SEED_STEP = StepDef("seed", run_seed, on_fail="skip")
 PREFILTER_STEP = StepDef("prefilter", run_prefilter, code_step=True)
+SNOWBALL_STEP = StepDef("snowball", run_snowball, on_fail="skip")

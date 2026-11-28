@@ -59,7 +59,7 @@ class ProfileTests(unittest.TestCase):
     def test_every_model_calling_step_has_a_stage_group(self):
         pipeline, _ = build_pipeline()
         model_steps = {name for name, step in pipeline.steps.items() if not step.code_step}
-        missing = model_steps - set(budgets.STAGE_GROUPS) - {"search", "seed", "fetch", "group", "safety_finalize"}  # no model calls
+        missing = model_steps - set(budgets.STAGE_GROUPS) - {"search", "seed", "snowball", "fetch", "group", "safety_finalize"}  # no model calls
         self.assertEqual(missing, set())
 
 

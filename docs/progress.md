@@ -52,9 +52,9 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1R.1 Budget profile (default; B17.2 values and B17.3 roles with per-role output caps), stage groups, acquisition rule with protected reserves, `budget_skip` / `budget_over` events, B10 rule ignores budget skips, privacy modes, `same_model` label; eval cases on `budget`; `low` effort probed live (accepted, 243 tokens via the ledger)
   - [x] 1R.2 Grounding reuse (`knowledge_cache`, schema 2; hit = no model calls; `ok` 180 days, `gap` 30 days only after a full search; operational failures not cached) and the 2-new-complaints cap with the "not grounded: token budget" gap and `broad_case` event; doctor line + `--clear-knowledge-cache` (7 tests)
   - [x] 1R.3 Code ranking before screening (`screening.prerank`, `round_caps` 300/100) in the prefilter; one screener, batches of 20 (2 tests)
-  - [ ] 1R.4 Reading and verification in budget — code done 2026-11-28: section-priority packs, `read.assess` (one call), `read.claims.v2` coverage prompt, single-verifier mode with second opinions on triggers and a seeded 5% audit, `verification_mode`, fit/confirm limits from settings (11 tests); open: the X3 single-extraction re-run score
+  - [ ] 1R.4 Reading and verification in budget — code done 2026-11-28: section-priority packs, `read.assess` (one call), `read.claims.v2` coverage prompt, single-verifier mode with second opinions on triggers and a seeded 5% audit, `verification_mode`, fit/confirm limits from settings (11 tests); X3 single-extraction re-run with `read.claims.v2`: **24/27 = 89% coverage (target met)**, 91 claims vs 21, 486k tokens incl. retries (fixed: 32k output, 25 claims; docs/spikes.md). Open: the live `read` cost in 1R.5
   - [ ] 1R.5 Budget eval (+ X6) — code done 2026-11-28: `eval.run` reports tokens per stage group vs the targets, protected reserves left, over-target groups and the audit disagreement rate; `--compare` per group (2 tests). Open: the live check to `reading` and to `gaps`, then X6
-  - [ ] 1R.6 Second round from the pool
+  - [x] 1R.6 Second round from the pool: pool check in the gaps decision, carry-over of new hypotheses and follow-up queries, round 2 queries only for new hypotheses, targeted citation chasing (`snowball:r2`), selection sized to the pool (6 tests)
   - [x] 1R.7 Safety clearance in every safety review (`panel.clearance`: emergency / unresolved / urgent / passed, with the open emergency and urgent items); `ranking_allowed()` for 1F, which withholds the ranking and leads the report with the open items (3 tests)
   - [ ] 1R.8 End-to-end quota validation (after 1F; cold and warm cache)
 - [ ] 1F Report
@@ -71,7 +71,7 @@ order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profi
 |---|---|---|---|
 | 1 | X9 run 2 + attestation review | 2.13M | done 2026-11-27 (recall 80/80, attestations 96.4%) |
 | 2 | X3 dual extraction + hand pairing + `score` | 291k | done 2026-11-28 (see 1A.11) |
-| 2b | X3 single-extraction re-run with `read.claims.v2` (1R.4) | ~0.15M | with 1R.4 |
+| 2b | X3 single-extraction re-run with `read.claims.v2` (1R.4) | 486k | done 2026-11-28: 24/27 (89%) |
 | 3 | Probe `low` effort on `gpt-5.4-mini` | 243 | done 2026-11-28 (accepted) |
 | 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
 | 5 | One case `--stop-at reading`, then to `gaps` (1R.5) | ~0.6–0.8M, then ~0.3M | after 1R.4 |

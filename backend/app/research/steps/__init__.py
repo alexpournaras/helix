@@ -47,7 +47,8 @@ def build_pipeline(ctx: Any = None, *, stop_at: str | None = None) -> tuple[Pipe
              "screen": screen.SCREEN_STEP, "select": screen.SELECT_STEP, "fetch": screen.FETCH_STEP, "read": read.STEP,
              "verify": verification.VERIFY_STEP, "reread": verification.REREAD_STEP,
              "map": evidence.MAP_STEP, "group": evidence.GROUP_STEP, "confirm": evidence.CONFIRM_STEP, "matrix": assess.MATRIX_STEP, "fit": assess.FIT_STEP,
-             "analysis": assess.ANALYSIS_STEP, "gaps": gaps.STEP}
+             "analysis": assess.ANALYSIS_STEP, "gaps": gaps.STEP,
+             "snowball": search.SNOWBALL_STEP}
     resolvers: dict[str, Callable] = {
         "problem_rewrite": lambda case, inv: intake.rewrite(case.rewrite) if getattr(case, "rewrite", None) else None,
         "safety_ack": lambda case, inv: safety.acknowledge() if getattr(case, "acknowledge", True) else None,

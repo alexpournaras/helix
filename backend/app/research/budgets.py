@@ -117,3 +117,14 @@ def over_targets(usage: dict, budget: dict) -> list[str]:
     if final and sum(usage.get(g, 0) for g in FINALIZATION_GROUPS) > final:
         over.append("finalization")
     return over
+
+
+def pool_left(db: ResearchDB, investigation_id: int, settings: dict) -> int | None:
+    """Tokens the case can still spend on acquisition (B17.4 pool): cap − used − protected reserves unspent.
+    None without a case budget (the round-2 rule doesn't apply)."""
+    budget = settings.get("budget") or {}
+    cap = (settings.get("guards") or {}).get("max_tokens")
+    if not cap or not (budget.get("targets") or budget.get("protected")):
+        return None
+    usage = group_usage(db, investigation_id)
+    return max(0, int(cap) - usage["total"] - protected_unspent(usage, budget))

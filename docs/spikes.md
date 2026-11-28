@@ -219,3 +219,24 @@ primary and secondary outcome result, null and non-significant results, harms, a
 hypothesis, each as its own claim. Then a single-extraction re-run on these 6 papers (about 0.15M tokens) is scored
 against the 27-finding union: **target ≥ 24/27 (≥ 89%)**. If it misses, B17.7's fallback applies (a second
 extraction for results sections only).
+
+### X3 re-run: one extractor with `read.claims.v2` (2026-11-28, task 1R.4)
+
+`x3_dual_extraction run --profile budget --single --claims read.claims.v2`: one extractor (`gpt-5.4-mini`, medium),
+16k packs (PMC10764899 became 2 packs), the coverage prompt. Claims in `results/x3/pairs.budget-single-v2.md`.
+
+**Coverage, scored by hand against the 27 distinct findings the two `v1` extractors found together: 24/27 (89%), at
+the target (≥ 24/27).** Per paper: PMC9891135 4/6, PMC5615572 6/6, PMC7388434 3/3, PMC5036209 4/4, PMC7016109 2/3,
+PMC10764899 5/5. The three misses are not study results: a discussion statistic (19% of tinnitus cases had no prior
+hearing-loss diagnosis), a background statement (hearing loss is the main risk factor) and the patient flow of the
+gluten trial (452 → 193 → 77). The null railway result, the secondary outcomes, the harms and the non-responders that a
+single `v1` extractor missed are all in. The extractor now lists **91 claims** where each `v1` extractor listed 21:
+every outcome, arm and time point (PMC10764899 alone: 30).
+
+**Cost: 486k tokens, $1.23**, 18 calls: 7 first calls, 6 truncation retries and 5 repairs. With 16k of output the
+coverage prompt plus reasoning was cut off, and more than 15 claims per pack failed the limit. The budget profile now
+gives `read.claims` 32k and allows 25 claims per pack (decision 2026-11-28), so one call per pack is expected. About
+35–45k tokens per pack follows from the first calls (15k in, 11–19k out); that is more than B17.4's 24k, and 4× the
+claims also means more verification and mapping. The 1R.5 live check measures the `read` group against its 650k
+target; if it is over, the levers are fewer claims per pack (results only, no background) before fewer papers.
+

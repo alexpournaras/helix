@@ -81,6 +81,20 @@ class LiteratureSources:
             raise LookupError(f"literature item {literature_id} is not in the library")
         return Fetched(literature_id, full, full.details, from_library=True)
 
+    async def references(self, literature_id: int) -> list:
+        """Backward references of a library paper (kept by enrich, B8.9)."""
+        return await _library_refs(self._lib(), literature_id)
+
+    async def citing(self, literature_id: int, limit: int) -> list:
+        """Europe PMC works citing a library paper (forward, B8.9)."""
+        from app.literature.enrich import _epmc_key, _ref_list
+        full = self._lib().get_full(literature_id)
+        key = _epmc_key(full) if full else None
+        if not key:
+            return []
+        async with transport.client(timeout=SEARCH_TIMEOUT) as client:
+            return await _ref_list(client, f"/{key[0]}/{key[1]}/citations", "citationList", "citation", limit)
+
     async def fetch(self, article: Article, investigation_id: int) -> Fetched:
         from app.literature.enrich import enrich
         from app.literature.sources import REGISTRY
@@ -97,6 +111,11 @@ class LiteratureSources:
             base, details = await enrich(client, base, details, citations=False)
         literature_id, _ = lib.save_article(base, tags=[tag], details=details, tag_origin="ai")
         return Fetched(literature_id, base, details)
+
+
+async def _library_refs(lib, literature_id: int) -> list:
+    full = lib.get_full(literature_id)
+    return list(full.details.references or []) if full and full.details else []
 
 
 def sources_for(services: Any) -> Sources:

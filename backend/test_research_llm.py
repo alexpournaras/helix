@@ -387,7 +387,8 @@ class PreflightTests(ResearchTestCase):
 
     def test_all_probed_passes_with_full_independence(self):
         self.probe_all([S.ASTRA, S.SOL, S.FABLE, S.OPUS, S.SONNET])
-        result = preflight.run(S.build("quality", {"privacy": {"openai_project_shares_data": False}}),
+        result = preflight.run(S.build("quality", {"privacy": {"openai_project_shares_data": False, "mode": "private_real", "private_daily_tokens": 2000000,
+                                 "private_daily_usd": 10}}),
                                self.providers, self.store, synthetic=False)
         self.assertTrue(result.ok, result.errors)
         self.assertEqual(result.independence["verify"], "full")
@@ -400,11 +401,25 @@ class PreflightTests(ResearchTestCase):
         sharing = S.build("quality", {"privacy": {"openai_project_shares_data": True}})
         self.assertFalse(preflight.run(sharing, self.providers, self.store, synthetic=False).ok)
         self.assertTrue(preflight.run(sharing, self.providers, self.store, synthetic=True).ok)
+        # shared_synthetic (the default mode, B17.1) blocks real text even on a project that doesn't share
+        not_sharing = S.build("quality", {"privacy": {"openai_project_shares_data": False}})
+        blocked = preflight.run(not_sharing, self.providers, self.store, synthetic=False)
+        self.assertTrue(any("shared_synthetic" in e for e in blocked.errors))
+        # private_real: needs its ceilings, and a project without data sharing
+        with self.assertRaises(ValueError):
+            S.build("quality", {"privacy": {"mode": "private_real"}})
+        private = S.build("quality", {"privacy": {"openai_project_shares_data": False, "mode": "private_real", "private_daily_tokens": 2000000,
+                                 "private_daily_usd": 10}})
+        self.assertTrue(preflight.run(private, self.providers, self.store, synthetic=False).ok)
+        private_sharing = S.build("quality", {"privacy": {"openai_project_shares_data": True, "mode": "private_real",
+                                                          "private_daily_tokens": 2000000, "private_daily_usd": 10}})
+        self.assertFalse(preflight.run(private_sharing, self.providers, self.store, synthetic=False).ok)
 
     def test_single_provider_warns_same_family(self):
         self.providers["anthropic"] = FakeProvider("anthropic", has_key=False)
         self.probe_all([S.ASTRA, S.SOL, S.LUNA])
-        result = preflight.run(S.build("quality", {"privacy": {"openai_project_shares_data": False}}),
+        result = preflight.run(S.build("quality", {"privacy": {"openai_project_shares_data": False, "mode": "private_real", "private_daily_tokens": 2000000,
+                                 "private_daily_usd": 10}}),
                                self.providers, self.store, synthetic=False)
         self.assertTrue(result.ok, result.errors)
         self.assertEqual(result.independence["verify"], "same_family")

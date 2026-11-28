@@ -95,11 +95,12 @@ async def panel(ctx: CallContext, role: str, schema: type[T], system: str, user:
                     subs.append(f"{ref.label()} → {replacement.label()} (avoid extractor)")
                     chosen[i] = replacement
             if len(chosen) > 1 and len({c.family for c in chosen}) == 1 and independence == "full":
-                independence = "same_family"
+                independence = "same_model" if len({c.model for c in chosen}) == 1 else "same_family"
     else:
         chosen = list(members)
         independence = "single" if len(chosen) == 1 else (
-            "full" if len({c.family for c in chosen}) > 1 else "same_family")
+            "full" if len({c.family for c in chosen}) > 1 else
+            "same_model" if len({c.model for c in chosen}) == 1 else "same_family")
         subs = []
     users = list(user) if not isinstance(user, str) else [user] * len(chosen)
     if len(users) != len(chosen):

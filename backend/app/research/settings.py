@@ -35,6 +35,7 @@ class ModelRef(Strict):
     model: str
     effort: str | None = None
     provider: Provider | None = None
+    max_output_tokens: int | None = None  # per-role output cap (budget, B17.3); None = the provider setting
 
     @model_validator(mode="after")
     def _provider(self) -> "ModelRef":
@@ -56,8 +57,11 @@ class RoleSpec(Strict):
     fallback: list[ModelRef] = Field(default_factory=list)
 
 
-def _m(model: str, effort: str | None = None) -> dict:
-    return {"model": model, "effort": effort}
+def _m(model: str, effort: str | None = None, max_out: int | None = None) -> dict:
+    ref: dict[str, Any] = {"model": model, "effort": effort}
+    if max_out:
+        ref["max_output_tokens"] = max_out
+    return ref
 
 
 ASTRA, SOL, LUNA = "gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna"
@@ -97,6 +101,10 @@ QUALITY_ROLES: dict[str, dict] = {
     "read.whole_paper": _role(_m(FABLE, "high"), fallback=[_m(ASTRA, "high"), _m(OPUS, "high")]),
     "read.reconcile": _role(_m(SOL, "high"), fallback=_FB_A_MID),
     "read.applicability": _role(_m(OPUS, "high"), fallback=_FB_B_STRONG),
+    # Budget roles (PLAN B17.3); defined here too so every profile has them.
+    "read.assess": _role(_m(OPUS, "high"), fallback=_FB_B_STRONG),
+    "verify.second": _role(_m(SOL, "high"), fallback=_FB_A_MID),
+    "critic.combined": _role(_m(ASTRA, "high"), fallback=_FB_A_STRONG),
     "verify": _role(_m(SONNET, "high"), _m(SOL, "high"), fallback=[_m(HAIKU, "high"), _m(LUNA, "high")]),
     "map": _role(_m(SOL, "high"), fallback=_FB_A_MID),
     "fit": _role(_m(OPUS, "high"), fallback=_FB_B_STRONG),
@@ -135,7 +143,8 @@ QUALITY: dict[str, Any] = {
                   "max_results_per_query": 25, "max_screened": 40, "pack_tokens": 32000,
                   "max_packs_per_source": None},
     "knowledge": {"curated_packs": "auto", "universal_floor_version": "latest"},
-    "privacy": {"openai_project_shares_data": None, "store_prompts": False, "purge_payloads_after_days": None},
+    "privacy": {"openai_project_shares_data": None, "store_prompts": False, "purge_payloads_after_days": None,
+                "mode": "shared_synthetic", "private_daily_tokens": None, "private_daily_usd": None},
     "autonomy": "review_plan",
     "safety": {"allow_continue_after_urgent": True, "allow_continue_after_emergency": False},
     "questions": {"max_per_round": 10, "max_rounds": 2, "max_gap_rounds": 1},
@@ -182,6 +191,10 @@ QUALITY: dict[str, Any] = {
     "concurrency": {"max_parallel_tasks": 8, "openai": 16, "anthropic": 16, "ollama": 1},
     # Daily token ceiling enforced by Helix (PLAN B17.1, quota.py): OpenAI's complimentary quota is 2.5M per UTC
     # day and anything beyond it is billed. `model_pin`: the dated snapshot eval runs use (set in 1R.0).
+    "verification": {"batch_size": 10, "audit_rate": 0.0, "second_opinion": []},
+    "fit": {"max_claims": 40},
+    # Case budget (PLAN B17.4): empty = no stage targets or protected reserves (only the guards apply).
+    "budget": {},
     "quota": {"providers": ["openai"], "daily_ceiling_tokens": 2400000, "model_pin": "gpt-5.4-mini-2026-03-17"},
 }
 
@@ -328,11 +341,76 @@ def local_model_overlay(model: str, *, thinking: bool = True, num_ctx: int = 327
             "grounding": {"pack_tokens": pack_tokens}, "extraction": {"max_pack_tokens": pack_tokens}}
 
 
-PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"quality": dict, "balanced": _balanced, "economy": _economy,
+# ---------- budget (PLAN B17, the default) ----------
+
+BUDGET_GROUPS = ("intake_safety", "grounding", "plan", "screen", "read", "assess", "report")
+SECOND_OPINION_TRIGGERS = ("code_flag", "unsure", "strong_link", "number_in_conclusion", "causal", "red_flag",
+                           "rank_changing", "recommendation")
+# B17.3: role -> (effort, max output). Safety has two members (high + medium); every other role one.
+BUDGET_ROLES: dict[str, tuple[str, int]] = {
+    "intake": ("medium", 16000), "brief_update": ("medium", 16000), "brief_check": ("medium", 8000),
+    "grounding.queries": ("low", 8000), "grounding.merge": ("low", 8000), "grounding.screen": ("low", 8000),
+    "grounding.extract": ("medium", 16000), "grounding.verify": ("medium", 8000), "questions": ("medium", 8000),
+    "plan": ("medium", 16000), "plan.consolidate": ("medium", 16000), "queries": ("low", 8000),
+    "screen": ("low", 8000), "read.assess": ("medium", 8000), "read.claims": ("medium", 16000),
+    "verify": ("medium", 8000), "verify.second": ("high", 8000), "map": ("low", 8000), "fit": ("medium", 16000),
+    "analysis": ("medium", 16000), "gaps": ("medium", 16000), "synthesis": ("high", 32000),
+    "revise": ("high", 32000), "critic.combined": ("medium", 16000), "support_check": ("low", 8000),
+    "final_check": ("high", 16000), "pack_draft": ("high", 32000),
+}
+
+
+def _budget() -> dict:
+    """The default profile (PLAN B17): one case within 2.4M tokens on gpt-5.4-mini."""
+    roles: dict[str, dict] = {}
+    for name in QUALITY_ROLES:
+        effort, max_out = BUDGET_ROLES.get(name, ("medium", 16000))  # unused quality roles: medium, 16k
+        roles[name] = {"members": [_m(DEV_OPENAI, effort, max_out)], "fallback": []}
+    roles["safety"] = {"members": [_m(DEV_OPENAI, "high", 16000), _m(DEV_OPENAI, "medium", 16000)], "fallback": []}
+    return {
+        "roles": roles,
+        "strongest": {"openai": _m(DEV_OPENAI, "high", 16000)},
+        "providers": {"openai": {"max_output_tokens": 16000}},
+        "ensembles": {"dual_screening": False, "dual_extraction": False, "whole_paper_pass": False,
+                      "verify_panel": 1, "adjudicate": True, "appraisal_panel": False, "planners": 1,
+                      "gaps_panel": False, "critics": ["combined"], "final_check": True,
+                      "dual_knowledge_extraction": False},
+        "grounding": {"max_sources_per_complaint": 2, "max_packs_per_source": 2, "max_results_per_query": 15,
+                      "max_screened": 24, "max_new_complaints": 2,
+                      "reuse": {"enabled": True, "max_age_days": 180, "gap_max_age_days": 30}},
+        "questions": {"max_per_round": 10, "max_rounds": 1, "max_gap_rounds": 0},
+        "plan": {"min_hypotheses": 5, "max_hypotheses": 8},
+        "search": {"sources": ["europepmc", "pubmed"], "max_queries_per_hypothesis": 4, "results_per_query": 50,
+                   "max_refinements": 1},
+        "snowball": {"enabled": True, "targeted": True, "max_seeds": 3, "max_per_seed": 30, "rounds": [2]},
+        "fulltext": {"unpaywall": False},
+        "screening": {"batch_size": 20, "abstract_chars": 1500},
+        "selection": {"max_fulltext_papers_per_round": 10, "round2_max_papers": 6, "min_papers_per_hypothesis": 1},
+        "extraction": {"max_pack_tokens": 16000, "max_packs_per_paper": 2, "pack_priority": True,
+                       "max_claims_per_pack": 15},
+        "verification": {"batch_size": 10, "audit_rate": 0.05, "second_opinion": list(SECOND_OPINION_TRIGGERS)},
+        "confirm": {"per_hypothesis": 3, "max_claims": 30},
+        "fit": {"max_claims": 20},
+        "weights": {"single_extractor": 1.0},
+        "review": {"max_iterations": 1},
+        "loop": {"max_rounds": 2, "min_novelty": 1, "round2_min_pool": 260000},
+        "guards": {"max_total_papers": 16, "max_screened": 400, "max_wall_minutes": 240, "reserve": 0,
+                   "max_tokens": 2400000, "max_cost_usd": None},
+        "concurrency": {"max_parallel_tasks": 8, "openai": 8},
+        "budget": {"targets": {"intake_safety": 150000, "grounding": 400000, "plan": 80000, "screen": 200000,
+                               "read": 650000},
+                   "protected": {"finalization": 650000, "retry": 150000},
+                   # Reservation per acquisition task, checked before it starts (B17.4 acquisition rule).
+                   "task_estimates": {"ground": 400000, "screen": 15000, "read": 80000}},
+    }
+
+
+PROFILE_OVERLAYS: dict[str, Callable[[], dict]] = {"budget": _budget, "quality": dict, "balanced": _balanced, "economy": _economy,
                                                    "dev": _dev, "dev_openai": _dev_openai,
                                                    "dev_ollama": _dev_ollama}
 PROFILE_DESCRIPTIONS = {
-    "quality": "Strongest model for every judgment, full ensembles, up to 5 rounds (default).",
+    "budget": "Default (PLAN B17): one case within 2.4M tokens on gpt-5.4-mini; single extraction and screening, second opinions on triggers, protected reserves, a second round from the pool.",
+    "quality": "Strongest model for every judgment, full ensembles, up to 5 rounds (PLAN v7, QUALITY.md).",
     "balanced": "sol and opus for most roles, single extraction, one critic, 3 rounds, 15 papers per round.",
     "economy": "One efficient model per role, no ensembles except the safety panel, 1 round, 10 papers.",
     "dev": "Development only: gpt-5.4-mini (family A) + a local Ollama model (family B), quality structure.",
@@ -358,15 +436,15 @@ class EnsemblesCfg(Strict):
     appraisal_panel: bool
     planners: int = Field(ge=1, le=3)
     gaps_panel: bool
-    critics: list[Literal["evidence", "safety", "reasoning"]]
+    critics: list[Literal["evidence", "safety", "reasoning", "combined"]]
     final_check: bool
     dual_knowledge_extraction: bool
 
     @field_validator("critics")
     @classmethod
     def _safety_critic(cls, v: list[str]) -> list[str]:
-        if "safety" not in v:
-            raise ValueError("The safety critic always runs (B15).")
+        if "safety" not in v and "combined" not in v:
+            raise ValueError("The safety critic always runs (B15; `combined` includes it).")
         return v
 
 
@@ -374,6 +452,17 @@ class PrivacyCfg(Strict):
     openai_project_shares_data: bool | None
     store_prompts: bool
     purge_payloads_after_days: int | None
+    # Operating mode (PLAN B17.1): synthetic cases on the data-sharing quota, or real cases on a billed project.
+    mode: Literal["shared_synthetic", "private_real"] = "shared_synthetic"
+    private_daily_tokens: int | None = None
+    private_daily_usd: float | None = None
+
+    @model_validator(mode="after")
+    def _private_ceilings(self) -> "PrivacyCfg":
+        if self.mode == "private_real" and not (self.private_daily_tokens and self.private_daily_usd):
+            raise ValueError("private_real mode needs both privacy.private_daily_tokens and "
+                             "privacy.private_daily_usd (PLAN B17.1).")
+        return self
 
 
 class SafetyCfg(Strict):
@@ -408,7 +497,7 @@ class GuardsCfg(Strict):
 
 
 class ResearchSettings(Strict):
-    profile: Literal["quality", "balanced", "economy", "dev", "dev_openai", "dev_ollama"]
+    profile: Literal["budget", "quality", "balanced", "economy", "dev", "dev_openai", "dev_ollama"]
     roles: dict[str, RoleSpec]
     strongest: dict[str, ModelRef]
     providers: ProvidersCfg
@@ -440,6 +529,9 @@ class ResearchSettings(Strict):
     loop: dict[str, Any]
     guards: GuardsCfg
     concurrency: dict[str, int]
+    verification: dict[str, Any]
+    fit: dict[str, Any]
+    budget: dict[str, Any]
     quota: dict[str, Any]
 
     @model_validator(mode="after")
@@ -449,6 +541,18 @@ class ResearchSettings(Strict):
             raise ValueError(f"Missing roles: {', '.join(sorted(missing))}.")
         if len(self.roles["safety"].members) < 2:
             raise ValueError("The safety panel needs two models in every profile (B15).")
+        targets = (self.budget or {}).get("targets") or {}
+        protected = (self.budget or {}).get("protected") or {}
+        unknown = set(targets) - set(BUDGET_GROUPS)
+        if unknown:
+            raise ValueError(f"budget.targets: unknown stage groups {', '.join(sorted(unknown))}.")
+        if set(protected) - {"finalization", "retry"}:
+            raise ValueError("budget.protected takes `finalization` and `retry`.")
+        if any(not isinstance(v, int) or v <= 0 for v in [*targets.values(), *protected.values()]):
+            raise ValueError("budget targets and reserves must be positive integers (tokens).")
+        triggers = set((self.verification or {}).get("second_opinion") or [])
+        if triggers - set(SECOND_OPINION_TRIGGERS):
+            raise ValueError("verification.second_opinion: unknown " + ", ".join(sorted(triggers - set(SECOND_OPINION_TRIGGERS))) + ".")
         families = {m.family for spec in self.roles.values() for m in spec.members}
         for family in families & {"openai", "anthropic", "ollama"}:
             if family not in self.strongest:
@@ -473,7 +577,7 @@ def deep_merge(base: dict, overlay: dict) -> dict:
     return out
 
 
-def build(profile: str = "quality", overrides: dict | None = None) -> ResearchSettings:
+def build(profile: str = "budget", overrides: dict | None = None) -> ResearchSettings:
     if profile not in PROFILE_OVERLAYS:
         raise ValueError(f"Unknown profile {profile!r}.")
     merged = deep_merge(QUALITY, PROFILE_OVERLAYS[profile]())
@@ -493,7 +597,7 @@ def profiles() -> list[dict]:
 class ResolvedRole(BaseModel):
     role: str
     members: list[ModelRef]
-    independence: Literal["full", "same_family", "reduced", "single"]
+    independence: Literal["full", "same_family", "same_model", "reduced", "single"]
     substitutions: list[str] = []
 
 
@@ -533,6 +637,8 @@ def resolve_role(settings: ResearchSettings, role: str, available: Callable[[Mod
         independence = "single"
     elif lost:
         independence = "reduced"
+    elif len({m.model for m in chosen}) == 1:
+        independence = "same_model"  # one model at two efforts (B17.3)
     elif len({m.family for m in chosen}) == 1:
         independence = "same_family"
     else:
@@ -567,9 +673,9 @@ class SettingsStore:
     def load(self) -> ResearchSettings:
         data = self.raw()
         try:
-            return build(data.get("profile", "quality"), data.get("overrides") or {})
+            return build(data.get("profile", "budget"), data.get("overrides") or {})
         except (ValidationError, ValueError):
-            return build("quality")
+            return build("budget")
 
     def save(self, profile: str, overrides: dict | None) -> ResearchSettings:
         result = build(profile, overrides or {})  # raises on invalid input
@@ -581,4 +687,4 @@ class SettingsStore:
         return result
 
     def reset(self) -> ResearchSettings:
-        return self.save("quality", {})
+        return self.save("budget", {})

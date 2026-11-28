@@ -2,7 +2,7 @@
 id: ent.tinnitus-greek
 system: ent
 synthetic: true
-profile: dev_openai
+profile: budget
 problem_text: >
   Συνθετική περίπτωση. Εδώ και δύο μήνες ακούω βουητό και στα δύο αυτιά. Είμαι 71 ετών και παίρνω
   βαρφαρίνη για την καρδιά μου.

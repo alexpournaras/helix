@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sqlite3
 import traceback
@@ -20,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from . import budgets
 from .db import ResearchDB, now
 from .lock import InstanceLock, LockHeld
 from .pipeline import Fail, Machine, Pipeline, status_values
@@ -172,6 +174,15 @@ class Worker:
                                     force_fail=True)
             await self.machine.advance(task["investigation_id"])
             return
+        settings = inv.get("settings_snapshot") or {}
+        if isinstance(settings, str):
+            settings = json.loads(settings)
+        refusal = await asyncio.to_thread(budgets.acquisition_refusal, self.db, task["investigation_id"],
+                                          task["step"], settings)
+        if refusal:
+            await asyncio.to_thread(self._budget_skip, task, refusal)
+            await self.machine.advance(task["investigation_id"])
+            return
         tc = TaskContext(self.db, task, inv, self.services)
         try:
             commit = await step.run(tc)
@@ -191,6 +202,8 @@ class Worker:
                 trace = traceback.format_exc(limit=8)
                 await asyncio.to_thread(self._apply_failure, task, "bug", f"{exc.__class__.__name__}: {exc}\n{trace}",
                                         force_fail=True)
+        if (settings.get("budget") or {}).get("targets"):
+            await asyncio.to_thread(self._budget_over, task, settings["budget"])
         await self.machine.advance(task["investigation_id"])
 
     def _commit(self, task: dict, commit: Callable[[sqlite3.Connection], None] | None) -> None:
@@ -219,6 +232,31 @@ class Worker:
             self._requeue(task, 0, exc)
             return
         self._apply_failure(task, exc.kind, exc.message)
+
+    def _budget_skip(self, task: dict, reason: str) -> None:
+        """B17.4: the case budget can't cover this acquisition task; skip it (not counted by the B10 rule)."""
+        with self.db.tx() as conn:
+            current = conn.execute("SELECT status FROM research_tasks WHERE id = ?", (task["id"],)).fetchone()
+            if current is None or current["status"] != "running":
+                return
+            self.db.finish_task(conn, task["id"], "skipped", error="token budget", error_kind="budget",
+                                skip_reason=reason)
+            inv = conn.execute("SELECT stage FROM investigations WHERE id = ?", (task["investigation_id"],)).fetchone()
+            self.db.event(task["investigation_id"], "budget_skip", f"{task['step']}: {reason}", level="warning",
+                          stage=inv["stage"] if inv else None, data={"task_id": task["id"]}, conn=conn)
+
+    def _budget_over(self, task: dict, budget: dict) -> None:
+        """A `budget_over` event, once per group, when a stage group passes its target (B17.4)."""
+        over = budgets.over_targets(budgets.group_usage(self.db, task["investigation_id"]), budget)
+        if not over:
+            return
+        with self.db.tx() as conn:
+            seen = {r["message"] for r in conn.execute(
+                "SELECT message FROM events WHERE investigation_id = ? AND kind = 'budget_over'",
+                (task["investigation_id"],))}
+            for group in over:
+                if group not in seen:
+                    self.db.event(task["investigation_id"], "budget_over", group, level="warning", conn=conn)
 
     def _quota_wait(self, task: dict, exc: ModelError) -> None:
         """The day's token ceiling was reached (B17.1): the task waits for the 00:00 UTC reset without using up an

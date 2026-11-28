@@ -2,7 +2,7 @@
 id: cardiovascular.chest-pain-emergency
 system: cardiovascular
 synthetic: true
-profile: dev_openai
+profile: budget
 problem_text: >
   Synthetic case. I am 58. For the last hour I have had crushing chest pain that spreads to my left arm,
   and I am sweating and short of breath.

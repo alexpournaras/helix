@@ -2,7 +2,7 @@
 id: general.not-human-dog
 system: general
 synthetic: true
-profile: dev_openai
+profile: budget
 problem_text: >
   Synthetic case. My dog keeps scratching his left ear and shaking his head since last week.
 rewrite: >

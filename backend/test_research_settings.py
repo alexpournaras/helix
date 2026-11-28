@@ -26,7 +26,7 @@ class ProfileTests(unittest.TestCase):
         for name in S.PROFILE_OVERLAYS:
             s = S.build(name)
             self.assertGreaterEqual(len(s.roles["safety"].members), 2, name)
-            self.assertIn("safety", s.ensembles.critics, name)
+            self.assertTrue({"safety", "combined"} & set(s.ensembles.critics), name)  # combined includes safety
             self.assertEqual(set(s.roles), set(S.QUALITY_ROLES), name)
 
     def test_profile_differences(self):
@@ -71,7 +71,7 @@ class DevOpenAITests(unittest.TestCase):
             if len(role.members) == 2:
                 res = S.resolve_role(st, name, lambda ref: True)
                 self.assertEqual(len(res.members), 2, name)  # same model, two efforts → two members
-                self.assertEqual(res.independence, "same_family", name)
+                self.assertEqual(res.independence, "same_model", name)  # one model at two efforts
         self.assertEqual([m.effort for m in st.roles["safety"].members], ["high", "medium"])
         self.assertEqual(st.roles["brief_check"].members[0].effort, "medium")  # a family-B role
         self.assertFalse(st.providers.ollama["enabled"])
@@ -101,7 +101,7 @@ class LocalModelOverlayTests(unittest.TestCase):
         st = S.build("dev_ollama", S.local_model_overlay("qwen3:4b", num_ctx=24576, pack_tokens=10000))
         self.assertEqual({m.model for r in st.roles.values() for m in r.members}, {"qwen3:4b"})
         safety = S.resolve_role(st, "safety", lambda ref: True)
-        self.assertEqual(([m.effort for m in safety.members], safety.independence), (["high", "none"], "same_family"))
+        self.assertEqual(([m.effort for m in safety.members], safety.independence), (["high", "none"], "same_model"))
         self.assertEqual(st.strongest["ollama"].model, "qwen3:4b")
         self.assertEqual((st.providers.ollama["num_ctx"], st.grounding["pack_tokens"], st.extraction["max_pack_tokens"]),
                          (24576, 10000, 10000))
@@ -149,19 +149,19 @@ class ResolutionTests(unittest.TestCase):
 class StoreTests(ResearchTestCase):
     def test_save_load_reset(self):
         store = S.SettingsStore(self.tmp / "research.json")
-        self.assertEqual(store.load().profile, "quality")
+        self.assertEqual(store.load().profile, "budget")  # the default (PLAN B17)
         store.save("balanced", {"guards": {"max_total_papers": 30}})
         loaded = store.load()
         self.assertEqual((loaded.profile, loaded.guards.max_total_papers), ("balanced", 30))
         with self.assertRaises(ValidationError):
             store.save("quality", {"guards": {"reserve": 2}})
         self.assertEqual(store.load().profile, "balanced")  # failed save leaves the file untouched
-        self.assertEqual(store.reset().profile, "quality")
+        self.assertEqual(store.reset().profile, "budget")
 
-    def test_corrupt_file_falls_back_to_quality(self):
+    def test_corrupt_file_falls_back_to_the_default(self):
         path = self.tmp / "research.json"
         path.write_text("{not json", "utf-8")
-        self.assertEqual(S.SettingsStore(path).load().profile, "quality")
+        self.assertEqual(S.SettingsStore(path).load().profile, "budget")
 
 
 if __name__ == "__main__":

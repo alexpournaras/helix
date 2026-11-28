@@ -224,6 +224,9 @@ class Machine:
             rows = sc.tasks(step)
             if not rows:
                 continue
+            rows = [r for r in rows if not str(r.get("skip_reason") or "").startswith("budget:")]  # B17.4
+            if not rows:
+                continue
             skipped = sum(1 for r in rows if r["status"] == "skipped")
             if skipped * 2 > len(rows):
                 return f"More than half of the {step} tasks were skipped ({skipped} of {len(rows)})."

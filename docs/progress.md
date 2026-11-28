@@ -49,7 +49,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1E.6 Gaps panel (reporting only; fake-model tests)
 - [ ] 1R Budget rework (PLAN B17 v9, decisions 2026-11-28): one case within 2.4M, ledger-enforced daily ceiling
   - [x] 1R.0 Daily quota ledger: `quota.py`, reservation before every provider call, `npm run research:quota`, doctor line, worker waits for the UTC reset (14 tests); model snapshot `gpt-5.4-mini-2026-03-17` recorded
-  - [ ] 1R.1 Budget profile, stage targets, protected reserves, pool
+  - [x] 1R.1 Budget profile (default; B17.2 values and B17.3 roles with per-role output caps), stage groups, acquisition rule with protected reserves, `budget_skip` / `budget_over` events, B10 rule ignores budget skips, privacy modes, `same_model` label; eval cases on `budget`; `low` effort probed live (accepted, 243 tokens via the ledger)
   - [ ] 1R.2 Grounding reuse and several complaints
   - [ ] 1R.3 Single screener and ranking
   - [ ] 1R.4 Reading and verification in budget (triggers, audit)
@@ -72,7 +72,7 @@ order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profi
 | 1 | X9 run 2 + attestation review | 2.13M | done 2026-11-27 (recall 80/80, attestations 96.4%) |
 | 2 | X3 dual extraction + hand pairing + `score` | 291k | done 2026-11-28 (see 1A.11) |
 | 2b | X3 single-extraction re-run with `read.claims.v2` (1R.4) | ~0.15M | with 1R.4 |
-| 3 | Probe `low` effort on `gpt-5.4-mini` (`research:doctor --probe`) | tiny | with 1R.1 |
+| 3 | Probe `low` effort on `gpt-5.4-mini` | 243 | done 2026-11-28 (accepted) |
 | 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
 | 5 | One case `--stop-at reading`, then to `gaps` (1R.5) | ~0.6–0.8M, then ~0.3M | after 1R.4 |
 | 6 | X6 (cost and time) | none: written up from item 5 | after item 5 |

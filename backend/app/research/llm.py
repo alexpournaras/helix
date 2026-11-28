@@ -108,6 +108,8 @@ def _max_output(ctx: CallContext, ref: ModelRef) -> int:
     configured = 64000
     if isinstance(cfg, dict):
         configured = int(cfg.get("max_output_tokens") or cfg.get("max_tokens") or configured)
+    if ref.max_output_tokens:  # a per-role cap (budget, B17.3)
+        configured = int(ref.max_output_tokens)
     if ref.family in ("fake", "ollama"):
         return configured
     _, cap = limits(ref.model)

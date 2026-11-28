@@ -157,11 +157,18 @@ def loopback_guard() -> str | None:
 
 def privacy_gate(settings: ResearchSettings, *, synthetic: bool, uses_openai: bool) -> str | None:
     shares = settings.privacy.openai_project_shares_data
+    mode = settings.privacy.mode
     if not uses_openai:
         return None
     if shares is None:
         return ("Answer the privacy question first: does your OpenAI project share data with OpenAI? "
                 "(Settings → Research → Privacy.)")
+    if mode == "shared_synthetic" and not synthetic:
+        return ("Helix is in shared_synthetic mode (the OpenAI project shares data to use the free daily quota). "
+                "Real health text is blocked; mark the case as synthetic, or set up private_real mode "
+                "(a project without data sharing, with daily token and USD ceilings).")
+    if mode == "private_real" and shares:
+        return ("private_real mode needs an OpenAI project without data sharing; this project shares data.")
     if shares and not synthetic:
         return ("Your OpenAI project shares inputs and outputs with OpenAI. Real health text is blocked; "
                 "use a project without data sharing, or mark the case as synthetic.")
@@ -199,6 +206,8 @@ def run(settings: ResearchSettings, providers: dict[str, Any], probes: ProbeStor
             warnings.append(f"Role {role}: {sub}.")
         if resolved.independence == "same_family":
             warnings.append(f"Role {role}: both sides of the check are from one model family.")
+        elif resolved.independence == "same_model":
+            warnings.append(f"Role {role}: both sides of the check are one model at different efforts.")
         elif resolved.independence == "reduced":
             warnings.append(f"Role {role}: runs with fewer models than configured.")
     for family in ("openai", "anthropic"):

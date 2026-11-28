@@ -167,10 +167,10 @@ def write_sheet(results: dict, label: str) -> None:
              "direction; wording may differ). Record pairs in x3_gold.yaml as [\"m0:N\", \"m1:N\"].", ""]
     for pmcid, r in results.items():
         lines += [f"## {pmcid} ({r['system']}, {r['design']})", ""]
-        for label in ("m0", "m1"):
-            lines.append(f"### {label}")
+        for member in ("m0", "m1"):
+            lines.append(f"### {member}")
             lines += [f"- `{c['ref']}` {c['claim']} · {', '.join(c['sentence_ids'])}" for c in r["claims"]
-                      if c["extractor"] == label]
+                      if c["extractor"] == member]
             lines.append("")
         lines.append("Reconciliation clusters: " + "; ".join("+".join(c) for c in r["clusters"] if len(c) > 1))
         lines.append("")

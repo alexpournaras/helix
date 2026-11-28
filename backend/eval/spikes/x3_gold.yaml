@@ -10,4 +10,11 @@ papers:  # 6 open-access full texts (Europe PMC), 3 body systems
   PMC5036209: {system: neurology, design: rct, title: Melatonin vs amitriptyline vs placebo for migraine prevention, year: 2016}
   PMC7016109: {system: digestive, design: rct, title: Non-coeliac gluten sensitivity in refractory functional dyspepsia, year: 2020}
   PMC10764899: {system: digestive, design: rct, title: Bifidobacterium animalis BL-99 for functional dyspepsia, year: 2024}
-pairs: {}  # {run label: {pmcid: [["m0:N", "m1:N"], ...]}}
+pairs:  # {run label: {pmcid: [["m0:N", "m1:N"], ...]}}
+  dev_openai:  # paired 2026-11-28 by the agent from results/x3/pairs.md (same result, population and direction)
+    PMC9891135: [["m0:1", "m1:1"], ["m0:2", "m1:2"], ["m0:5", "m1:3"]]
+    PMC5615572: [["m0:1", "m1:1"], ["m0:2", "m1:2"], ["m0:5", "m1:4"]]
+    PMC7388434: [["m0:1", "m1:1"], ["m0:2", "m1:3"], ["m0:3", "m1:2"]]
+    PMC5036209: [["m0:1", "m1:1"], ["m0:2", "m1:3"], ["m0:3", "m1:4"]]
+    PMC7016109: [["m0:2", "m1:1"]]
+    PMC10764899: [["m0:1", "m1:1"], ["m0:2", "m1:3"]]

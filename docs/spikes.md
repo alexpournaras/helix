@@ -12,7 +12,7 @@ Live runs against public APIs on 2026-11-23. Only medical vocabulary was sent (n
 | X8 | **48/50 (96%)** complaints map to their expected system; the 2 misses are unverified descriptors | ✅ (with caveat) |
 | X7 | Paper splitter on **240 sentences** of open-access text (6 papers, 3 systems): **238/240 (99.2%)** correct with `seg.v1`; the one error fixed in `seg.v2` | ✅ |
 | X9 | Run 1 (2026-11-26, `grounding.extract.v2` + `verify.v1`, `dev_openai`): red-flag recall **70/80 (87.5%)**; attestations not judged (see X9 below). Fixed in `extract.v3` + `verify.v2`. Run 2 (2026-11-27): recall **80/80 (100%)**; red-flag attestations supported **163/169 (96.4%)** by hand review | ✅ run 2 |
-| X3 | **Ready, not run.** `x3_dual_extraction.py`: 6 open-access papers (ENT: 2 cohorts; neurology: cohort + RCT; digestive: 2 RCTs), `read.claims.v1` dual extraction + reconciliation. Valid IDs per extractor by code; reconciliation vs hand pairs (`x3_gold.yaml`) | — |
+| X3 | Run 2026-11-28 (`read.claims.v1`, dual, `dev_openai`, 16 calls, 291k tokens): valid IDs **100%** per extractor (pass); reconciliation **11/15 (73.3%)** hand pairs (fail, abstract-vs-body citations). Each extractor alone found **21 of 27 (78%)** distinct findings: the budget profile's single extraction needs a coverage prompt (see X3 below) | ✅ IDs / ❌ reconciliation |
 | X6 | **Not run.** Needs a running pipeline (the first 1D + 1E live check) | — |
 | X8b | Held-out set (83 new complaints incl. rare, paediatric, pregnancy, poisoning): **80/82 verified (98%)** correct, 1 unverified (96% overall) | ✅ |
 
@@ -188,3 +188,34 @@ warning signs.
 **Duplicates:** the two extractors' items are often kept side by side (EHF: 60 red flags for 20 gold, the same
 table row up to 3–4 times with different wording). Recall isn't affected, but the safety panel sees repeats; see
 backlog.
+
+## X3 Dual claim extraction (`x3_dual_extraction.py`, 2026-11-28)
+
+6 open-access full texts (ENT: 2 cohorts; neurology: cohort + RCT; digestive: 2 RCTs), one pack each (82k tokens in
+total), `read.claims.v1`, two members (`gpt-5.4-mini` at high and medium effort), reconciliation as in B8.14.
+16 live calls: 12 extractions (163k input, 124k output) and 4 borderline judgements; **291k tokens, $0.69** at list
+price. Review sheet `results/x3/pairs.md`; hand pairs (agent-drafted, like the X9 gold list) in `x3_gold.yaml`.
+
+| Measure | Result | Pass |
+|---|---|---|
+| Valid sentence IDs, m0 / m1 | 64/64, 62/62 (100%); 21 claims each, none rejected | ✅ ≥ 90% |
+| Hand pairs put in one cluster by reconciliation | 11/15 (73.3%) | ❌ ≥ 80% |
+
+**Missed pairs.** All four are the same finding cited from different places: one extractor cites the abstract, the
+other the results section or a table (PMC7388434 ×3, PMC10764899 ×1), so the sentence-ID overlap rule (≥ 50%) never
+fires and the pair isn't even sent to the judge. Fix for the `quality` path (not needed by `budget`, which doesn't
+reconcile): treat abstract and body citations of the same numbers as overlapping, or send pairs with matching
+effect numbers to the judge.
+
+**What it means for the `budget` profile (single extraction, PLAN B17.5 item 5).** The two extractors together
+found 27 distinct findings (15 shared, 6 only by m0, 6 only by m1). **Each alone found 21/27 (78%).** The extractors
+are selective (3–5 claims per paper with a cap of 20), and what one of them skipped includes a null result (railway
+noise not associated with tinnitus, PMC9891135), secondary outcomes (EPS response, PMC10764899; amitriptyline vs
+melatonin, PMC5036209) and the non-responders of the gluten challenge (PMC7016109). A second extractor mostly
+compensates for selectivity, which a better prompt can fix more cheaply.
+
+**Decision (2026-11-28):** before adding a second extraction to `budget`, task 1R.4 writes `read.claims.v2`: every
+primary and secondary outcome result, null and non-significant results, harms, and subgroup results that bear on a
+hypothesis, each as its own claim. Then a single-extraction re-run on these 6 papers (about 0.15M tokens) is scored
+against the 27-finding union: **target ≥ 24/27 (≥ 89%)**. If it misses, B17.7's fallback applies (a second
+extraction for results sections only).

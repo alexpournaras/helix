@@ -20,7 +20,8 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [x] 1A.10 Notes basics, test infrastructure, eval runner (`eval/run.py`), doctor, log canary
 - [x] 1A.11 X7 passed (99.2%, `seg.v2`)
 - [x] 1A.11 X9 passed (run 2: recall 80/80, attestations 163/169 = 96.4%)
-- [ ] 1A.11 X3, X6 — X3 script and papers ready, live run waiting; X6 from the first 1D + 1E live run
+- [x] 1A.11 X3 run 2026-11-28: valid IDs 100% (pass); reconciliation 11/15 = 73% (fail, abstract vs body citations; `quality` only); one extractor alone finds 21/27 = 78% → `read.claims.v2` coverage prompt in 1R.4 (docs/spikes.md)
+- [ ] 1A.11 X6 — from the 1R.5 live check
 - [x] Checkpoint after 1A (judged by the agent at your request; see decisions.md)
 
 ### 1B Clinical knowledge
@@ -69,7 +70,8 @@ order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profi
 | # | Run | Tokens | Status |
 |---|---|---|---|
 | 1 | X9 run 2 + attestation review | 2.13M | done 2026-11-27 (recall 80/80, attestations 96.4%) |
-| 2 | X3 dual extraction (`x3_dual_extraction run`, 6 papers, 12 calls, `dev_openai`), then hand pairing + `score` | ~0.4–0.5M | running 2026-11-28 |
+| 2 | X3 dual extraction + hand pairing + `score` | 291k | done 2026-11-28 (see 1A.11) |
+| 2b | X3 single-extraction re-run with `read.claims.v2` (1R.4) | ~0.15M | with 1R.4 |
 | 3 | Probe `low` effort on `gpt-5.4-mini` (`research:doctor --probe`) | tiny | with 1R.1 |
 | 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
 | 5 | One case `--stop-at reading`, then to `gaps` (1R.5) | ~0.6–0.8M, then ~0.3M | after 1R.4 |

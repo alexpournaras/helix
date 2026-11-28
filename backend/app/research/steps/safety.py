@@ -5,6 +5,11 @@ every panel level and every guideline red flag that fires; the panel can't lower
 unknown guideline red flags and the panel's rule-out questions become questions with priority 0.
 A crisis rule is recorded the moment the stage is entered (before the panel), so the UI can show crisis
 resources at once.
+
+Safety clearance (PLAN B17.5 item 11, task 1R.7), saved in `panel.clearance` of every review: `emergency`,
+`unresolved` (a rule-out question of an emergency-level rule or guideline red flag is still unknown), `urgent`, or
+`passed`. An unknown is never treated as ruled out. With `unresolved`, the report withholds the ranking
+(`ranking_allowed`) and leads with what remains unknown; unknown urgent-level items only add a banner.
 """
 
 from __future__ import annotations
@@ -159,7 +164,37 @@ def combine(rules: R.RuleOutcome, members: list[tuple[str, SafetyReview]], items
     recs = [r.recommendation for _, r in members]
     return {"level": level, "crisis": crisis, "flags": flags, "item_states": item_state,
             "fired_items": [i["ref"] for i in fired_items], "questions": unique,
-            "display": R.display_text(level, recs, crisis)}
+            "display": R.display_text(level, recs, crisis),
+            "clearance": clearance(level, rules.unknown, unknown_items)}
+
+
+def clearance(level: str, unknown_rules: list, unknown_items: list[dict]) -> dict:
+    """B17.5 item 11: what is still unknown at emergency or urgent level decides whether a ranking may be shown."""
+    open_emergency = [h.ref for h in unknown_rules if h.level == "emergency"] + \
+                     [i["ref"] for i in unknown_items if i["level"] == "emergency"]
+    open_urgent = [h.ref for h in unknown_rules if h.level == "urgent"] + \
+                  [i["ref"] for i in unknown_items if i["level"] == "urgent"]
+    if level == "emergency":
+        state = "emergency"
+    elif open_emergency:
+        state = "unresolved"
+    elif level == "urgent":
+        state = "urgent"
+    else:
+        state = "passed"
+    return {"state": state, "open_emergency": open_emergency, "open_urgent": open_urgent}
+
+
+def latest_clearance(conn: sqlite3.Connection, investigation_id: int) -> dict:
+    row = conn.execute("SELECT panel FROM safety_reviews WHERE investigation_id = ? ORDER BY id DESC LIMIT 1",
+                       (investigation_id,)).fetchone()
+    panel = _decode(row)["panel"] if row else None
+    return (panel or {}).get("clearance") or {"state": "passed", "open_emergency": [], "open_urgent": []}
+
+
+def ranking_allowed(conn: sqlite3.Connection, investigation_id: int) -> bool:
+    """False while an emergency-level rule-out is unanswered: hypotheses are then listed as considered (1F)."""
+    return latest_clearance(conn, investigation_id)["state"] != "unresolved"
 
 
 async def run(tc) -> Any:
@@ -190,7 +225,7 @@ async def run(tc) -> Any:
                       "substitutions": result.substitutions, "flags": combined["flags"],
                       "item_states": combined["item_states"], "crisis": combined["crisis"],
                       "questions": [q["key"] for q in combined["questions"]], "rules_version": R.RULES_VERSION,
-                      "prompt_version": PANEL_VERSION},
+                      "prompt_version": PANEL_VERSION, "clearance": combined["clearance"]},
             "level": combined["level"], "recommendation": combined["display"]})
         for q in combined["questions"]:
             tc.db.insert(conn, "clarifying_questions", {
@@ -205,7 +240,7 @@ async def run(tc) -> Any:
             "review_id": review_id, "brief_version": brief_version, "knowledge_version": kv,
             "rule_level": rules.level, "fired": len(rules.fired), "unknown": len(rules.unknown),
             "questions": len(combined["questions"]), "crisis": combined["crisis"],
-            "independence": result.independence})
+            "independence": result.independence, "clearance": combined["clearance"]["state"]})
     return commit
 
 

@@ -362,3 +362,34 @@ class CombineTests(SafetyStepBase):
 if __name__ == "__main__":
     import unittest
     unittest.main()
+
+
+class ClearanceTests(SafetyStepBase):
+    """1R.7 (PLAN B17.5 item 11): an unknown emergency-level rule-out is unresolved, never ruled out."""
+
+    async def test_unanswered_emergency_rule_out_is_unresolved_and_blocks_ranking(self):
+        inv_id = self.seed("Synthetic case. I have had abdominal pain for two days.")
+        await self.run_inv(inv_id)
+        c = self.reviews(inv_id)[-1]["panel"]["clearance"]
+        self.assertEqual(c["state"], "unresolved")
+        self.assertIn("rule:gut.abdominal_pain_possible_pregnancy", c["open_emergency"])
+        with self.db.read() as conn:
+            self.assertFalse(safety.ranking_allowed(conn, inv_id))
+
+    async def test_nothing_open_passes(self):
+        inv_id = self.seed("Synthetic case. A mild itch on my arm for a week.")
+        await self.run_inv(inv_id)
+        self.assertEqual(self.reviews(inv_id)[-1]["panel"]["clearance"]["state"], "passed")
+        with self.db.read() as conn:
+            self.assertTrue(safety.ranking_allowed(conn, inv_id))
+
+    def test_levels(self):
+        from app.research.safety_rules import RuleHit
+        urgent = RuleHit("rule:x", "urgent", "x", "unknown", "?")
+        emergency = RuleHit("rule:y", "emergency", "y", "unknown", "?")
+        self.assertEqual(safety.clearance("none", [urgent], [])["state"], "passed")  # a banner only
+        self.assertEqual(safety.clearance("none", [urgent], [])["open_urgent"], ["rule:x"])
+        self.assertEqual(safety.clearance("urgent", [], [])["state"], "urgent")
+        self.assertEqual(safety.clearance("urgent", [emergency], [])["state"], "unresolved")
+        self.assertEqual(safety.clearance("emergency", [emergency], [])["state"], "emergency")
+        self.assertEqual(safety.clearance("none", [], [{"ref": "K1", "level": "emergency"}])["state"], "unresolved")

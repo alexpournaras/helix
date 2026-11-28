@@ -55,7 +55,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [ ] 1R.4 Reading and verification in budget — code done 2026-11-28: section-priority packs, `read.assess` (one call), `read.claims.v2` coverage prompt, single-verifier mode with second opinions on triggers and a seeded 5% audit, `verification_mode`, fit/confirm limits from settings (11 tests); open: the X3 single-extraction re-run score
   - [ ] 1R.5 Budget eval (+ X6) — code done 2026-11-28: `eval.run` reports tokens per stage group vs the targets, protected reserves left, over-target groups and the audit disagreement rate; `--compare` per group (2 tests). Open: the live check to `reading` and to `gaps`, then X6
   - [ ] 1R.6 Second round from the pool
-  - [ ] 1R.7 Safety clearance
+  - [x] 1R.7 Safety clearance in every safety review (`panel.clearance`: emergency / unresolved / urgent / passed, with the open emergency and urgent items); `ranking_allowed()` for 1F, which withholds the ranking and leads the report with the open items (3 tests)
   - [ ] 1R.8 End-to-end quota validation (after 1F; cold and warm cache)
 - [ ] 1F Report
 - [ ] 1G UI and privacy

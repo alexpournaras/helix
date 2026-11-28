@@ -2174,7 +2174,7 @@ All the points adopted in v5 and v6 remain.
 - red-flag cases in every system;
 - readiness labels that keep the generality honest.
 
-**Reviews of v8.1 (2026-11-28; Codex in `CODEX.md`, ChatGPT shared chat).** Both approved the budget direction and asked for stronger quota enforcement. Adopted in v9:
+**Reviews of v8.1 (2026-11-28; Codex review file in git history at commit d2dc731, ChatGPT shared chat).** Both approved the budget direction and asked for stronger quota enforcement. Adopted in v9:
 - **Quota ledger with reservations before every call** (both): B17.5 item 1, task 1R.0. Task-level checks with 8 concurrent calls could overshoot, and a request crossing the quota is billed in full.
 - **Complimentary-quota terms and two operating modes** (both): B17.1, B16.3. Real cases never on the data-sharing project.
 - **Protected finalization reserve (650k), retry reserve, finalization levels** (Codex): B17.4, B17.5 item 6.

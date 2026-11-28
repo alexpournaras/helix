@@ -74,7 +74,8 @@ order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profi
 | 2b | X3 single-extraction re-run with `read.claims.v2` (1R.4) | 486k | done 2026-11-28: 24/27 (89%) |
 | 3 | Probe `low` effort on `gpt-5.4-mini` | 243 | done 2026-11-28 (accepted) |
 | 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
-| 5 | One case `--stop-at reading`, then to `gaps` (1R.5) | ~0.6–0.8M, then ~0.3M | after 1R.4 |
+| 5a | 1R.5 (a): `ent.tinnitus-left` on `budget` to `reading` (intake to grounding from the cache) | 192k: plan 53k (target 80k), screen 139k (target 200k; 733 candidates, 304 screened); 191 s; E1 ok | done 2026-11-28 |
+| 5b | 1R.5 (b): the same case to `gaps` (reading, verification, assessment) | ~0.8–1.2M | next quota day |
 | 6 | X6 (cost and time) | none: written up from item 5 | after item 5 |
 | 7 | 1R.8: two full cases to the report (cold and warm cache), one case day each | ≤ 2.4M each | after 1F |
 | 8 | `build_pack.py` for the tinnitus pack draft (resumes across days through the ledger) | ~2–3M (`dev_openai`) | when a day is free |

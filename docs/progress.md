@@ -40,7 +40,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (live 2026-11-28, one planner on `budget`)
   - [x] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement (live 2026-11-28)
   - [x] 1D.3 Search and seed, prefilter, dual screening, select, fetch
-- [x] 1E Reading and evidence (fake-model tests; live check 1R.5 (b) running 2026-11-28)
+- [x] 1E Reading and evidence — live 2026-11-28 on `budget` through reading, verification, map, group, confirm, matrix (fit/analysis/gaps not reached: daily ceiling)
   - [x] 1E.1 Reading: profile, appraisal panel, study identity, dual extraction, whole-paper pass, reconciliation, applicability (fake-model tests)
   - [x] 1E.2 Verification panel, escalation, adjudication, re-read (fake-model tests)
   - [x] 1E.3 Map, group, confirm (fake-model tests)
@@ -75,7 +75,7 @@ order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profi
 | 3 | Probe `low` effort on `gpt-5.4-mini` | 243 | done 2026-11-28 (accepted) |
 | 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
 | 5a | 1R.5 (a): `ent.tinnitus-left` on `budget` to `reading` (intake to grounding from the cache) | 192k: plan 53k (target 80k), screen 139k (target 200k; 733 candidates, 304 screened); 191 s; E1 ok | done 2026-11-28 |
-| 5b | 1R.5 (b): the same case to `gaps` (reading, verification, assessment) | ~0.8–1.2M | next quota day |
+| 5b | 1R.5 (b): the same case towards `synthesis` | 1.18M: read 698k (target 650k, **over 7%**), assess 342k before `fit` (over its ~250k share), screen 139k **again** (cache miss: batches formed differently), retries 95k, audit 0 claims (to check); 850 s; reached `fitting`, then the daily ceiling stopped it (ledger worked; E1 ok) | partly done 2026-11-28; re-run with `--keep` next quota day |
 | 6 | X6 (cost and time) | none: written up from item 5 | after item 5 |
 | 7 | 1R.8: two full cases to the report (cold and warm cache), one case day each | ≤ 2.4M each | after 1F |
 | 8 | `build_pack.py` for the tinnitus pack draft (resumes across days through the ledger) | ~2–3M (`dev_openai`) | when a day is free |

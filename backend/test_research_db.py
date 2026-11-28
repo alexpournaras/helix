@@ -47,11 +47,12 @@ class SchemaTests(ResearchTestCase):
             ResearchDB(self.db.path).init()
 
     def test_registered_migration_runs_once(self):
-        with unittest.mock.patch.dict(dbmod.MIGRATIONS, {2: ["ALTER TABLE meta ADD COLUMN extra TEXT"]}), \
-                unittest.mock.patch.object(dbmod, "SCHEMA_VERSION", 2):
+        nxt = dbmod.SCHEMA_VERSION + 1  # a hypothetical next migration on top of the real ones
+        with unittest.mock.patch.dict(dbmod.MIGRATIONS, {nxt: ["ALTER TABLE meta ADD COLUMN extra TEXT"]}), \
+                unittest.mock.patch.object(dbmod, "SCHEMA_VERSION", nxt):
             fresh = ResearchDB(self.db.path)
             fresh.init()
-            self.assertEqual(fresh.schema_version(), 2)
+            self.assertEqual(fresh.schema_version(), nxt)
             cols = {r["name"] for r in fresh.query("PRAGMA table_info(meta)")}
             self.assertIn("extra", cols)
             ResearchDB(self.db.path).init()  # does not re-run (would fail with duplicate column)

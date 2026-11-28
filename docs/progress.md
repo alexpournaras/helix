@@ -50,7 +50,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [ ] 1R Budget rework (PLAN B17 v9, decisions 2026-11-28): one case within 2.4M, ledger-enforced daily ceiling
   - [x] 1R.0 Daily quota ledger: `quota.py`, reservation before every provider call, `npm run research:quota`, doctor line, worker waits for the UTC reset (14 tests); model snapshot `gpt-5.4-mini-2026-03-17` recorded
   - [x] 1R.1 Budget profile (default; B17.2 values and B17.3 roles with per-role output caps), stage groups, acquisition rule with protected reserves, `budget_skip` / `budget_over` events, B10 rule ignores budget skips, privacy modes, `same_model` label; eval cases on `budget`; `low` effort probed live (accepted, 243 tokens via the ledger)
-  - [ ] 1R.2 Grounding reuse and several complaints
+  - [x] 1R.2 Grounding reuse (`knowledge_cache`, schema 2; hit = no model calls; `ok` 180 days, `gap` 30 days only after a full search; operational failures not cached) and the 2-new-complaints cap with the "not grounded: token budget" gap and `broad_case` event; doctor line + `--clear-knowledge-cache` (7 tests)
   - [ ] 1R.3 Single screener and ranking
   - [ ] 1R.4 Reading and verification in budget (triggers, audit)
   - [ ] 1R.5 Budget eval (+ X6)

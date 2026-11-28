@@ -112,6 +112,21 @@ def _database(path: Path) -> Check:
     return Check("database", "ok", f"research.sqlite3 schema {version}, integrity ok")
 
 
+def _knowledge_cache(path: Path) -> Check:
+    """Grounding reuse (B17.6): how many complaint × population results are cached, and the oldest."""
+    if not path.exists():
+        return Check("kcache", "ok", "no knowledge cache yet")
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+        try:
+            row = conn.execute("SELECT COUNT(*), MIN(created_at) FROM knowledge_cache").fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return Check("kcache", "ok", "no knowledge cache yet (schema migrates on next start)")
+    return Check("kcache", "ok", f"{row[0]} cached groundings" + (f", oldest {row[1][:10]}" if row[1] else ""))
+
+
 def _knowledge() -> list[Check]:
     out = []
     try:
@@ -170,6 +185,7 @@ def checks(*, data_dir: Path | None = None, keys: ProviderKeys | None = None,
     out += _preflight(research, probes)
     out += _privacy(research)
     out.append(_database(data_dir / "research.sqlite3"))
+    out.append(_knowledge_cache(data_dir / "research.sqlite3"))
     out += _quota(research)
     out += _knowledge()
     tracked = git_tracked(SECRET_PATHS)
@@ -214,8 +230,14 @@ def exit_code(items: list[Check]) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Helix research health check")
     parser.add_argument("--probe", action="store_true", help="probe each configured model (sends a tiny request)")
+    parser.add_argument("--clear-knowledge-cache", action="store_true",
+                        help="delete every cached grounding (B17.6); the next investigations ground afresh")
     args = parser.parse_args(argv)
     items: list[Check] = []
+    if args.clear_knowledge_cache:
+        from app.research.db import ResearchDB
+        removed = ResearchDB(Path(app_settings.data_dir) / "research.sqlite3").knowledge_cache_clear()
+        items.append(Check("kcache", "ok", f"cleared {removed} cached groundings"))
     if args.probe:
         items += asyncio.run(probe_all())
     items += checks()

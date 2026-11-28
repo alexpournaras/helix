@@ -15,6 +15,13 @@ ground:{complaint}:{population}
      rejects it; an item without a supported or partial attestation is rejected.
   Everything is written in one commit with knowledge version k+1 (visible after the merge).
 
+Reuse (`grounding.reuse`, PLAN B17.6, task 1R.2): before searching, the task looks up a cached grounding for the
+same complaint (MeSH descriptor, else its text) × population key × versions (prompts, query builder, the settings
+and models that shape the result). A hit copies the queries, sources, items and attestations without any model
+call (the library fetch is local-first); a miss runs the steps above and caches an `ok` result, or a `gap` when
+every search succeeded. At most `grounding.max_new_complaints` complaints are grounded fresh per investigation
+(cached ones don't count); any further complaint gets the gap "not grounded: token budget".
+
 ground_merge:k{k+1} (code + grounding.merge judge for borderline pairs): curated floor and pack items plus the
 guideline items → B7.4 merge → duplicates superseded (attestations move to the kept item) → knowledge
 version k+1. Then back to `safety` (the new knowledge may raise the level).
@@ -23,9 +30,11 @@ version k+1. Then back to `safety` (the new knowledge may raise the level).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import sqlite3
+from types import SimpleNamespace
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -45,6 +54,8 @@ SCREEN_VERSION = "grounding.screen.v1"
 EXTRACT_VERSION = "grounding.extract.v3"
 VERIFY_VERSION = "grounding.verify.v2"
 MERGE_VERSION = "grounding.merge.v2"
+QUERY_VERSION = "grounding.queries.v1"  # build_queries (code); bump when the queries change (cache key, B17.6)
+BUDGET_GAP = "not grounded: token budget"
 SCREEN_BATCH = 8
 POP_TERMS = {
     "infant": (["infant", "newborn"], ['"infant"[mh]']),
@@ -443,6 +454,99 @@ def item_trust(item: Extracted) -> tuple[str, str]:
     return "proposed", "rejected"
 
 
+# ---------- reuse (PLAN B17.6) ----------
+
+def _reuse(settings: dict) -> dict:
+    return {"enabled": False, "max_age_days": 180, "gap_max_age_days": 30,
+            **(((settings or {}).get("grounding") or {}).get("reuse") or {})}
+
+
+def cache_key(complaint: dict, population: str, settings: dict) -> tuple[str, str, dict]:
+    """(key, complaint key, versions): everything that shapes a grounding result, hashed."""
+    descriptor = (complaint.get("mesh") or [None])[0]
+    complaint_key = descriptor["ui"] if descriptor else "text:" + _slug(complaint.get("text") or complaint["key"])
+    cfg = _cfg(settings)
+    roles = (settings or {}).get("roles") or {}
+    ens = (settings or {}).get("ensembles") or {}
+    versions = {
+        "prompts": [SCREEN_VERSION, EXTRACT_VERSION, VERIFY_VERSION, MERGE_VERSION, QUERY_VERSION],
+        "grounding": {k: cfg.get(k) for k in ("years", "kinds", "max_per_organisation", "max_results_per_query",
+                                              "max_screened", "max_sources_per_complaint", "pack_tokens",
+                                              "max_packs_per_source")},
+        "ensembles": {k: ens.get(k) for k in ("dual_screening", "dual_knowledge_extraction")},
+        "models": {r: roles.get(r) for r in ("grounding.screen", "grounding.extract", "grounding.verify")},
+        "languages": ((settings or {}).get("filters") or {}).get("languages"),
+    }
+    digest = hashlib.sha256(json.dumps([complaint_key, population, versions], sort_keys=True,
+                                       default=str).encode("utf-8")).hexdigest()
+    return digest, complaint_key, versions
+
+
+def cache_store(tc):
+    """Eval runs share one cache file across cases (`services.cache`); otherwise the research database."""
+    return getattr(tc.services, "cache", None) or tc.db
+
+
+def cacheable(queries: list[dict], failures: list[str], gap: str | None) -> bool:
+    """Cache only a complete result: every search succeeded and every selected source was read."""
+    return all(q.get("status") == "done" for q in queries) and not failures and gap != BUDGET_GAP
+
+
+def cache_payload(queries: list[dict], reads: list["Read"], items: list["Extracted"]) -> dict:
+    return {
+        "queries": [{k: q.get(k) for k in ("source", "query", "query_type", "hit_count", "status")} for q in queries],
+        "sources": [{"article": r.cand.article.model_dump(mode="json"), "sources": r.cand.sources,
+                     "rank": r.cand.rank, "votes": r.cand.votes, "relevance": r.cand.relevance,
+                     "design": r.cand.design, "decision": r.cand.decision, "reason": r.cand.reason,
+                     "snapshot": r.snapshot.to_dict(), "coverage": r.coverage,
+                     "packs": [{"no": p.no, "seg_ids": p.seg_ids, "tokens": p.tokens, "oversize": p.oversize}
+                               for p in r.packs]} for r in reads],
+        "items": [{"kind": i.kind, "text": i.text, "attributes": i.attributes, "population": i.population,
+                   "attestations": [{k: a.get(k) for k in ("read", "sentence_ids", "quote", "model", "family",
+                                                           "verdict", "votes")} for a in i.attestations]}
+                  for i in items],
+    }
+
+
+async def from_cache(tc, hit: dict) -> tuple[list[dict], list[Cand], list["Read"], list["Extracted"]]:
+    """Rebuild a cached grounding for this investigation: sources fetched library-first (no model calls)."""
+    src = sources_for(tc.services)
+    payload = hit["payload"]
+    cands, reads = [], []
+    for n, s in enumerate(payload["sources"], 1):
+        article = Article.model_validate(s["article"])
+        c = Cand(article=article, sources=s["sources"], queries=[], rank=s["rank"], votes=s["votes"],
+                 relevance=s["relevance"], design=s["design"], decision=s["decision"], reason=s["reason"],
+                 selected=True, local_id=f"P{n}")
+        try:
+            fetched = await src.fetch(article, tc.investigation["id"])
+        except Exception:  # noqa: BLE001 — the cached snapshot still carries the text; the library link is optional
+            fetched = None
+        cands.append(c)
+        reads.append(Read(c, fetched, Snapshot.from_dict(s["snapshot"]),
+                          [SimpleNamespace(**p) for p in s["packs"]], s["coverage"]))
+    items = [Extracted(kind=i["kind"], text=i["text"], attributes=i["attributes"], population=i["population"],
+                       attestations=[dict(a) for a in i["attestations"]]) for i in payload["items"]]
+    queries = [dict(q) for q in payload["queries"]]
+    return queries, cands, reads, items
+
+
+def claim_new_slot(db, investigation_id: int, complaint_key: str, limit: int | None) -> bool:
+    """At most `limit` complaints grounded fresh per investigation (B17.5 item 10); claimed atomically, because
+    grounding tasks run in parallel. A complaint that already holds a slot keeps it (retries)."""
+    if not limit:
+        return True
+    with db.tx() as conn:
+        held = [r["message"] for r in conn.execute(
+            "SELECT message FROM events WHERE investigation_id = ? AND kind = 'grounding_new'", (investigation_id,))]
+        if complaint_key in held:
+            return True
+        if len(held) >= int(limit):
+            return False
+        db.event(investigation_id, "grounding_new", complaint_key, stage="grounding", conn=conn)
+        return True
+
+
 # ---------- the task ----------
 
 def complaint_of(inv: dict, key: str) -> dict | None:
@@ -474,6 +578,27 @@ async def run(tc) -> Any:
                             entry_terms=entry_terms(tc.db, descriptor["ui"]) if descriptor else [],
                             text=complaint["text"], population=population, years=int(cfg["years"]),
                             this_year=this_year)
+    reuse = _reuse(tc.settings)
+    ckey, complaint_key, versions = cache_key(complaint, population, tc.settings)
+    if reuse["enabled"]:
+        hit = await asyncio.to_thread(cache_store(tc).knowledge_cache_get, ckey, reuse["max_age_days"],
+                                      reuse["gap_max_age_days"])
+        if hit is not None:
+            queries, cands, reads, items = await from_cache(tc, hit)
+            gap = hit["gap_reason"] if hit["status"] == "gap" else None
+
+            def commit_reused(conn: sqlite3.Connection) -> None:
+                write_run(tc.db, conn, inv, key, population, descriptor, queries, cands, reads, items, gap, kv_next,
+                          {"reused": True}, reused_from=hit["id"])
+            return commit_reused
+    if not await asyncio.to_thread(claim_new_slot, tc.db, inv["id"], key, cfg.get("max_new_complaints")):
+        def commit_budget_gap(conn: sqlite3.Connection) -> None:
+            write_run(tc.db, conn, inv, key, population, descriptor, [], [], [], [], BUDGET_GAP, kv_next,
+                      {"broad_case": True})
+            tc.db.event(inv["id"], "broad_case", key, level="warning", stage="grounding", conn=conn,
+                        data={"note": "More complaints than one investigation grounds; consider a separate "
+                                      "investigation for this one."})
+        return commit_budget_gap
     src = sources_for(tc.services)
     hits: list[tuple[int, int, Article]] = []
 
@@ -507,13 +632,20 @@ async def run(tc) -> Any:
                                        bool(ens.get("dual_knowledge_extraction", True)))
         await verify_items(ctx, complaint, items, reads)
 
+    if reuse["enabled"] and cacheable(queries, failures, gap):
+        await asyncio.to_thread(cache_store(tc).knowledge_cache_put, ckey, complaint_key=complaint_key,
+                                mesh_ui=descriptor["ui"] if descriptor else None, population=population,
+                                versions=versions, status="gap" if gap else "ok", gap_reason=gap,
+                                payload=cache_payload(queries, reads, items))
+
     def commit(conn: sqlite3.Connection) -> None:
         write_run(tc.db, conn, inv, key, population, descriptor, queries, cands, reads, items, gap, kv_next,
                   {"failures": len(failures), "dropped_attestations": dropped})
     return commit
 
 
-def write_run(db, conn, inv, key, population, descriptor, queries, cands, reads, items, gap, kv_next, extra) -> None:
+def write_run(db, conn, inv, key, population, descriptor, queries, cands, reads, items, gap, kv_next, extra,
+              reused_from: int | None = None) -> None:
     inv_id, rnd = inv["id"], inv["round"]
     query_ids = []
     for q in queries:
@@ -583,7 +715,7 @@ def write_run(db, conn, inv, key, population, descriptor, queries, cands, reads,
         "investigation_id": inv_id, "complaint_key": key, "mesh_ui": descriptor["ui"] if descriptor else None,
         "population": population, "queries": query_ids, "candidate_ids": list(cand_ids.values()),
         "selected_ids": selected, "status": "gap" if gap else "ok", "gap_reason": gap,
-        "knowledge_version": kv_next})
+        "knowledge_version": kv_next, "reused_from": reused_from})
     db.event(inv_id, "grounding", "gap" if gap else "ok", stage="grounding", conn=conn, data={
         "complaint": key, "population": population, "queries": len(queries),
         "failed_queries": sum(q.get("status") == "failed" for q in queries), "candidates": len(cands),
@@ -735,7 +867,7 @@ def wanted(inv: dict, settings: dict) -> list[tuple[str, str]]:
     """(complaint, population key) pairs that grounding covers (at most max_complaints complaints)."""
     cfg = _cfg(settings)
     pop = B.population_key(inv.get("special_populations") or [])
-    return [(c["key"], pop) for c in (inv.get("complaints") or [])[:int(cfg["max_complaints"])]]
+    return [(c["key"], pop) for c in (inv.get("complaints") or [])[:int(cfg["max_complaints"])]]  # chief first
 
 
 def stage() -> StageDef:
@@ -745,8 +877,8 @@ def stage() -> StageDef:
             if not sc.conn.execute("SELECT 1 FROM grounding_runs WHERE investigation_id = ? AND complaint_key = ? "
                                    "AND population = ?", (sc.id, key, pop)).fetchone():
                 pending.append((key, pop))
-        for key, pop in pending:
-            sc.queue("ground", f"ground:{key}:{pop}", {"complaint": key, "population": pop}, priority=20)
+        for n, (key, pop) in enumerate(pending):  # in complaint order, so new-grounding slots go to the chief first
+            sc.queue("ground", f"ground:{key}:{pop}", {"complaint": key, "population": pop}, priority=20 + n)
         if pending:
             return
         kv = int(sc.inv["knowledge_version"])

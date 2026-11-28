@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Columns that hold JSON. Rows read through `_row` are decoded automatically.
 JSON_COLUMNS = {
@@ -557,7 +557,25 @@ CREATE TABLE IF NOT EXISTS llm_cache (
 """
 
 # Ordered migrations from version N-1 to N. Version 1 is the base schema above.
-MIGRATIONS: dict[int, list[str]] = {}
+MIGRATIONS: dict[int, list[str]] = {
+    # 2 (task 1R.2, PLAN B17.6): grounding reuse. A global cache of guideline knowledge per complaint × population
+    # × versions: guideline items, attestations and the guideline snapshots; never user segments or case facts.
+    2: [
+        """CREATE TABLE IF NOT EXISTS knowledge_cache (
+            id            INTEGER PRIMARY KEY,
+            key           TEXT NOT NULL UNIQUE,
+            complaint_key TEXT NOT NULL,
+            mesh_ui       TEXT,
+            population    TEXT NOT NULL,
+            versions      TEXT NOT NULL,
+            status        TEXT NOT NULL,          -- ok / gap
+            gap_reason    TEXT,
+            payload       TEXT NOT NULL,          -- {queries, sources, items}
+            created_at    TEXT NOT NULL
+        )""",
+        "ALTER TABLE grounding_runs ADD COLUMN reused_from INTEGER",
+    ],
+}
 
 
 def now() -> str:
@@ -860,6 +878,43 @@ class ResearchDB:
         })
 
     # ---------- model calls, cache ----------
+
+    # ---------- grounding reuse (PLAN B17.6) ----------
+
+    def knowledge_cache_get(self, key: str, max_age_days: float, gap_max_age_days: float) -> dict | None:
+        """The cached grounding for `key` if it is young enough: `ok` within max_age_days, `gap` within
+        gap_max_age_days."""
+        row = self.one("SELECT * FROM knowledge_cache WHERE key = ?", (key,))
+        if row is None:
+            return None
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")))
+        limit = gap_max_age_days if row["status"] == "gap" else max_age_days
+        if age.total_seconds() > float(limit) * 86400:
+            return None
+        out = dict(row)
+        for col in ("payload", "versions"):  # `payload` is decoded by `one` (JSON_COLUMNS); `versions` isn't
+            if isinstance(out[col], str):
+                out[col] = json.loads(out[col])
+        return out
+
+    def knowledge_cache_put(self, key: str, *, complaint_key: str, mesh_ui: str | None, population: str,
+                            versions: dict, status: str, gap_reason: str | None, payload: dict) -> int:
+        with self.tx() as conn:
+            conn.execute("DELETE FROM knowledge_cache WHERE key = ?", (key,))
+            cur = conn.execute(
+                "INSERT INTO knowledge_cache (key, complaint_key, mesh_ui, population, versions, status, gap_reason, "
+                "payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (key, complaint_key, mesh_ui, population, json.dumps(versions, sort_keys=True), status, gap_reason,
+                 json.dumps(payload, ensure_ascii=False), now()))
+            return int(cur.lastrowid)
+
+    def knowledge_cache_clear(self) -> int:
+        with self.tx() as conn:
+            return conn.execute("DELETE FROM knowledge_cache").rowcount
+
+    def knowledge_cache_stats(self) -> dict:
+        row = self.one("SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM knowledge_cache")
+        return {"entries": row["n"], "oldest": row["oldest"]}
 
     def log_call(self, values: dict[str, Any]) -> int:
         with self.tx() as conn:

@@ -8,7 +8,7 @@ from typing import Any, Literal, Protocol
 
 import httpx
 
-ErrorKind = Literal["transient", "config", "overflow", "format", "refusal", "truncated"]
+ErrorKind = Literal["transient", "config", "overflow", "format", "refusal", "truncated", "quota"]
 
 
 class ModelError(Exception):

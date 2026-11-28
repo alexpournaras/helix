@@ -19,7 +19,8 @@
     "build": "vite build",
     "start": "vite build && node scripts/py.mjs backend/run.py",
     "test": "node scripts/py.mjs -m unittest discover -s backend -t backend -p \"test_*.py\"",
-    "research:doctor": "cd backend && node ../scripts/py.mjs -m app.research.doctor"
+    "research:doctor": "cd backend && node ../scripts/py.mjs -m app.research.doctor",
+    "research:quota": "cd backend && node ../scripts/py.mjs -m app.research.quota"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

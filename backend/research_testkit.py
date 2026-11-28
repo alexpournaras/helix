@@ -58,7 +58,8 @@ class ResearchTestCase(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="helix-research-test-"))
-        self._env = patch.dict(os.environ, {**FAKE_KEYS, "HELIX_DATA_DIR": str(self.tmp)})
+        self._env = patch.dict(os.environ, {**FAKE_KEYS, "HELIX_DATA_DIR": str(self.tmp),
+                                            "HELIX_QUOTA_DB": str(self.tmp / "quota.sqlite3")})
         self._env.start()
         from app.config import ProviderKeys
         self._keys = patch.object(ProviderKeys, "model_config", {**ProviderKeys.model_config, "env_file": None})

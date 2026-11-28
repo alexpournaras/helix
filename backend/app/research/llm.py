@@ -1,7 +1,8 @@
 """complete_json(): the one way research steps call models (PLAN B5.1).
 
-Routing by role → context guard → cache → provider schema → streamed provider call (adaptive
-concurrency) → Pydantic + step validation → one repair call → truncation retry → logging of every attempt.
+Routing by role → context guard → cache → provider schema → daily quota reservation (quota.py) → streamed
+provider call (adaptive concurrency) → settle the reservation → Pydantic + step validation → one repair call →
+truncation retry → logging of every attempt.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any, Callable, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from . import strict, tokens
+from . import quota, strict, tokens
 from .db import ResearchDB
 from .prices import PriceTable
 from .providers.base import ModelError, ProviderResult, StructuredRequest, limits
@@ -71,6 +72,7 @@ class CallContext:
     literature: Any = None  # LiteratureDB for fetches (None → the app's library); eval uses a temp one
     sources: Any = None  # research.sources.Sources override (tests)
     cache: Any = None  # an object with cache_get/cache_put shared across runs (eval); None → db's own cache
+    ledger: Any = None  # quota.Ledger override (tests); None → the process-wide ledger (quota.default_ledger)
 
     def is_available(self, ref: ModelRef) -> bool:
         if self.available is not None:
@@ -225,11 +227,13 @@ async def _call(ctx: CallContext, provider: Any, request: StructuredRequest, rol
                 prompt_version: str, key: str, attempt: str) -> ProviderResult:
     limiter = ctx.limiters.get(ref.family)
     for retry in range(IN_CALL_RETRIES + 1):
+        reservation = await _reserve(ctx, provider, request, role, ref)
         started = time.monotonic()
         await limiter.acquire()
         try:
             result = await provider.complete(request)
         except ModelError as exc:
+            await _unreserve(ctx, reservation, exc)
             latency = int((time.monotonic() - started) * 1000)
             await _log(ctx, role, ref, prompt_version, key, attempt=attempt, cached=False, status="error",
                        result=None, latency=latency, error=exc, user=request.user)
@@ -240,8 +244,14 @@ async def _call(ctx: CallContext, provider: Any, request: StructuredRequest, rol
                 await ctx.sleep(wait)
                 continue
             raise
+        except BaseException:
+            await _unreserve(ctx, reservation, None)  # cancelled or crashed mid-call: it may have been billed
+            raise
         finally:
             await limiter.release()
+        if reservation is not None:
+            ledger, rid = reservation
+            await asyncio.to_thread(ledger.settle, rid, result.input_tokens or 0, result.output_tokens or 0)
         limiter.on_success()
         latency = int((time.monotonic() - started) * 1000)
         status = {"complete": "ok", "truncated": "truncated", "refusal": "refusal"}[result.stop]
@@ -251,6 +261,31 @@ async def _call(ctx: CallContext, provider: Any, request: StructuredRequest, rol
             raise ModelError("refusal", f"{ref.model} refused: {result.refusal or 'no reason given'}")
         return result
     raise ModelError("transient", "Retries exhausted.")  # pragma: no cover
+
+
+async def _reserve(ctx: CallContext, provider: Any, request: StructuredRequest, role: str,
+                   ref: ModelRef) -> tuple[Any, int] | None:
+    """Reserve estimated input + max output in the daily ledger, or raise QuotaExceeded (B17.5 item 1)."""
+    ceiling = quota.ceiling_for(ctx.settings, ref.family)
+    if ceiling is None or not quota.counted(provider):
+        return None
+    need = int(tokens.estimate_many(request.system, request.user, json.dumps(request.schema)) * quota.INPUT_MARGIN)
+    need += int(request.max_output_tokens or 0)
+    ledger = ctx.ledger or quota.default_ledger()
+    rid = await asyncio.to_thread(ledger.reserve, ref.family, need, ceiling, investigation_id=ctx.investigation_id,
+                                  task_id=ctx.task_id, role=role, model=ref.model)
+    return ledger, rid
+
+
+async def _unreserve(ctx: CallContext, reservation: tuple[Any, int] | None, exc: ModelError | None) -> None:
+    """An HTTP error with a status was answered without usage → release; anything else may have been billed → keep."""
+    if reservation is None:
+        return
+    ledger, rid = reservation
+    if exc is not None and exc.status is not None:
+        await asyncio.to_thread(ledger.release, rid)
+    else:
+        await asyncio.to_thread(ledger.keep, rid)
 
 
 async def _log(ctx: CallContext, role: str, ref: ModelRef, prompt_version: str, key: str, *, attempt: str,

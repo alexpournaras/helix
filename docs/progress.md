@@ -30,7 +30,6 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 - [ ] Clinician review of the floor and the tinnitus pack (two reviewers, recorded in decisions.md)
 - [ ] `build_pack.py` after grounding (1C.3): built 2026-11-27 with fake-model tests; live run for the tinnitus draft pending
 
-### 1C–1H
 ### 1C Intake, safety, grounding, questions
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
@@ -48,7 +47,7 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
   - [x] 1E.5 Fit and analysis (fake-model tests)
   - [x] 1E.6 Gaps panel (reporting only; fake-model tests)
 - [ ] 1R Budget rework (PLAN B17 v9, decisions 2026-11-28): one case within 2.4M, ledger-enforced daily ceiling
-  - [ ] 1R.0 Daily quota ledger (reservations before every call)
+  - [x] 1R.0 Daily quota ledger: `quota.py`, reservation before every provider call, `npm run research:quota`, doctor line, worker waits for the UTC reset (14 tests); model snapshot `gpt-5.4-mini-2026-03-17` recorded
   - [ ] 1R.1 Budget profile, stage targets, protected reserves, pool
   - [ ] 1R.2 Grounding reuse and several complaints
   - [ ] 1R.3 Single screener and ranking
@@ -63,25 +62,18 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 
 ## Waiting for live runs
 
-**2026-11-28: PLAN v9.** One case must fit in one quota day (B17, target ~1.6–2.0M, cap 2.4M; ledger from 1R.0); the estimates below are for the v7 structure and get replaced after 1R. Daily OpenAI limit: 2.5M tokens (input + output); runs stop at 2.4M. A stopped run resumes the next day from the
-model-answer cache. Estimates (2026-11-27) from the call logs of the 11-25 eval runs and X9 run 2:
+Daily limit (PLAN B17.1): 2.5M complimentary tokens per **UTC** day, Helix ceiling **2.4M**, enforced by the ledger
+(`npm run research:quota`) since 1R.0. Synthetic cases only. One live block per day, asked first; the day-by-day
+order is in `docs/plan-next-days.md`. Estimates below are for the `budget` profile (B17.4) unless marked.
 
-1. ~~X9 run 2~~ done 2026-11-27: recall 80/80 = 100% (pass), 2.13M tokens.
-2. ~~X9 attestation hand review~~ done 2026-11-27: 163/169 = 96.4% (pass).
-3. Live eval for 1C.4 (`python -m eval.run --mode live --stop-at planning`): questions, answers and the brief update
-   on the synthetic cases. **~2.1–3.1M** for all 8 cases: intake + safety ~20k per case (mostly cached), grounding
-   0.3–0.55M per case for the 5 cases that reach it (11-25 runs), questions ~30k. Run 2–3 cases a day
-   (`--case`), or all 8 over two days.
-4. Live check of 1D and 1E on `dev_openai` (one case). With the quality structure (`max_screened` 6000, dual
-   screening in batches of 8, 25 full-text papers per round, up to 5 rounds, ~0.3–0.5M per paper read) a full run
-   is **~10–20M+**, several days. So it runs with `--settings eval/limits/live_check.yaml` (≤ 6 hypotheses, 3
-   queries each, 200 screened, 3 papers, 1 round, no snowball, `guards.max_tokens` 2M): `--stop-at reading`
-   ~0.8–1.2M, then `--stop-at synthesis` ~1.5–2.5M.
-5. X3 (`python -m eval.spikes.x3_dual_extraction run`, then pair claims by hand and `score`): script and papers
-   ready (2026-11-27; each paper is one 10–20k-token pack, 12 extraction calls): **~0.4–0.6M** (~$1–2.50).
-6. X6 (cost and time): no extra calls, written up from the item 4 numbers.
-8. `build_pack.py --complaint tinnitus --term Tinnitus` (draft for review): grounding at maximum depth (8 sources,
-   every pack) + one drafting call. **~2–3M on `dev_openai`** (more than a day: it resumes from the shared cache);
-   on `quality` (the plan's default, strongest models) it needs the quality keys and a budget decision.
-7. X1 (structured output, after 1F): the `dev_openai` part ~0.5–1.5M. The rest uses the quality models, not this
-   limit.
+| # | Run | Tokens | Status |
+|---|---|---|---|
+| 1 | X9 run 2 + attestation review | 2.13M | done 2026-11-27 (recall 80/80, attestations 96.4%) |
+| 2 | X3 dual extraction (`x3_dual_extraction run`, 6 papers, 12 calls, `dev_openai`), then hand pairing + `score` | ~0.4–0.5M | running 2026-11-28 |
+| 3 | Probe `low` effort on `gpt-5.4-mini` (`research:doctor --probe`) | tiny | with 1R.1 |
+| 4 | 1C.4 eval on `budget`, `--stop-at planning`: 3 cases over two days (grounding fills the cache) | ~0.65M per new complaint | after 1R.1 |
+| 5 | One case `--stop-at reading`, then to `gaps` (1R.5) | ~0.6–0.8M, then ~0.3M | after 1R.4 |
+| 6 | X6 (cost and time) | none: written up from item 5 | after item 5 |
+| 7 | 1R.8: two full cases to the report (cold and warm cache), one case day each | ≤ 2.4M each | after 1F |
+| 8 | `build_pack.py` for the tinnitus pack draft (resumes across days through the ledger) | ~2–3M (`dev_openai`) | when a day is free |
+| 9 | X1 structured output | ~0.5–1.5M | after 1F |

@@ -19,7 +19,7 @@ from typing import Callable, Iterable
 import yaml
 
 from app.config import ProviderKeys, settings as app_settings
-from app.research import mesh, preflight
+from app.research import mesh, preflight, quota
 from app.research.db import SCHEMA_VERSION
 from app.research.providers import default_providers
 from app.research.settings import ResearchSettings, SettingsStore
@@ -145,6 +145,21 @@ def _knowledge() -> list[Check]:
     return out
 
 
+def _quota(research: ResearchSettings) -> list[Check]:
+    """The day's token ledger (B17.1): used, reserved, remaining, next reset, whether a full case can start."""
+    out = []
+    for provider in (research.quota.get("providers") or []):
+        ceiling = quota.ceiling_for(research, provider)
+        try:
+            st = quota.default_ledger().status(provider, ceiling)
+        except Exception as exc:  # noqa: BLE001 — a locked or unreadable ledger is reported, not fatal here
+            out.append(Check("quota", "fail", f"ledger can't be read: {exc.__class__.__name__}: {exc}"))
+            continue
+        status = "ok" if st.case_can_start() else "warn"
+        out.append(Check("quota", status, quota.describe(st)))
+    return out
+
+
 def checks(*, data_dir: Path | None = None, keys: ProviderKeys | None = None,
            git_tracked: Callable[[Iterable[str]], list[str]] = _git_tracked) -> list[Check]:
     data_dir = Path(data_dir or app_settings.data_dir)
@@ -155,6 +170,7 @@ def checks(*, data_dir: Path | None = None, keys: ProviderKeys | None = None,
     out += _preflight(research, probes)
     out += _privacy(research)
     out.append(_database(data_dir / "research.sqlite3"))
+    out += _quota(research)
     out += _knowledge()
     tracked = git_tracked(SECRET_PATHS)
     out.append(Check("git", "fail", f"tracked by git, remove from the index: {', '.join(tracked)}") if tracked

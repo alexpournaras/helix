@@ -206,6 +206,9 @@ class Worker:
 
     def _model_error(self, task: dict, exc: ModelError) -> None:
         attempts = task["attempts"]
+        if exc.kind == "quota":
+            self._quota_wait(task, exc)
+            return
         if exc.kind == "transient" and attempts < task["max_attempts"]:
             delay = BACKOFF_SECONDS[min(attempts - 1, len(BACKOFF_SECONDS) - 1)]
             if exc.retry_after:
@@ -216,6 +219,20 @@ class Worker:
             self._requeue(task, 0, exc)
             return
         self._apply_failure(task, exc.kind, exc.message)
+
+    def _quota_wait(self, task: dict, exc: ModelError) -> None:
+        """The day's token ceiling was reached (B17.1): the task waits for the 00:00 UTC reset without using up an
+        attempt, and the investigation stays active, so it resumes on its own."""
+        not_before = (self.clock() + timedelta(seconds=exc.retry_after or 3600)).isoformat(
+            timespec="milliseconds").replace("+00:00", "Z")
+        with self.db.tx() as conn:
+            conn.execute("UPDATE research_tasks SET status = 'queued', not_before = ?, error = ?, error_kind = 'quota', "
+                         "attempts = MAX(attempts - 1, 0), started_at = NULL WHERE id = ? AND status IN ('running','queued')",
+                         (not_before, exc.message[:1000], task["id"]))
+            inv = conn.execute("SELECT stage FROM investigations WHERE id = ?", (task["investigation_id"],)).fetchone()
+            self.db.event(task["investigation_id"], "quota_wait", f"{task['step']}: daily token ceiling reached",
+                          level="warning", stage=inv["stage"] if inv else None,
+                          data={"task_id": task["id"], "not_before": not_before}, conn=conn)
 
     def _requeue(self, task: dict, delay: float, exc: ModelError) -> None:
         not_before = (self.clock() + timedelta(seconds=delay)).isoformat(timespec="milliseconds").replace("+00:00", "Z")

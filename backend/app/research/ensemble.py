@@ -70,6 +70,8 @@ async def _one(ctx: CallContext, role: str, ref: ModelRef, schema: type[T], syst
                                           model=ref, validate=validate)
         return Member(model=ref, value=result.value, cached=result.cached)
     except ModelError as exc:
+        if exc.kind == "quota":
+            raise  # the day's ceiling stops the whole task; it must not look like a failed member (B17.1)
         return Member(model=ref, error=exc)
 
 

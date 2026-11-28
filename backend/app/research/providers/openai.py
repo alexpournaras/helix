@@ -20,6 +20,7 @@ BASE_URL = "https://api.openai.com/v1"
 
 class OpenAIProvider:
     name = "openai"
+    quota_counted = True  # real calls go through the daily ledger (quota.py)
 
     def __init__(self, *, base_url: str = BASE_URL, key: str | None = None, capabilities: dict | None = None):
         self.base_url = base_url

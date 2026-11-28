@@ -180,6 +180,9 @@ QUALITY: dict[str, Any] = {
     "guards": {"max_total_papers": 120, "max_screened": 6000, "max_wall_minutes": 480, "reserve": 0.2,
                "max_tokens": None, "max_cost_usd": None},
     "concurrency": {"max_parallel_tasks": 8, "openai": 16, "anthropic": 16, "ollama": 1},
+    # Daily token ceiling enforced by Helix (PLAN B17.1, quota.py): OpenAI's complimentary quota is 2.5M per UTC
+    # day and anything beyond it is billed. `model_pin`: the dated snapshot eval runs use (set in 1R.0).
+    "quota": {"providers": ["openai"], "daily_ceiling_tokens": 2400000, "model_pin": "gpt-5.4-mini-2026-03-17"},
 }
 
 
@@ -437,6 +440,7 @@ class ResearchSettings(Strict):
     loop: dict[str, Any]
     guards: GuardsCfg
     concurrency: dict[str, int]
+    quota: dict[str, Any]
 
     @model_validator(mode="after")
     def _floor(self) -> "ResearchSettings":

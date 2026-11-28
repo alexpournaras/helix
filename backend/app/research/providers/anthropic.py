@@ -22,6 +22,7 @@ EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 class AnthropicProvider:
     name = "anthropic"
+    quota_counted = True  # counted when a ceiling is configured for it (quota.providers)
 
     def __init__(self, *, base_url: str = BASE_URL, key: str | None = None, version: str = DEFAULT_VERSION,
                  capabilities: dict | None = None):

@@ -34,13 +34,13 @@ Ticked when the task's definition of done (PLAN Part G.8) is met.
 ### 1C Intake, safety, grounding, questions
 - [x] 1C.1 Intake (generate + code checks + brief check + MeSH; populations; rewrite path; 5 synthetic eval cases pass live on `dev`)
 - [x] 1C.2 Safety (floor + pack rules, panel, guideline red flags, rule-outs, safety rule, `safety_finalize`, crisis resources)
-- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai`; X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) passed (recall 80/80, attestations 96.4%); `build_pack.py` built, live run pending
-- [x] 1C.4 Questions and brief update (fake-model tests; live check with tomorrow's eval run)
-- [x] 1D Search (fake-model and fake-source tests; live check pending)
-  - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (fake-model tests; live check pending)
-  - [x] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement (fake-model tests; live check pending)
+- [ ] 1C.3 Grounding (+ X9, `build_pack.py`): built and live-tested on `dev_openai` and on `budget` (2026-11-28, with reuse); X9 run 1 87.5% recall (fail) → extraction v3 / verify v2; run 2 (2026-11-27) passed (recall 80/80, attestations 96.4%); `build_pack.py` built, live run pending
+- [x] 1C.4 Questions and brief update — live 2026-11-28 on `budget` (tinnitus, headache: questions asked, scripted answers, brief update, safety again, E1 ok)
+- [x] 1D Search — live 2026-11-28 on `budget` up to `reading` (planning, queries, search, prefilter + ranking, screening, select, fetch; E1 ok)
+  - [x] 1D.1 Planning: two planners, consolidation, knowledge coverage, `plan_approval` (live 2026-11-28, one planner on `budget`)
+  - [x] 1D.2 Queries: allowlists, MeSH and knowledge vocabulary, hit counts, refinement (live 2026-11-28)
   - [x] 1D.3 Search and seed, prefilter, dual screening, select, fetch
-- [x] 1E Reading and evidence (fake-model tests; live check pending)
+- [x] 1E Reading and evidence (fake-model tests; live check 1R.5 (b) running 2026-11-28)
   - [x] 1E.1 Reading: profile, appraisal panel, study identity, dual extraction, whole-paper pass, reconciliation, applicability (fake-model tests)
   - [x] 1E.2 Verification panel, escalation, adjudication, re-read (fake-model tests)
   - [x] 1E.3 Map, group, confirm (fake-model tests)

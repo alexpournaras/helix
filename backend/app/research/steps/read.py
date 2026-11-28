@@ -27,17 +27,19 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .. import claims as C, ensemble, llm
+from .. import claims as C, ensemble, llm, tokens
 from ..db import _decode, now
 from ..packing import pack_snapshot
 from ..pipeline import StageContext, StageDef, StepDef
-from ..schemas import Appraisal, Applicability, ClaimSet, PaperProfile, SameClaims
-from ..segment import Snapshot, paper_snapshot
+from ..schemas import Appraisal, Applicability, ClaimSet, PaperAssessment, PaperProfile, SameClaims
+from ..segment import Snapshot, paper_snapshot, part_of
 from ..sources import sources_for
 from . import safety
 from .screen import case_summary
 
 PROFILE_VERSION = "read.profile.v1"
+ASSESS_VERSION = "read.assess.v1"
+ASSESS_MAX_TOKENS = 6000
 APPRAISAL_VERSION = "read.appraisal.v1"
 CLAIMS_VERSION = "read.claims.v1"
 WHOLE_VERSION = "read.whole_paper.v1"
@@ -99,6 +101,27 @@ def applicability_material(summary: dict, brief, profile: PaperProfile, design: 
     paper = {k: getattr(profile, k).value for k in ("population", "setting", "inclusion_criteria")}
     return llm.material(json.dumps({"case": case, "paper": {**paper, "design": design}}, ensure_ascii=False, indent=1),
                         kind="applicability")
+
+
+def assess_text(snapshot: Snapshot, max_tokens: int = ASSESS_MAX_TOKENS) -> str:
+    """The abstract and the methods (what `read.assess` needs), cut to `max_tokens` in document order."""
+    from ..packing import part_priority, render_segments
+    chosen = [s for s in snapshot.segments if part_priority(part_of(s.seg_id), s) in (0, 3)]
+    if len(chosen) < 3:  # no methods section: the start of the paper
+        chosen = list(snapshot.segments)
+    out: list = []
+    for seg in chosen:
+        if tokens.estimate(render_segments(out + [seg])) > max_tokens:
+            break
+        out.append(seg)
+    return render_segments(out)
+
+
+def assess_material(summary: dict, brief, design: str, text: str) -> str:
+    case = {**summary, "age": brief.demographics.age.text if brief.demographics.age else None,
+            "sex": brief.demographics.sex.value if brief.demographics.sex else None}
+    return llm.material(f"Case: {json.dumps(case, ensure_ascii=False)}\nDesign: {design}\n"
+                        f"Criteria: {', '.join(criteria_for(design))}\n\nPaper:\n{text}", kind="assessment")
 
 
 # ---------- combining ----------
@@ -301,7 +324,8 @@ async def run(tc) -> Any:
         snap = paper_snapshot(fetched.article.abstract or cand["abstract"], fetched.details)
         fulltext_source = (fetched.details.full_text_from if fetched.details else "") or None
     cfg, ens = _cfg(tc.settings), _ens(tc.settings)
-    packed = pack_snapshot(snap, int(cfg["max_pack_tokens"]), cfg.get("max_packs_per_paper"))
+    packed = pack_snapshot(snap, int(cfg["max_pack_tokens"]), cfg.get("max_packs_per_paper"),
+                           priority=bool(cfg.get("pack_priority")))
     packs = packed.packs
     if not packs:
         raise RuntimeError("the paper has no text to read")
@@ -329,13 +353,30 @@ async def run(tc) -> Any:
         return [{"model": m.model.model, "family": m.model.family, "ok": True,
                  "value": m.value.model_dump(mode="json")}], [m.value]
 
-    prof, (appraisal_votes, appraisal_values) = await asyncio.gather(profile(), appraisal())
-    ext = await extract_claims(ctx, snap=snap, packs=packs, summary=summary, hyps=hyps, design=design, limit=limit,
-                               profile_n=prof.n.value, dual=ens["dual_extraction"], whole=ens["whole_paper_pass"])
-    m = await ensemble.single(ctx, "read.applicability", Applicability, _system(APPLICABILITY_VERSION),
-                              applicability_material(summary, brief, prof, design),
-                              prompt_version=APPLICABILITY_VERSION)
-    applicability = applicability_rule(m.value, pops)  # type: ignore[arg-type]
+    combined = bool(cfg.get("combined_assess")) and not ens["appraisal_panel"]
+    if combined:  # budget: one call for profile, appraisal and applicability (B17.5 item 1)
+        check = appraisal_validator(design)
+        a = await ensemble.single(ctx, "read.assess", PaperAssessment, _system(ASSESS_VERSION),
+                                  assess_material(summary, brief, design, assess_text(snap)),
+                                  prompt_version=ASSESS_VERSION, validate=lambda v: check(v.appraisal))
+        prof, applicability_value = a.value.profile, a.value.applicability  # type: ignore[union-attr]
+        appraisal_values = [a.value.appraisal]  # type: ignore[union-attr]
+        appraisal_votes = [{"model": a.model.model, "family": a.model.family, "ok": True,
+                            "value": a.value.appraisal.model_dump(mode="json")}]  # type: ignore[union-attr]
+        version = cfg.get("claims_version") or CLAIMS_VERSION
+        ext = await extract_claims(ctx, snap=snap, packs=packs, summary=summary, hyps=hyps, design=design, limit=limit,
+                                   profile_n=prof.n.value, dual=ens["dual_extraction"], whole=ens["whole_paper_pass"],
+                                   version=version)
+    else:
+        prof, (appraisal_votes, appraisal_values) = await asyncio.gather(profile(), appraisal())
+        ext = await extract_claims(ctx, snap=snap, packs=packs, summary=summary, hyps=hyps, design=design, limit=limit,
+                                   profile_n=prof.n.value, dual=ens["dual_extraction"], whole=ens["whole_paper_pass"],
+                                   version=cfg.get("claims_version") or CLAIMS_VERSION)
+        m = await ensemble.single(ctx, "read.applicability", Applicability, _system(APPLICABILITY_VERSION),
+                                  applicability_material(summary, brief, prof, design),
+                                  prompt_version=APPLICABILITY_VERSION)
+        applicability_value = m.value
+    applicability = applicability_rule(applicability_value, pops)  # type: ignore[arg-type]
     appraisal_combined = combine_appraisals(appraisal_values, design, snap)
     profile_d = {k: {"value": f.value, "sentence_ids": clean_ids(f.sentence_ids, snap)}
                  for k, f in prof}  # type: ignore[union-attr]
@@ -356,7 +397,7 @@ async def run(tc) -> Any:
             read_id = tc.db.insert(conn, "paper_reads", {
                 "investigation_id": inv["id"], "candidate_id": cid, "literature_id": cand["literature_id"],
                 "round": rnd, "purpose": "research", "scope": packed.coverage, "fulltext_source": fulltext_source,
-                "parser": "jats" if snap.has_body else None, "skipped_sections": snap.skipped_sections,
+                "parser": "jats" if snap.has_body else None, "skipped_sections": [*snap.skipped_sections, *packed.dropped_sections],
                 "segments": snap.to_dict(), "segments_hash": snap.hash,
                 "packs": [p.summary() for p in packs], "profile": profile_d, "appraisal_votes": appraisal_votes,
                 "appraisal": appraisal_combined, "study_identity": identity, "applicability": applicability,

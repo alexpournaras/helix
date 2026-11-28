@@ -7,7 +7,7 @@ import re
 from research_testkit import ResearchTestCase
 
 from app.literature.models import Article, Details, Section
-from app.research import llm, settings as S
+from app.research import llm, settings as S, tokens
 from app.research.prices import PriceTable
 from app.research.providers import FakeProvider
 from app.research.ratelimit import Limiters
@@ -328,3 +328,48 @@ class ReadFlowTests(ReadBase):
         got = R.combine_appraisals([a, b], "cross_sectional", SNAP)
         self.assertEqual(got["overall_risk"], "some")
         self.assertEqual([c["rating"] for c in got["criteria"]], ["unclear", "unclear", "unclear", "unclear"])
+
+
+class BudgetReadingTests(ReadBase):
+    """1R.4 (PLAN B17.5 items 1–4): one `read.assess` call, one extraction with `read.claims.v2`."""
+
+    async def test_one_assess_call_and_the_coverage_prompt(self):
+        def make(family):
+            base = self.models.handler(family)
+            return lambda request: handler(request, base)
+
+        def handler(request, base):
+            if request.schema_name == "PaperAssessment":
+                self.models.calls["PaperAssessment"] = self.models.calls.get("PaperAssessment", 0) + 1
+                self.models.users.setdefault("PaperAssessment", []).append(request.user)
+                return {"profile": profile(request, "openai"), "appraisal": appraisal(request, "openai"),
+                        "applicability": self.models.applicability(request)}
+            if request.schema_name == "ClaimSet":
+                self.models.users.setdefault("system", []).append(request.system)
+            return base(request)
+        inv_id = self.seed(settings={
+            "ensembles": {"dual_extraction": False, "whole_paper_pass": False, "appraisal_panel": False},
+            "extraction": {"combined_assess": True, "claims_version": "read.claims.v2"}})
+        ctx = self.ctx()
+        self.a.handler, self.b.handler = make("openai"), make("anthropic")  # quality roles span both families
+        pipeline, _ = build_pipeline(ctx, stop_at="verifying")
+        worker = Worker(self.db, pipeline, services=ctx, max_parallel=2)
+        await worker.machine.advance(inv_id)
+        await worker.run_until_idle()
+        calls = self.models.calls
+        self.assertEqual((calls.get("PaperAssessment"), calls.get("ClaimSet")), (1, 1), calls)
+        for name in ("PaperProfile", "Appraisal", "Applicability"):
+            self.assertNotIn(name, calls)
+        self.assertIn("only extractor", self.models.users["system"][0])  # read.claims.v2
+        self.assertIn("Case:", self.models.users["PaperAssessment"][0])
+        row = self.read_row(inv_id)
+        self.assertEqual((row["applicability"]["overall"], row["status"]), ("high", "read"))
+        self.assertIn("overall_risk", row["appraisal"])
+
+    def test_assess_text_is_abstract_and_methods_within_the_limit(self):
+        from app.research.steps import read as R
+        text = R.assess_text(SNAP, max_tokens=6000)
+        self.assertIn("### Abstract", text)
+        self.assertLessEqual(tokens.estimate(text), 6000)
+        short = R.assess_text(SNAP, max_tokens=60)
+        self.assertLessEqual(tokens.estimate(short), 60)

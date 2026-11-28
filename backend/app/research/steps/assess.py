@@ -54,6 +54,11 @@ MATRIX_STEP = StepDef("matrix", run_matrix, code_step=True)
 FIT_VERSION = "fit.v1"
 ANALYSIS_VERSION = "analysis.v1"
 MAX_CLAIMS = 40
+
+
+def fit_limit(settings: dict | None) -> int:
+    """Claims shown to fit and analysis (`fit.max_claims`; 20 in the budget profile, B17.2)."""
+    return int((((settings or {}).get("fit") or {}).get("max_claims")) or MAX_CLAIMS)
 NEEDS_CLAIM = {"evidence", "inference", "recommendation"}
 
 
@@ -122,7 +127,7 @@ async def run_fit(tc) -> Any:
     with tc.db.read() as conn:
         h = _decode(conn.execute("SELECT * FROM hypotheses WHERE id = ?", (hid,)).fetchone())
         found = safety.current_brief(conn, inv["id"])
-        claims = top_claims(conn, inv["id"], hid, tc.settings)
+        claims = top_claims(conn, inv["id"], hid, tc.settings, fit_limit(tc.settings))
     features = found[1].case_features if found else []
     keys = [f.key for f in features]
     rows: list[dict] = []
@@ -191,7 +196,7 @@ async def run_analysis(tc) -> Any:
         h = _decode(conn.execute("SELECT * FROM hypotheses WHERE id = ?", (hid,)).fetchone())
         found = safety.current_brief(conn, inv["id"])
         segs = safety.segments(conn, inv["id"])
-        claims = top_claims(conn, inv["id"], hid, tc.settings)
+        claims = top_claims(conn, inv["id"], hid, tc.settings, fit_limit(tc.settings))
         fits = [dict(r) for r in conn.execute("SELECT feature_key, fit FROM feature_fit WHERE investigation_id = ? AND "
                                               "round = ? AND hypothesis_id = ?", (inv["id"], rnd, hid))]
     features = {f.key: f.text for f in (found[1].case_features if found else [])}

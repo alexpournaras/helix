@@ -479,6 +479,13 @@ class Applicability(_Out):
     reason: str = Field(min_length=1, max_length=400)
 
 
+class PaperAssessment(_Out):
+    """Budget reading (PLAN B17.5 item 1): profile, appraisal and applicability in one call (`read.assess`)."""
+    profile: PaperProfile
+    appraisal: Appraisal
+    applicability: Applicability
+
+
 # ---------- claim verification (B8.15) ----------
 
 class ClaimVote(_Out):

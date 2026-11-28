@@ -157,6 +157,27 @@ class PackingTests(unittest.TestCase):
         self.assertEqual(full.coverage, "full")
         self.assertEqual(pack_snapshot(snap, max_tokens=1500, max_packs=None).packs, full.packs)
 
+    def test_priority_cap_keeps_results_over_earlier_sections(self):
+        """Budget (PLAN B17.5 item 4): a late results section survives a two-pack cap; packs stay in document order."""
+        sections = [("Introduction", 4, 6), ("Background", 4, 6), ("Methods", 4, 6), ("Statistical analysis", 4, 6),
+                    ("Results", 4, 6), ("Discussion", 4, 6)]
+        snap = paper_snapshot("Abstract here.", _paper(sections, tables=1))
+        plain = pack_snapshot(snap, max_tokens=1500, max_packs=2)
+        prio = pack_snapshot(snap, max_tokens=1500, max_packs=2, priority=True)
+        kept = lambda r: {s.section for s in snap.segments if s.seg_id in {i for p in r.packs for i in p.seg_ids}}  # noqa: E731
+        self.assertNotIn("Results", kept(plain))  # today's cap loses the results
+        self.assertIn("Results", kept(prio))
+        self.assertIn("Abstract", kept(prio))
+        self.assertLessEqual(len(prio.packs), 2)
+        self.assertEqual(prio.coverage, "partial")
+        self.assertIn("Introduction", prio.dropped_sections)
+        self.assertNotIn("Results", prio.dropped_sections)
+        order = [s.seg_id for s in snap.segments]
+        shown = [i for p in prio.packs for i in p.seg_ids]
+        self.assertEqual(shown, sorted(shown, key=order.index))  # document order
+        # under the cap, priority changes nothing
+        self.assertEqual(pack_snapshot(snap, max_tokens=1500, priority=True).packs, pack_snapshot(snap, 1500).packs)
+
     def test_abstract_only(self):
         snap = paper_snapshot("Only. An abstract.", Details())
         result = pack_snapshot(snap)

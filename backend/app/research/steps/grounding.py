@@ -430,9 +430,11 @@ async def verify_items(ctx, complaint: dict, items: list[Extracted], reads: list
         for att in item.attestations:
             n += 1
             att["pair"] = f"X{n}"
+            triggers = {"red_flag": ["red_flag"], "evaluation": ["recommendation"],
+                        "management_topic": ["recommendation"]}.get(item.kind, [])
             pairs.append(V.Pair(f"X{n}", text, att["quote"], _context(reads[att["read"]].snapshot,
                                                                       att["sentence_ids"]),
-                                att["model"], att["family"]))
+                                att["model"], att["family"], triggers=triggers, seed=text))
     if not pairs:
         return
     system = llm.base_system() + "\n\n" + llm.prompt(VERIFY_VERSION)

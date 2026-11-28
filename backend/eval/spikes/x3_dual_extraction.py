@@ -4,6 +4,7 @@
     .venv/Scripts/python -m eval.spikes.x3_dual_extraction run     # live: dual extraction + reconciliation (dev_openai)
     .venv/Scripts/python -m eval.spikes.x3_dual_extraction score   # valid IDs per extractor; reconciliation vs x3_gold.yaml
     ... run/score --profile dev_ollama [--model qwen3:4b --ctx 24576 --pack 8000 --no-think] [--only PMC1,PMC2]
+    ... run --profile budget --single --claims read.claims.v2   # one extractor with the coverage prompt (1R.4)
 
 Pass: ≥ 90% valid sentence IDs per extractor (IDs that exist in the paper and were shown to the extractor, counted
 over every claim it returned, rejected ones included); reconciliation puts ≥ 80% of the hand-paired claims (the
@@ -137,7 +138,8 @@ def summarise(ext: R.Extraction) -> dict:
     return {"claims": claims, "rejected": rejected, "clusters": clusters, "borderline": ext.borderline}
 
 
-async def run(profile: str, overlay: dict | None, label: str, only: list[str] | None) -> None:
+async def run(profile: str, overlay: dict | None, label: str, only: list[str] | None, *, dual: bool = True,
+              version: str = R.CLAIMS_VERSION) -> None:
     import time
     ctx = context(profile, overlay, label)
     cfg = R._cfg(ctx.settings.model_dump(mode="json"))
@@ -150,7 +152,8 @@ async def run(profile: str, overlay: dict | None, label: str, only: list[str] | 
         packs = pack_snapshot(snap, int(cfg["max_pack_tokens"])).packs
         started = time.monotonic()
         ext = await R.extract_claims(ctx, snap=snap, packs=packs, summary=summary, hyps=hyps, design=design,
-                                     limit=int(cfg["max_claims_per_pack"]), profile_n=None, dual=True, whole=False)
+                                     limit=int(cfg["max_claims_per_pack"]), profile_n=None, dual=dual, whole=False,
+                                     version=version)
         results[pmcid] = {"system": system, "design": design, "packs": len(packs),
                           "seconds": round(time.monotonic() - started, 1), **summarise(ext)}
         r = results[pmcid]
@@ -255,6 +258,10 @@ def main(argv: list[str]) -> int:
     profile = opt("--profile", "dev_openai")
     model = opt("--model")
     label = run_label(profile, model)
+    single = "--single" in argv  # one extractor (the budget profile, PLAN B17.5 item 5)
+    version = opt("--claims", R.CLAIMS_VERSION)
+    if single or version != R.CLAIMS_VERSION:
+        label += ("-single" if single else "") + ("-" + version.split(".")[-1] if version != R.CLAIMS_VERSION else "")
     overlay = S.local_model_overlay(model, thinking="--no-think" not in argv, num_ctx=int(opt("--ctx", 32768)),
                                     pack_tokens=int(opt("--pack", 12000))) if model else None
     only = opt("--only", "").split(",") if "--only" in argv else None
@@ -262,7 +269,7 @@ def main(argv: list[str]) -> int:
         asyncio.run(fetch())
     elif cmd == "run":
         with transport.use_transport(transport.RecordTransport(OUT / f"recordings{suffix(label)}")):
-            asyncio.run(run(profile, overlay, label, only))
+            asyncio.run(run(profile, overlay, label, only, dual=not single, version=version))
     else:
         score(label)
     return 0

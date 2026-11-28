@@ -16,6 +16,7 @@ reread:r{read_id}  strict extraction (`read.claims.strict.v1`, per pack, no whol
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any
 
@@ -77,6 +78,28 @@ def adjudication_renderer(snap: Snapshot, profile: dict, ids_by_pair: dict[str, 
     return render_adjudicate
 
 
+CAUSAL = re.compile(r"\b(caus\w*|leads? to|led to|results? in|resulted in|induc\w*|trigger\w*|due to|"
+                    r"because of|attributable|responsible for)\b", re.I)
+
+
+def claim_triggers(c: dict) -> list[str]:
+    """Second-opinion triggers known when the claim is verified (PLAN B17.5 item 5). `number_in_conclusion` and
+    `rank_changing` are covered later by `confirm`, which re-verifies the claims that drive the ratings."""
+    checks = c.get("checks") or {}
+    out = []
+    if checks.get("ids_dropped") or checks.get("effect_cleared") or checks.get("n_cleared"):
+        out.append("code_flag")
+    if c.get("strong_link"):
+        out.append("strong_link")
+    if CAUSAL.search(c.get("claim") or ""):
+        out.append("causal")
+    if c.get("red_flag_link"):
+        out.append("red_flag")
+    if c.get("evidence_type") in ("guideline_recommendation", "diagnostic_accuracy"):
+        out.append("recommendation")
+    return out
+
+
 async def verify_claims(ctx, claims: list[dict], snap: Snapshot, profile: dict) -> list[V.Pair]:
     """`claims` = [{claim, effect, population, quote, sentence_ids, extractor_model, extractor_family}] in order;
     returns one Pair per claim (same order) with `verdict` and `votes`."""
@@ -85,7 +108,8 @@ async def verify_claims(ctx, claims: list[dict], snap: Snapshot, profile: dict) 
         pid = f"C{n}"
         ids_by_pair[pid] = list(c["sentence_ids"])
         pairs.append(V.Pair(pid, claim_text(c), c["quote"], G._context(snap, c["sentence_ids"]),
-                            c.get("extractor_model") or "", c.get("extractor_family") or ""))
+                            c.get("extractor_model") or "", c.get("extractor_family") or "",
+                            triggers=claim_triggers(c), seed=c.get("claim") or ""))
     if pairs:
         await V.verify(ctx, "verify", pairs, system=llm.base_system() + "\n\n" + llm.prompt(VERIFY_VERSION),
                        prompt_version=VERIFY_VERSION, render=render, schema=ClaimVoteBatch, rule=V.claim_rule,
@@ -105,9 +129,10 @@ def write_votes(conn: sqlite3.Connection, claim_id: int, pair: V.Pair) -> dict:
                                                       json.dumps(checks), (v.get("reason") or "")[:300], now()))
     verdict = pair.verdict or "unsupported"
     status = "rejected" if verdict == "unsupported" else "active"
-    conn.execute("UPDATE evidence_claims SET status = ?, verification = ?, escalated = ?, adjudicated = ? "
-                 "WHERE id = ?", (status, None if status == "rejected" else verdict, int("escalate" in stages),
-                                  int("adjudicate" in stages), claim_id))
+    conn.execute("UPDATE evidence_claims SET status = ?, verification = ?, escalated = ?, adjudicated = ?, "
+                 "checks = json_set(COALESCE(checks, '{}'), '$.verification_mode', ?) WHERE id = ?",
+                 (status, None if status == "rejected" else verdict, int("escalate" in stages or "second" in stages),
+                  int("adjudicate" in stages), V.verification_mode(pair.votes), claim_id))
     return {"status": status, "escalated": "escalate" in stages, "adjudicated": "adjudicate" in stages}
 
 
@@ -128,9 +153,19 @@ def load_read(conn: sqlite3.Connection, read_id: int) -> tuple[dict, Snapshot]:
 def claim_rows(conn: sqlite3.Connection, read_id: int, status: str) -> list[dict]:
     rows = [_decode(r) for r in conn.execute("SELECT * FROM evidence_claims WHERE read_id = ? AND status = ? "
                                              "ORDER BY id", (read_id, status))]
+    links: dict[int, list[dict]] = {}
+    if rows:
+        ids = [r["id"] for r in rows]
+        for l in conn.execute(
+                f"SELECT l.claim_id, l.strength, l.direction, h.kind FROM claim_links l JOIN hypotheses h "
+                f"ON h.id = l.hypothesis_id WHERE l.claim_id IN ({','.join('?' * len(ids))})", ids):
+            links.setdefault(l["claim_id"], []).append(dict(l))
     for r in rows:
         checks = r.get("checks") or {}
         r["extractor_family"] = checks.get("extractor_family", "")
+        mine = links.get(r["id"], [])
+        r["strong_link"] = any(l["strength"] == "strong" for l in mine)
+        r["red_flag_link"] = any(l["kind"] == "red_flag" and l["direction"] != "neutral" for l in mine)
     return rows
 
 
@@ -182,7 +217,8 @@ async def run_reread(tc) -> Any:
     if found is None:
         raise RuntimeError("the re-read needs a case brief")
     cfg, ens = R._cfg(tc.settings), R._ens(tc.settings)
-    packs = pack_snapshot(snap, int(cfg["max_pack_tokens"]), cfg.get("max_packs_per_paper")).packs
+    packs = pack_snapshot(snap, int(cfg["max_pack_tokens"]), cfg.get("max_packs_per_paper"),
+                          priority=bool(cfg.get("pack_priority"))).packs
     profile = row.get("profile") or {}
     ctx = tc.services.with_task(task_id=tc.task["id"], step="reread", investigation_id=inv["id"])
     ext = await R.extract_claims(ctx, snap=snap, packs=packs, summary=case_summary(found[1], inv), hyps=hyps,

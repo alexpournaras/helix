@@ -387,7 +387,7 @@ def _budget() -> dict:
         "screening": {"batch_size": 20, "abstract_chars": 1500, "prerank": True, "round_caps": [300, 100]},
         "selection": {"max_fulltext_papers_per_round": 10, "round2_max_papers": 6, "min_papers_per_hypothesis": 1},
         "extraction": {"max_pack_tokens": 16000, "max_packs_per_paper": 2, "pack_priority": True,
-                       "max_claims_per_pack": 15},
+                       "max_claims_per_pack": 15, "combined_assess": True, "claims_version": "read.claims.v2"},
         "verification": {"batch_size": 10, "audit_rate": 0.05, "second_opinion": list(SECOND_OPINION_TRIGGERS)},
         "confirm": {"per_hypothesis": 3, "max_claims": 30},
         "fit": {"max_claims": 20},

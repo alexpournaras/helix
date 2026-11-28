@@ -6,11 +6,14 @@ Packs follow document order and stay under `max_tokens` (B15 `extraction.max_pac
 - a table split across packs repeats its heading and header rows in every pack;
 - a single sentence larger than the limit gets a pack of its own, flagged `oversize`.
 There is no cap on the number of packs unless the profile sets `max_packs_per_paper`; then later packs are
-dropped and coverage becomes `partial`.
+dropped and coverage becomes `partial`. With `priority` (budget, PLAN B17.5 item 4) the parts are chosen in this
+order instead: abstract, results (with tables and figure captions), discussion and conclusions, methods, everything
+else; the chosen parts are then packed again in document order, and the sections left out are reported.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from itertools import groupby
 
@@ -50,6 +53,29 @@ class PackResult:
     packs: list[Pack]
     coverage: str  # full / partial / abstract_only
     dropped_ids: list[str] = field(default_factory=list)
+    dropped_sections: list[str] = field(default_factory=list)  # titles of parts left out by the pack cap
+
+
+RESULTS_WORDS = re.compile(r"result|finding|outcome|efficacy|effect|response|adverse|safety|harm", re.I)
+DISCUSSION_WORDS = re.compile(r"discussion|conclusion|summary|interpretation|implication", re.I)
+METHODS_WORDS = re.compile(r"method|material|patient|participant|population|design|statistic|procedure|setting|"
+                           r"intervention|measure|protocol|eligib", re.I)
+
+
+def part_priority(part: str, seg: PaperSegment) -> int:
+    """0 abstract, 1 results/tables/figures, 2 discussion and conclusions, 3 methods, 4 everything else."""
+    if part == "AB":
+        return 0
+    if part[0] in "TF":
+        return 1
+    title = seg.section or ""
+    if RESULTS_WORDS.search(title):
+        return 1
+    if DISCUSSION_WORDS.search(title):
+        return 2
+    if METHODS_WORDS.search(title):
+        return 3
+    return 4
 
 
 # ---------- rendering ----------
@@ -144,15 +170,31 @@ class _Packer:
                 self.done.append([seg])  # larger than a pack on its own: oversize
 
 
-def pack_snapshot(snapshot: Snapshot, max_tokens: int = DEFAULT_MAX_TOKENS,
-                  max_packs: int | None = None) -> PackResult:
+def _pack(parts: list[list[PaperSegment]], max_tokens: int) -> list[list[PaperSegment]]:
     packer = _Packer(max_tokens)
-    for _, group in groupby(snapshot.segments, key=lambda s: part_of(s.seg_id)):
-        packer.add_part(list(group))
+    for segs in parts:
+        packer.add_part(segs)
     packer.flush()
+    return packer.done
+
+
+def pack_snapshot(snapshot: Snapshot, max_tokens: int = DEFAULT_MAX_TOKENS,
+                  max_packs: int | None = None, priority: bool = False) -> PackResult:
+    parts = [list(g) for _, g in groupby(snapshot.segments, key=lambda s: part_of(s.seg_id))]
+    done = _pack(parts, max_tokens)
+    dropped_sections: list[str] = []
+    if priority and max_packs is not None and len(done) > max_packs:
+        ranked = sorted(range(len(parts)), key=lambda i: (part_priority(part_of(parts[i][0].seg_id), parts[i][0]), i))
+        chosen = _pack([parts[i] for i in ranked], max_tokens)[:max_packs]
+        kept_ids = {s.seg_id for pack in chosen for s in pack}
+        kept_parts = [p for p in parts if any(s.seg_id in kept_ids for s in p)]
+        kept_parts = [[s for s in p if s.seg_id in kept_ids] for p in kept_parts]
+        done = _pack(kept_parts, max_tokens)  # document order again, for reading
+        dropped_sections = list(dict.fromkeys(
+            (p[0].label or p[0].section) for p in parts if not any(s.seg_id in kept_ids for s in p)))
 
     packs = []
-    for no, segs in enumerate(packer.done, 1):
+    for no, segs in enumerate(done, 1):
         text = render_segments(segs)
         count = tokens.estimate(text)
         packs.append(Pack(no=no, seg_ids=[s.seg_id for s in segs], text=text, tokens=count,
@@ -166,4 +208,9 @@ def pack_snapshot(snapshot: Snapshot, max_tokens: int = DEFAULT_MAX_TOKENS,
         dropped = [s.seg_id for s in snapshot.segments if s.seg_id not in kept]
         if coverage == "full":
             coverage = "partial"
-    return PackResult(packs=packs, coverage=coverage, dropped_ids=dropped)
+    elif dropped_sections:
+        kept = {i for p in packs for i in p.seg_ids}
+        dropped = [s.seg_id for s in snapshot.segments if s.seg_id not in kept]
+        if coverage == "full":
+            coverage = "partial"
+    return PackResult(packs=packs, coverage=coverage, dropped_ids=dropped, dropped_sections=dropped_sections)

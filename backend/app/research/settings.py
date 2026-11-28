@@ -384,7 +384,7 @@ def _budget() -> dict:
                    "max_refinements": 1},
         "snowball": {"enabled": True, "targeted": True, "max_seeds": 3, "max_per_seed": 30, "rounds": [2]},
         "fulltext": {"unpaywall": False},
-        "screening": {"batch_size": 20, "abstract_chars": 1500},
+        "screening": {"batch_size": 20, "abstract_chars": 1500, "prerank": True, "round_caps": [300, 100]},
         "selection": {"max_fulltext_papers_per_round": 10, "round2_max_papers": 6, "min_papers_per_hypothesis": 1},
         "extraction": {"max_pack_tokens": 16000, "max_packs_per_paper": 2, "pack_priority": True,
                        "max_claims_per_pack": 15},

@@ -220,6 +220,33 @@ class PrefilterTests(SearchBase):
         self.assertEqual({c["2"]["prefilter_reason"], c["5"]["prefilter_reason"]}, {"cap"})
 
 
+class BudgetScreeningTests(SearchBase):
+    """1R.3 (PLAN B17.4): code ranking before screening, a per-round cap, one screener, larger batches."""
+
+    async def test_prerank_keeps_the_best_designs_and_one_screener_sees_them(self):
+        designs = {1: ["Journal Article"], 2: ["Randomized Controlled Trial"], 3: ["Case Reports"],
+                   4: ["Systematic Review"], 5: ["Letter"], 6: ["Journal Article"]}
+        self.sources.by_source = {"europepmc": [art(n, publication_types=t) for n, t in designs.items()],
+                                  "pubmed": []}
+        inv_id = self.seed(pack=False, queries=(("europepmc", "q1"),), settings={
+            "screening": {"prerank": True, "round_caps": [3], "batch_size": 2},
+            "ensembles": {"dual_screening": False}})
+        await self.run_inv(inv_id, stop_at="selecting")
+        c = self.cands(inv_id)
+        screened = {p for p, r in c.items() if r["status"] not in ("capped", "excluded", "new")}
+        self.assertEqual(screened, {"4", "2", "1"})  # SR (.95), RCT (.85), then the best-ranked other paper
+        self.assertEqual({c[p]["prefilter_reason"] for p in ("3", "5", "6")}, {"cap"})
+        self.assertEqual((len(self.a.requests), len(self.b.requests)), (2, 0))  # 3 papers, batches of 2, one model
+        self.assertEqual({v["family"] for p in screened for v in c[p]["votes"]}, {"openai"})
+
+    def test_prerank_is_deterministic(self):
+        row = {"pub_types": ["Randomized Controlled Trial"], "year": 2024, "cited_by": 40, "full_text_likely": True,
+               "query_ids": [1, 2], "found_via": "search", "title": "Trial in pregnancy", "abstract": ""}
+        a = SE.prerank_score(row, 2026, ["pregnancy"])
+        self.assertEqual(a, SE.prerank_score(dict(row), 2026, ["pregnancy"]))
+        self.assertGreater(a, SE.prerank_score(row, 2026, []))  # the population bonus
+
+
 class ScreeningTests(SearchBase):
     async def test_dual_screening_combines_votes_and_scores(self):
         self.sources.by_source = {"europepmc": [art(1, publication_types=["Randomized Controlled Trial"]), art(2)],

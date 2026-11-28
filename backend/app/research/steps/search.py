@@ -10,13 +10,18 @@ Every search failing (and no seed) fails the investigation; otherwise → prefil
 
 prefilter:r{round} (code): first match wins — language, year, excluded publication type, retracted, no abstract
 (unless a guideline, seed or grounding source), empty title. The rest is capped at what's left of
-`guards.max_screened`, filled round-robin by rank (seeds and grounding sources first).
+`guards.max_screened`, filled round-robin by rank (seeds and grounding sources first). With `screening.prerank`
+(budget, PLAN B17.4) the order is the B8.11 score without relevance instead (design, recency, citations, full text,
+several queries, seed and population bonuses; seeds and grounding sources still first), and
+`screening.round_caps` limits each round (300 in round 1, 100 in round 2), so one screener sees the most promising
+abstracts.
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any
 
 from app.literature.models import Article
@@ -211,11 +216,25 @@ def exclusion(row: dict, f: dict) -> str | None:
     return None
 
 
+def prerank_score(row: dict, this_year: int, populations: list[str]) -> float:
+    """The B8.11 score before any model has seen the paper (relevance 0): the budget profile's ranking."""
+    from .screen import population_match
+    value, _ = scoring.score(relevance=0, design=scoring.design_for(row.get("pub_types") or [], None),
+                             year=row.get("year"), this_year=this_year, cited_by=row.get("cited_by"),
+                             full_text_likely=bool(row.get("full_text_likely")),
+                             n_queries=len(row.get("query_ids") or []), seed=row.get("found_via") in SEED_VIA,
+                             population_match=population_match(row, populations))
+    return value
+
+
 async def run_prefilter(tc) -> Any:
     inv = tc.investigation
     rnd = int(inv["round"])
     f = _filters(tc.settings)
     cap = int((((tc.settings or {}).get("guards") or {}).get("max_screened")) or 6000)
+    scfg = (tc.settings or {}).get("screening") or {}
+    pops = list(inv.get("special_populations") or [])
+    this_year = datetime.now(timezone.utc).year
 
     def commit(conn: sqlite3.Connection) -> None:
         rows = [_decode(r) for r in conn.execute(
@@ -235,8 +254,15 @@ async def run_prefilter(tc) -> Any:
                 conn.execute("UPDATE candidates SET status = 'excluded' WHERE id = ?", (r["id"],))
             else:
                 passing.append(r)
-        # Round-robin by rank: every query's first hit, then every second hit… (seeds and grounding rank 0).
-        passing.sort(key=lambda r: (r["first_rank"] if r["first_rank"] is not None else 10 ** 6, r["id"]))
+        if scfg.get("prerank"):
+            passing.sort(key=lambda r: (r.get("found_via") not in SEED_VIA, -prerank_score(r, this_year, pops),
+                                        r["first_rank"] if r["first_rank"] is not None else 10 ** 6, r["id"]))
+            caps = scfg.get("round_caps") or []
+            if caps:
+                room = min(room, int(caps[min(rnd, len(caps)) - 1]))
+        else:
+            # Round-robin by rank: every query's first hit, then every second hit… (seeds and grounding rank 0).
+            passing.sort(key=lambda r: (r["first_rank"] if r["first_rank"] is not None else 10 ** 6, r["id"]))
         for i, r in enumerate(passing):
             status = "to_screen" if i < room else "capped"
             conn.execute("UPDATE candidates SET status = ? WHERE id = ?", (status, r["id"]))
